@@ -21,6 +21,7 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        'role', // Added role to mass assignable attributes
     ];
 
     /**
@@ -43,6 +44,32 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'role' => 'integer', // Ensures the role is always treated as a number
         ];
+    }
+
+    /**
+     * Role Helper Methods
+     * These make your code much more readable in Controllers and Blade files.
+     */
+
+    public function isCustomer(): bool
+    {
+        return $this->role === 1;
+    }
+
+    public function isFoodTruckAdmin(): bool
+    {
+        return $this->role === 2;
+    }
+
+    public function isFoodTruckWorker(): bool
+    {
+        return $this->role === 3;
+    }
+
+    public function isSystemAdmin(): bool
+    {
+        return $this->role === 6;
     }
 }
