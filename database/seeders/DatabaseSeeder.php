@@ -13,12 +13,13 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // Create the specific admin user
         User::updateOrCreate(
             ['email' => 'admin@ftos.com'],
             [
                 'full_name' => 'System Admin',
                 'password' => Hash::make('truckadmin111_'),
+                'role' => User::ROLE_SYSTEM_ADMIN, 
+                'phone_no' => '000000000',
                 'email_verified_at' => now(),
             ]
         );

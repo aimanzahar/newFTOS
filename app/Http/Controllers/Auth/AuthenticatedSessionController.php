@@ -28,7 +28,19 @@ class AuthenticatedSessionController extends Controller
 
         $request->session()->regenerate();
 
-        return redirect()->intended(route('dashboard', absolute: false));
+        $user = Auth::user();
+
+        // Check if role is 6 (Admin)
+        if (intval($user->role) === 6) {
+            // This will now lead to http://127.0.0.1:8000/admin-dashboard
+            return redirect()->intended(route('admin.dashboard'));
+        }
+
+        /** * FIX: Removed RouteServiceProvider::HOME reference.
+         * Redirects to '/dashboard' by default. Change this string 
+         * if your customer dashboard is at a different URL.
+         */
+        return redirect()->intended('/dashboard');
     }
 
     /**

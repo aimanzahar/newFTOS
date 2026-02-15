@@ -2,11 +2,15 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class FoodTruck extends Model
 {
+    use HasFactory;
+
+    protected $table = 'food_trucks';
+
     protected $fillable = [
         'foodtruck_name',
         'business_license_no',
@@ -15,10 +19,18 @@ class FoodTruck extends Model
     ];
 
     /**
-     * Get the user that owns the food truck.
+     * Get the owner of the food truck.
      */
-    public function user(): BelongsTo
+    public function owner()
     {
-        return $this->belongsTo(User::class);
+        return $this->belongsTo(User::class, 'user_id');
+    }
+
+    /**
+     * Get the staff members working for this truck.
+     */
+    public function staff()
+    {
+        return $this->hasMany(User::class, 'foodtruck_id');
     }
 }
