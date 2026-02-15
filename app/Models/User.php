@@ -2,74 +2,51 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
 class User extends Authenticatable
 {
-    /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasFactory, Notifiable;
 
-    /**
-     * The attributes that are mass assignable.
-     *
-     * @var list<string>
-     */
+    public const ROLE_CUSTOMER = 1;
+    public const ROLE_FOOD_TRUCK_ADMIN = 2;
+    public const ROLE_FOOD_TRUCK_WORKER = 3;
+    public const ROLE_SYSTEM_ADMIN = 6;
+
     protected $fillable = [
-        'name',
+        'full_name',
         'email',
         'password',
-        'role', // Added role to mass assignable attributes
+        'phone_no',
+        'role',
+        'foodtruck_id',
     ];
 
-    /**
-     * The attributes that should be hidden for serialization.
-     *
-     * @var list<string>
-     */
     protected $hidden = [
         'password',
         'remember_token',
     ];
 
-    /**
-     * Get the attributes that should be cast.
-     *
-     * @return array<string, string>
-     */
     protected function casts(): array
     {
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
-            'role' => 'integer', // Ensures the role is always treated as a number
+            'role' => 'integer',
+            'foodtruck_id' => 'integer',
         ];
     }
 
-    /**
-     * Role Helper Methods
-     * These make your code much more readable in Controllers and Blade files.
-     */
+    public function isCustomer(): bool { return (int)$this->role === self::ROLE_CUSTOMER; }
+    public function isFoodTruckAdmin(): bool { return (int)$this->role === self::ROLE_FOOD_TRUCK_ADMIN; }
+    public function isFoodTruckWorker(): bool { return (int)$this->role === self::ROLE_FOOD_TRUCK_WORKER; }
+    public function isSystemAdmin(): bool { return (int)$this->role === self::ROLE_SYSTEM_ADMIN; }
 
-    public function isCustomer(): bool
+    public function foodTruck(): BelongsTo
     {
-        return $this->role === 1;
-    }
-
-    public function isFoodTruckAdmin(): bool
-    {
-        return $this->role === 2;
-    }
-
-    public function isFoodTruckWorker(): bool
-    {
-        return $this->role === 3;
-    }
-
-    public function isSystemAdmin(): bool
-    {
-        return $this->role === 6;
+        return $this->belongsTo(FoodTruck::class, 'foodtruck_id');
     }
 }

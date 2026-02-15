@@ -17,7 +17,7 @@ class DatabaseSeeder extends Seeder
         User::updateOrCreate(
             ['email' => 'admin@ftos.com'],
             [
-                'name' => 'System Admin',
+                'full_name' => 'System Admin',
                 'password' => Hash::make('truckadmin111_'),
                 'email_verified_at' => now(),
             ]

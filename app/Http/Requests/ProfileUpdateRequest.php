@@ -16,7 +16,12 @@ class ProfileUpdateRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'name' => ['required', 'string', 'max:255'],
+            'full_name' => [
+                'required',
+                'string', 
+                'max:255',
+            ],
+
             'email' => [
                 'required',
                 'string',
@@ -24,6 +29,13 @@ class ProfileUpdateRequest extends FormRequest
                 'email',
                 'max:255',
                 Rule::unique(User::class)->ignore($this->user()->id),
+            ],
+
+            // Added phone_no validation rules
+            'phone_no' => [
+                'nullable',
+                'string',
+                'max:20',
             ],
         ];
     }
