@@ -22,9 +22,9 @@
         </div>
 
         <a href="{{ route('admin.dashboard') }}"
-           class="flex items-center py-2.5 px-4 rounded-xl transition duration-200 {{ request()->routeIs('admin.dashboard') ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-100' }}">
+           class="flex items-center py-2.5 px-4 rounded-xl transition duration-200 {{ request()->routeIs('admin.dashboard') ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-100' }}">
             <i class="fas fa-chart-pie w-6 text-sm"></i>
-            <span class="text-sm font-medium">Dashboard</span>
+            <span class="text-sm font-medium">Overview</span>
         </a>
 
         <!-- SECTION: TRUCK OPERATIONS -->
@@ -32,15 +32,23 @@
             Operations
         </div>
 
+        <!-- Handle Truck Registration -->
         <a href="{{ route('admin.pending.trucks') }}"
-           class="flex items-center py-2.5 px-4 rounded-xl transition duration-200 {{ request()->routeIs('admin.pending.trucks') ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-100' }}">
-            <i class="fas fa-clipboard-list w-6 text-sm"></i>
-            <span class="text-sm font-medium">Registrations</span>
+           class="flex items-center py-2.5 px-4 rounded-xl transition duration-200 {{ request()->routeIs('admin.pending.trucks') ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-100' }}">
+            <i class="fas fa-user-check w-6 text-sm"></i>
+            <span class="text-sm font-medium">Pending Approvals</span>
         </a>
 
+        <!-- Handle Truck Accounts -->
         <a href="#" class="flex items-center py-2.5 px-4 rounded-xl transition duration-200 text-slate-400 hover:bg-slate-800 hover:text-slate-100">
-            <i class="fas fa-truck w-6 text-sm"></i>
-            <span class="text-sm font-medium">Manage Accounts</span>
+            <i class="fas fa-truck-loading w-6 text-sm"></i>
+            <span class="text-sm font-medium">Vendor Accounts</span>
+        </a>
+
+        <!-- Directly Handle Truck Menus -->
+        <a href="#" class="flex items-center py-2.5 px-4 rounded-xl transition duration-200 text-slate-400 hover:bg-slate-800 hover:text-slate-100">
+            <i class="fas fa-utensils w-6 text-sm"></i>
+            <span class="text-sm font-medium">Global Menus</span>
         </a>
 
         <!-- SECTION: USERS -->
@@ -48,25 +56,39 @@
             User Management
         </div>
 
+        <!-- Handle Customer Accounts -->
         <a href="#" class="flex items-center py-2.5 px-4 rounded-xl transition duration-200 text-slate-400 hover:bg-slate-800 hover:text-slate-100">
             <i class="fas fa-users w-6 text-sm"></i>
-            <span class="text-sm font-medium">Customers</span>
+            <span class="text-sm font-medium">Customer Database</span>
         </a>
 
-        <!-- SECTION: SYSTEM -->
+        <!-- View Customer Reviews/Ratings -->
+        <a href="#" class="flex items-center py-2.5 px-4 rounded-xl transition duration-200 text-slate-400 hover:bg-slate-800 hover:text-slate-100">
+            <i class="fas fa-star w-6 text-sm"></i>
+            <span class="text-sm font-medium">Reviews & Moderation</span>
+        </a>
+
+        <!-- SECTION: SYSTEM & ANALYTICS -->
         <div class="px-4 py-2 mt-6 text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em]">
-            System
+            System Control
         </div>
 
+        <!-- View System Reports & Analytics -->
         <a href="#" class="flex items-center py-2.5 px-4 rounded-xl transition duration-200 text-slate-400 hover:bg-slate-800 hover:text-slate-100">
-            <i class="fas fa-file-invoice-dollar w-6 text-sm"></i>
-            <span class="text-sm font-medium">Reports</span>
+            <i class="fas fa-chart-line w-6 text-sm"></i>
+            <span class="text-sm font-medium">Sales Analytics</span>
+        </a>
+
+        <!-- Manage System Configuration -->
+        <a href="#" class="flex items-center py-2.5 px-4 rounded-xl transition duration-200 text-slate-400 hover:bg-slate-800 hover:text-slate-100">
+            <i class="fas fa-sliders-h w-6 text-sm"></i>
+            <span class="text-sm font-medium">Platform Config</span>
         </a>
 
         <a href="{{ route('profile.edit') }}"
            class="flex items-center py-2.5 px-4 rounded-xl transition duration-200 {{ request()->routeIs('profile.edit') ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-100' }}">
-            <i class="fas fa-cog w-6 text-sm"></i>
-            <span class="text-sm font-medium">Settings</span>
+            <i class="fas fa-user-shield w-6 text-sm"></i>
+            <span class="text-sm font-medium">Admin Settings</span>
         </a>
     </nav>
 
