@@ -32,10 +32,10 @@
             Operations
         </div>
 
-        <!-- Handle Truck Registration -->
+        <!-- Handle Truck Registration - Updated Icon to Clock -->
         <a href="{{ route('admin.pending.trucks') }}"
            class="flex items-center py-2.5 px-4 rounded-xl transition duration-200 {{ request()->routeIs('admin.pending.trucks') ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-100' }}">
-            <i class="fas fa-user-check w-6 text-sm"></i>
+            <i class="fas fa-clock w-6 text-sm"></i>
             <span class="text-sm font-medium">Pending Approvals</span>
         </a>
 
