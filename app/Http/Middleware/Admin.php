@@ -4,8 +4,8 @@ namespace App\Http\Middleware;
 
 use Closure;
 use Illuminate\Http\Request;
-use Symfony\Component\HttpFoundation\Response;
 use Illuminate\Support\Facades\Auth;
+use Symfony\Component\HttpFoundation\Response;
 
 class Admin
 {
@@ -14,13 +14,13 @@ class Admin
      */
     public function handle(Request $request, Closure $next): Response
     {
-        // Check if user is logged in AND if their role is 'admin'
-        // Adjust 'admin' to match the exact string or ID in your 'role' column
-        if (Auth::check() && Auth::user()->role == 'admin') {
+        // Check if user is logged in and if their role is 6 (Admin)
+        // Adjust the '6' if your system uses a different number for Super Admin
+        if (Auth::check() && Auth::user()->role === 6) {
             return $next($request);
         }
 
-        // If not admin, redirect to standard dashboard or home
-        return redirect('/dashboard')->with('error', 'You do not have admin access.');
+        // If not admin, kick them back to the home page or dashboard
+        return redirect('/')->with('error', 'You do not have administrator access.');
     }
 }

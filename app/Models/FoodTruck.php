@@ -11,12 +11,26 @@ class FoodTruck extends Model
 
     protected $table = 'food_trucks';
 
+    /**
+     * The attributes that are mass assignable.
+     * * Added 'status' to allow the AdminController to update 
+     * the approval status.
+     */
     protected $fillable = [
         'foodtruck_name',
         'business_license_no',
         'foodtruck_desc',
         'user_id',
+        'status', // CRITICAL: Added this
     ];
+
+    /**
+     * Helper to check if the truck is approved.
+     */
+    public function isApproved()
+    {
+        return $this->status === 'approved';
+    }
 
     /**
      * Get the owner of the food truck.

@@ -1,0 +1,85 @@
+<aside id="sidebar"
+       class="fixed md:static inset-y-0 left-0 z-50 w-64 bg-[#0f172a] shadow-2xl flex flex-col border-r border-slate-800 transition-transform duration-300">
+
+    <!-- Branding Header -->
+    <div class="h-16 flex items-center justify-between px-6 border-b border-slate-800 flex-shrink-0">
+        <div class="flex items-center">
+            <i class="fas fa-truck text-blue-500 mr-3 text-xl"></i>
+            <span class="text-white font-bold text-lg tracking-tight">Truck Panel</span>
+        </div>
+    </div>
+
+    <!-- Navigation Content -->
+    <div class="flex-1 flex flex-col min-h-0 overflow-y-auto">
+        <nav class="flex-1 px-4 py-4 space-y-1">
+
+            <!-- CORE SECTION -->
+            <div class="px-4 py-2 text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em]">
+                Core
+            </div>
+
+            <a href="{{ route('ftadmin.dashboard') }}"
+               class="flex items-center py-2.5 px-4 rounded-xl transition duration-200 {{ request()->routeIs('ftadmin.dashboard') ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-800 hover:text-white' }}">
+                <i class="fas fa-chart-line w-6 text-sm"></i>
+                <span class="text-sm font-medium">Dashboard</span>
+            </a>
+
+            <!-- TRUCK OPERATIONS SECTION -->
+            <div class="px-4 py-2 mt-6 text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em]">
+                Operations
+            </div>
+
+            <!-- Handle Truck Menus -->
+            <a href="#" class="flex items-center py-2.5 px-4 rounded-xl transition duration-200 text-slate-400 hover:bg-slate-800 hover:text-white">
+                <i class="fas fa-utensils w-6 text-sm"></i>
+                <span class="text-sm font-medium">Manage Menus</span>
+            </a>
+
+            <!-- Manage Item Stock/Availability -->
+            <a href="#" class="flex items-center py-2.5 px-4 rounded-xl transition duration-200 text-slate-400 hover:bg-slate-800 hover:text-white">
+                <i class="fas fa-boxes-stacked w-6 text-sm"></i>
+                <span class="text-sm font-medium">Stock Availability</span>
+            </a>
+
+            <!-- View New Order & Update Status -->
+            <a href="#" class="flex items-center py-2.5 px-4 rounded-xl transition duration-200 text-slate-400 hover:bg-slate-800 hover:text-white">
+                <i class="fas fa-receipt w-6 text-sm"></i>
+                <span class="text-sm font-medium">Orders Tracking</span>
+            </a>
+
+            <!-- FEEDBACK SECTION -->
+            <div class="px-4 py-2 mt-6 text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em]">
+                Feedback
+            </div>
+
+            <!-- View Customer Reviews/Ratings -->
+            <a href="#" class="flex items-center py-2.5 px-4 rounded-xl transition duration-200 text-slate-400 hover:bg-slate-800 hover:text-white">
+                <i class="fas fa-star w-6 text-sm"></i>
+                <span class="text-sm font-medium">Reviews & Ratings</span>
+            </a>
+
+            <!-- SETTINGS SECTION -->
+            <div class="px-4 py-2 mt-6 text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em]">
+                Settings
+            </div>
+
+            <a href="{{ route('profile.edit') }}"
+               class="flex items-center py-2.5 px-4 rounded-xl transition duration-200 {{ request()->routeIs('profile.edit') ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-800 hover:text-white' }}">
+                <i class="fas fa-user-gear w-6 text-sm"></i>
+                <span class="text-sm font-medium">My Profile</span>
+            </a>
+        </nav>
+    </div>
+
+    <!-- Bottom Action Area -->
+    <div class="p-4 border-t border-slate-800 bg-[#0f172a] flex-shrink-0">
+        <form method="POST" action="{{ route('logout') }}" id="logout-form" class="hidden">
+            @csrf
+        </form>
+        <button onclick="event.preventDefault(); document.getElementById('logout-form').submit();"
+                class="group w-full flex items-center py-2.5 px-4 rounded-xl transition duration-200 text-slate-400 hover:bg-red-500/10 hover:text-red-500">
+            <i class="fas fa-power-off w-6 text-sm transition-transform group-hover:scale-110"></i>
+            <span class="text-sm font-semibold">Logout</span>
+        </button>
+    </div>
+</aside>

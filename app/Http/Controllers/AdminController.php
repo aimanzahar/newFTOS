@@ -13,15 +13,15 @@ class AdminController extends Controller
      */
     public function index()
     {
+        $approvedTrucks = FoodTruck::where('status', 'approved')->count();
+        $pendingApprovals = FoodTruck::where('status', 'pending')->count();
         $totalTrucks = FoodTruck::count();
-        
-        // Count truck owners awaiting verification
-        $pendingApprovals = User::where('role', 'truck_owner')
-                                ->whereNull('email_verified_at') 
-                                ->count();
 
-        // Matches: resources/views/admin/admin-dashboard.blade.php
-        return view('admin.admin-dashboard', compact('totalTrucks', 'pendingApprovals'));
+        return view('admin.admin-dashboard', compact(
+            'approvedTrucks', 
+            'pendingApprovals', 
+            'totalTrucks'
+        ));
     }
 
     /**
@@ -29,39 +29,49 @@ class AdminController extends Controller
      */
     public function pendingTrucks()
     {
-        /**
-         * Logic: Get trucks where the owner (user) is not yet verified.
-         * We alias users.id to user_actual_id to avoid overwriting food_trucks.id.
-         */
         $pendingRegistrations = FoodTruck::join('users', 'food_trucks.user_id', '=', 'users.id')
-            ->whereNull('users.email_verified_at')
+            ->where('food_trucks.status', 'pending')
             ->select(
                 'food_trucks.*', 
                 'users.full_name', 
                 'users.email', 
-                'users.phone_no', 
-                'users.id as user_actual_id'
+                'users.phone_no'
             )
-            ->get();
+            ->latest('food_trucks.created_at')
+            ->paginate(10);
 
-        /**
-         * FIX: Pluralized "registrations" to match your physical file:
-         * resources/views/admin/pending-truck-registrations.blade.php
-         */
         return view('admin.pending-truck-registrations', compact('pendingRegistrations'));
     }
 
     /**
-     * Approve a user/truck registration.
+     * Approve a food truck.
      */
-    public function approveUser($id)
+    public function approveTruck($id)
     {
-        $user = User::findOrFail($id);
+        $truck = FoodTruck::findOrFail($id);
+        $truck->status = 'approved';
+        $truck->save();
+
+        $user = User::find($truck->user_id);
+        if ($user && !$user->email_verified_at) {
+            $user->email_verified_at = now();
+            $user->save();
+        }
         
-        // Approve by setting verification timestamp
-        $user->email_verified_at = now();
-        $user->save();
+        return back()->with('success', "The '{$truck->foodtruck_name}' registration has been approved.");
+    }
+
+    /**
+     * Reject and delete a food truck registration.
+     */
+    public function rejectTruck($id)
+    {
+        $truck = FoodTruck::findOrFail($id);
+        $name = $truck->foodtruck_name;
         
-        return back()->with('success', "Account for {$user->full_name} has been approved.");
+        // Delete the record from food_trucks table
+        $truck->delete();
+
+        return back()->with('rejected', "The registration for '{$name}' has been rejected and removed.");
     }
 }

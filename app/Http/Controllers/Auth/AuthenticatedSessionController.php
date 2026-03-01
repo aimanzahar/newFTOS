@@ -11,6 +11,12 @@ use Illuminate\View\View;
 
 class AuthenticatedSessionController extends Controller
 {
+    // Role Definitions matching your database logic
+    const ROLE_CUSTOMER = 1;
+    const ROLE_FOOD_TRUCK_ADMIN = 2;
+    const ROLE_FOOD_TRUCK_WORKER = 3;
+    const ROLE_SYSTEM_ADMIN = 6;
+
     /**
      * Display the login view.
      */
@@ -29,18 +35,26 @@ class AuthenticatedSessionController extends Controller
         $request->session()->regenerate();
 
         $user = Auth::user();
+        $role = intval($user->role);
 
-        // Check if role is 6 (Admin)
-        if (intval($user->role) === 6) {
-            // This will now lead to http://127.0.0.1:8000/admin-dashboard
-            return redirect()->intended(route('admin.dashboard'));
-        }
-
-        /** * FIX: Removed RouteServiceProvider::HOME reference.
-         * Redirects to '/dashboard' by default. Change this string 
-         * if your customer dashboard is at a different URL.
+        /**
+         * ROLE-BASED REDIRECTION
+         * We redirect users to their specific dashboard route names 
+         * defined in routes/web.php.
          */
-        return redirect()->intended('/dashboard');
+        return match ($role) {
+            // System Admin (Route name is admin.dashboard)
+            self::ROLE_SYSTEM_ADMIN => redirect()->intended(route('admin.dashboard')),
+            
+            // Food Truck Admin (Route name is ftadmin.dashboard)
+            self::ROLE_FOOD_TRUCK_ADMIN => redirect()->intended(route('ftadmin.dashboard')),
+
+            // Food Truck Worker (Route name is ftworker.dashboard)
+            self::ROLE_FOOD_TRUCK_WORKER => redirect()->intended(route('ftworker.dashboard')),
+
+            // Default / Customer
+            default => redirect()->intended(route('dashboard')),
+        };
     }
 
     /**

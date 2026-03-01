@@ -27,6 +27,27 @@
                 </header>
             @endisset
 
+            <!-- Global Alert Messages -->
+            <div class="max-w-7xl mx-auto mt-4 px-4 sm:px-6 lg:px-8">
+                @if (session('success'))
+                    <div class="p-4 mb-4 text-sm text-green-700 bg-green-100 rounded-lg" role="alert">
+                        {{ session('success') }}
+                    </div>
+                @endif
+
+                @if (session('error'))
+                    <div class="p-4 mb-4 text-sm text-red-700 bg-red-100 rounded-lg" role="alert">
+                        {{ session('error') }}
+                    </div>
+                @endif
+
+                @if (session('rejected'))
+                    <div class="p-4 mb-4 text-sm text-orange-700 bg-orange-100 rounded-lg" role="alert">
+                        {{ session('rejected') }}
+                    </div>
+                @endif
+            </div>
+
             <!-- Page Content -->
             <main>
                 {{ $slot }}

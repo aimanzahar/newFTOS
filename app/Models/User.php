@@ -40,10 +40,25 @@ class User extends Authenticatable
         ];
     }
 
+    // Role Helper Methods
     public function isCustomer(): bool { return (int)$this->role === self::ROLE_CUSTOMER; }
     public function isFoodTruckAdmin(): bool { return (int)$this->role === self::ROLE_FOOD_TRUCK_ADMIN; }
     public function isFoodTruckWorker(): bool { return (int)$this->role === self::ROLE_FOOD_TRUCK_WORKER; }
     public function isSystemAdmin(): bool { return (int)$this->role === self::ROLE_SYSTEM_ADMIN; }
+
+    /**
+     * Check role by string alias (used by middleware)
+     */
+    public function hasRole(string $roleName): bool
+    {
+        return match ($roleName) {
+            'admin' => $this->isSystemAdmin(),
+            'food_truck_admin' => $this->isFoodTruckAdmin(),
+            'worker' => $this->isFoodTruckWorker(),
+            'customer' => $this->isCustomer(),
+            default => false,
+        };
+    }
 
     public function foodTruck(): BelongsTo
     {

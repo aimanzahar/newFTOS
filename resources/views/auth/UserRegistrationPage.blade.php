@@ -33,7 +33,7 @@
         <form action="{{ route('register') }}" method="POST" class="p-8 space-y-6">
             @csrf
             
-            <!-- Role Selection - Persists via old('role') -->
+            <!-- Role Selection -->
             <div class="space-y-4">
                 <label class="block text-sm font-semibold text-gray-700">Select Account Type</label>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -66,23 +66,19 @@
                 </div>
             </div>
 
-            <!-- Basic Info Section - Uses value="{{ old('field') }}" -->
+            <!-- Basic Info Section -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div class="space-y-1">
                     <label class="text-sm font-medium text-gray-700">Full Name</label>
                     <input type="text" name="full_name" value="{{ old('full_name') }}" 
                            class="w-full px-4 py-2 border {{ $errors->has('full_name') ? 'border-red-500' : 'border-gray-300' }} rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
-                    @error('full_name')
-                        <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
-                    @enderror
+                    @error('full_name') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                 </div>
                 <div class="space-y-1">
                     <label class="text-sm font-medium text-gray-700">Email Address</label>
                     <input type="email" name="email" value="{{ old('email') }}" 
                            class="w-full px-4 py-2 border {{ $errors->has('email') ? 'border-red-500' : 'border-gray-300' }} rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
-                    @error('email')
-                        <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
-                    @enderror
+                    @error('email') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                 </div>
             </div>
 
@@ -94,26 +90,20 @@
                         <label class="text-sm font-medium text-gray-700">Food Truck Name</label>
                         <input type="text" name="foodtruck_name" value="{{ old('foodtruck_name') }}" 
                                class="w-full px-4 py-2 border {{ $errors->has('foodtruck_name') ? 'border-red-500' : 'border-gray-300' }} rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
-                        @error('foodtruck_name')
-                            <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
-                        @enderror
+                        @error('foodtruck_name') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                     </div>
                     <div class="space-y-1">
                         <label class="text-sm font-medium text-gray-700">Business License No.</label>
                         <input type="text" name="business_license_no" value="{{ old('business_license_no') }}" 
                                class="w-full px-4 py-2 border {{ $errors->has('business_license_no') ? 'border-red-500' : 'border-gray-300' }} rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
-                        @error('business_license_no')
-                            <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
-                        @enderror
+                        @error('business_license_no') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                     </div>
                 </div>
                 <div class="space-y-1">
                     <label class="text-sm font-medium text-gray-700">Food Truck Description</label>
                     <textarea name="foodtruck_desc" rows="3" placeholder="Tell us about your cuisine..." 
                               class="w-full px-4 py-2 border {{ $errors->has('foodtruck_desc') ? 'border-red-500' : 'border-gray-300' }} rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">{{ old('foodtruck_desc') }}</textarea>
-                    @error('foodtruck_desc')
-                        <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
-                    @enderror
+                    @error('foodtruck_desc') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                 </div>
             </div>
 
@@ -122,17 +112,15 @@
                 <label class="text-sm font-medium text-gray-700">Register As Staff For:</label>
                 <select name="foodtruck_id" class="w-full px-4 py-2 border {{ $errors->has('foodtruck_id') ? 'border-red-500' : 'border-gray-300' }} rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none bg-white">
                     <option value="" disabled {{ old('foodtruck_id') == '' ? 'selected' : '' }}>-- Select A Food Truck --</option>
-                    @if(isset($foodTrucks))
-                        @foreach($foodTrucks as $truck)
-                            <option value="{{ $truck->id }}" {{ old('foodtruck_id') == $truck->id ? 'selected' : '' }}>
-                                {{ $truck->foodtruck_name }}
-                            </option>
-                        @endforeach
-                    @endif
+                    @forelse($foodTrucks as $truck)
+                        <option value="{{ $truck->id }}" {{ old('foodtruck_id') == $truck->id ? 'selected' : '' }}>
+                            {{ $truck->foodtruck_name }}
+                        </option>
+                    @empty
+                        <option value="" disabled>No approved food trucks available</option>
+                    @endforelse
                 </select>
-                @error('foodtruck_id')
-                    <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
-                @enderror
+                @error('foodtruck_id') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
             </div>
 
             <!-- Common Fields -->
@@ -141,9 +129,7 @@
                 <input type="text" name="phone_no" value="{{ old('phone_no') }}" 
                        oninput="this.value = this.value.replace(/[^0-9]/g, '')" placeholder="e.g. 0123456789" 
                        class="w-full px-4 py-2 border {{ $errors->has('phone_no') ? 'border-red-500' : 'border-gray-300' }} rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
-                @error('phone_no')
-                    <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
-                @enderror
+                @error('phone_no') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -151,10 +137,7 @@
                     <label class="text-sm font-medium text-gray-700">Password</label>
                     <input type="password" id="password" name="password" 
                            class="w-full px-4 py-2 border {{ $errors->has('password') ? 'border-red-500' : 'border-gray-300' }} rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
-                    @error('password')
-                        <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
-                    @enderror
-                    <p class="text-[10px] text-gray-400 mt-1">Min. 8 Characters, 1 Uppercase, 1 Number, 1 Symbol</p>
+                    @error('password') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                 </div>
                 <div class="space-y-1">
                     <label class="text-sm font-medium text-gray-700">Confirm Password</label>
@@ -177,7 +160,13 @@
             staffFields.classList.toggle('hidden', role !== '3');
         }
 
-        // Password Validation Logic
+        // Run on load to ensure fields are visible if validation failed
+        window.addEventListener('load', function() {
+            const selectedRole = document.querySelector('input[name="role"]:checked');
+            if (selectedRole) updateFormFields(selectedRole.value);
+        });
+
+        // Simple password match check
         const password = document.getElementById("password");
         const confirm_password = document.getElementById("password_confirmation");
 
@@ -188,15 +177,8 @@
                 confirm_password.setCustomValidity('');
             }
         }
-
         password.onchange = validatePassword;
         confirm_password.onkeyup = validatePassword;
-
-        // Ensure UI state matches old role value on load
-        window.addEventListener('load', function() {
-            const selectedRole = document.querySelector('input[name="role"]:checked');
-            if (selectedRole) updateFormFields(selectedRole.value);
-        });
     </script>
 </body>
 </html>
