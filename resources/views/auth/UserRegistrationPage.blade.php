@@ -36,22 +36,14 @@
             <!-- Role Selection -->
             <div class="space-y-4">
                 <label class="block text-sm font-semibold text-gray-700">Select Account Type</label>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <!-- Changed to grid-cols-2 since we removed one role -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <label class="relative block">
                         <input type="radio" name="role" value="1" class="role-radio hidden" {{ old('role', '1') == '1' ? 'checked' : '' }} onclick="updateFormFields('1')">
                         <div class="role-card border-2 border-gray-100 rounded-xl p-4 text-center hover:border-indigo-200">
                             <div class="text-3xl mb-2">🛍️</div>
                             <div class="font-bold text-gray-800">Customer</div>
                             <div class="text-xs text-gray-500 italic">For shoppers</div>
-                        </div>
-                    </label>
-
-                    <label class="relative block">
-                        <input type="radio" name="role" value="3" class="role-radio hidden" {{ old('role') == '3' ? 'checked' : '' }} onclick="updateFormFields('3')">
-                        <div class="role-card border-2 border-gray-100 rounded-xl p-4 text-center hover:border-indigo-200">
-                            <div class="text-3xl mb-2">👨‍🍳</div>
-                            <div class="font-bold text-gray-800">Food Truck Worker</div>
-                            <div class="text-xs text-gray-500 italic">Work at a truck</div>
                         </div>
                     </label>
 
@@ -107,22 +99,6 @@
                 </div>
             </div>
 
-            <!-- Role-Specific Field: Vendor Staff (Role 3) -->
-            <div id="vendor-staff-fields" class="hidden space-y-1 pt-4 border-t border-gray-100">
-                <label class="text-sm font-medium text-gray-700">Register As Staff For:</label>
-                <select name="foodtruck_id" class="w-full px-4 py-2 border {{ $errors->has('foodtruck_id') ? 'border-red-500' : 'border-gray-300' }} rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none bg-white">
-                    <option value="" disabled {{ old('foodtruck_id') == '' ? 'selected' : '' }}>-- Select A Food Truck --</option>
-                    @forelse($foodTrucks as $truck)
-                        <option value="{{ $truck->id }}" {{ old('foodtruck_id') == $truck->id ? 'selected' : '' }}>
-                            {{ $truck->foodtruck_name }}
-                        </option>
-                    @empty
-                        <option value="" disabled>No approved food trucks available</option>
-                    @endforelse
-                </select>
-                @error('foodtruck_id') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
-            </div>
-
             <!-- Common Fields -->
             <div class="space-y-1">
                 <label class="text-sm font-medium text-gray-700">Phone Number</label>
@@ -155,18 +131,17 @@
     <script>
         function updateFormFields(role) {
             const adminFields = document.getElementById('vendor-admin-fields');
-            const staffFields = document.getElementById('vendor-staff-fields');
-            adminFields.classList.toggle('hidden', role !== '2');
-            staffFields.classList.toggle('hidden', role !== '3');
+            // Logic updated: only show admin fields if role is '2'
+            if (adminFields) {
+                adminFields.classList.toggle('hidden', role !== '2');
+            }
         }
 
-        // Run on load to ensure fields are visible if validation failed
         window.addEventListener('load', function() {
             const selectedRole = document.querySelector('input[name="role"]:checked');
             if (selectedRole) updateFormFields(selectedRole.value);
         });
 
-        // Simple password match check
         const password = document.getElementById("password");
         const confirm_password = document.getElementById("password_confirmation");
 

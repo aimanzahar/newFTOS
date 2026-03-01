@@ -19,7 +19,10 @@ class RegisteredUserController extends Controller
 {
     public function create(): View
     {
-        // Only fetch trucks that have been approved by the admin
+        /** * Note: $foodTrucks is no longer strictly needed for registration 
+         * since worker selection was removed, but kept if the view still 
+         * references the variable to avoid undefined variable errors.
+         */
         $foodTrucks = FoodTruck::where('status', 'approved')->get();
         
         return view('auth.UserRegistrationPage', compact('foodTrucks'));
@@ -31,18 +34,18 @@ class RegisteredUserController extends Controller
             'full_name'           => ['required', 'string', 'max:255'],
             'email'               => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:'.User::class],
             'password'            => ['required', 'confirmed', Rules\Password::defaults()],
-            'role'                => ['required', 'in:1,2,3'], 
+            'role'                => ['required', 'in:1,2'], // Removed '3' from allowed roles
             'phone_no'            => ['required', 'string', 'max:20'],
-            // Required only if Food Truck Admin
+            
+            // Required only if Food Truck Admin (Role 2)
             'foodtruck_name'      => ['required_if:role,2', 'nullable', 'string', 'max:255'],
             'business_license_no' => ['required_if:role,2', 'nullable', 'string', 'max:255'],
-            'foodtruck_desc'      => ['nullable', 'string', 'max:1000'], // Added to validation
-            // Required only if Food Truck Worker
-            'foodtruck_id'        => [
-                'required_if:role,3', 
-                'nullable', 
-                Rule::exists('food_trucks', 'id')->where(fn ($q) => $q->where('status', 'approved')),
-            ],
+            'foodtruck_desc'      => ['nullable', 'string', 'max:1000'],
+            
+            /**
+             * Removed 'foodtruck_id' validation as Role 3 (Worker) 
+             * registration is no longer supported via this form.
+             */
         ]);
 
         return DB::transaction(function () use ($request) {
@@ -55,6 +58,7 @@ class RegisteredUserController extends Controller
                 'status'    => ($request->role == 2) ? 'pending' : 'active',
             ]);
 
+            // Logic for Food Truck Admin
             if ($request->role == 2) {
                 $truck = FoodTruck::create([
                     'user_id'             => $user->id,
@@ -63,11 +67,10 @@ class RegisteredUserController extends Controller
                     'foodtruck_desc'      => $request->foodtruck_desc,
                     'status'              => 'pending',
                 ]);
+                
+                // Link the admin to their newly created truck
                 $user->update(['foodtruck_id' => $truck->id]);
             } 
-            elseif ($request->role == 3) {
-                $user->update(['foodtruck_id' => $request->foodtruck_id]);
-            }
 
             event(new Registered($user));
             Auth::login($user);
