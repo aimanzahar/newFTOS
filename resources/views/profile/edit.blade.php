@@ -25,22 +25,17 @@
         <!-- Main Content Area -->
         <div class="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
 
-            <!-- Fixed Top Header (SAME EXACT STYLE AS ADMIN) -->
+            <!-- Fixed Top Header -->
             <header class="bg-white border-b border-gray-200 h-16 flex items-center justify-between px-6 z-20 flex-shrink-0">
-
                 <!-- Left Side: Mobile Toggle & Breadcrumbs -->
                 <div class="flex items-center">
-                    <button id="openSidebar"
-                        class="md:hidden p-2 rounded-md text-gray-600 hover:bg-gray-100 focus:outline-none transition mr-3">
+                    <button id="openSidebar" class="md:hidden p-2 rounded-md text-gray-600 hover:bg-gray-100 focus:outline-none transition mr-3">
                         <i class="fas fa-bars text-xl"></i>
                     </button>
-
                     <div class="hidden md:flex items-center text-gray-400 space-x-2">
                         <i class="fas fa-home text-sm"></i>
                         <span class="text-gray-300">/</span>
-                        <span class="text-sm font-bold text-gray-700">
-                            Profile Settings
-                        </span>
+                        <span class="text-sm font-bold text-gray-700">Profile Settings</span>
                     </div>
                 </div>
 
@@ -50,16 +45,10 @@
                         <i class="fas fa-bell"></i>
                         <span class="absolute top-2 right-2 block h-2 w-2 rounded-full bg-red-500 ring-2 ring-white"></span>
                     </button>
-
                     <div class="h-6 w-px bg-gray-200"></div>
-
-                    <div class="flex items-center group cursor-pointer"
-                        onclick="event.preventDefault(); document.getElementById('logout-form').submit();">
-
+                    <div class="flex items-center group cursor-pointer" onclick="event.preventDefault(); document.getElementById('logout-form').submit();">
                         <div class="text-right mr-3 hidden lg:block">
-                            <p class="text-sm font-bold text-gray-800 leading-none mb-1">
-                                {{ $user->full_name }}
-                            </p>
+                            <p class="text-sm font-bold text-gray-800 leading-none mb-1">{{ $user->full_name }}</p>
                             <span class="text-[10px] font-bold uppercase tracking-wider text-blue-600 bg-blue-50 px-2 py-0.5 rounded">
                                 @switch($role)
                                     @case(6) Super Admin @break
@@ -69,13 +58,11 @@
                                 @endswitch
                             </span>
                         </div>
-
                         <div class="relative">
                             <div class="w-10 h-10 rounded-lg bg-slate-800 flex items-center justify-center text-white font-bold shadow-md group-hover:scale-105 transition-all">
                                 {{ substr($user->full_name, 0, 1) }}
                             </div>
-                            <div class="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-green-500 border-2 border-white rounded-full">
-                            </div>
+                            <div class="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-green-500 border-2 border-white rounded-full"></div>
                         </div>
                     </div>
                 </div>
@@ -83,32 +70,37 @@
 
             <!-- Scrollable Content Section -->
             <main class="flex-1 overflow-y-auto p-6 lg:p-10 scroll-smooth">
-                <!-- REMOVED mx-auto AND max-w-4xl TO RESTORE LEFT ALIGNMENT -->
-                <div class="w-full">
+                <div class="w-full max-w-[1400px] mx-auto">
 
-                    <!-- Page Header (RESTORED POSITION) -->
+                    <!-- Page Header -->
                     <div class="mb-8">
                         <h1 class="text-2xl font-black text-gray-900 tracking-tight">Profile Settings</h1>
                         <p class="text-gray-500 mt-1 font-medium">Update your personal information and security preferences.</p>
                     </div>
 
-                    <div class="space-y-8 pb-12">
-                        <!-- Update Profile Form -->
-                        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 max-w-3xl">
-                            <div class="max-w-xl">
-                                @include('profile.partials.update-profile-information-form')
+                    <div class="space-y-6 pb-12">
+                        <!-- Side-by-Side Grid -->
+                        <!-- items-start ensures cards don't stretch vertically beyond their content -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+                            
+                            <!-- Profile Information (Left Side) -->
+                            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex flex-col">
+                                <div class="w-full">
+                                    @include('profile.partials.update-profile-information-form')
+                                </div>
                             </div>
-                        </div>
 
-                        <!-- Update Password Form -->
-                        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 max-w-3xl">
-                            <div class="max-w-xl">
-                                @include('profile.partials.update-password-form')
+                            <!-- Update Password (Right Side) -->
+                            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex flex-col">
+                                <div class="w-full">
+                                    @include('profile.partials.update-password-form')
+                                </div>
                             </div>
+
                         </div>
 
                         <!-- Delete Account -->
-                        <div class="bg-white rounded-2xl shadow-sm border border-red-50 p-8 max-w-3xl">
+                        <div class="bg-white rounded-2xl shadow-sm border border-red-100 p-6 md:w-1/2">
                             <div class="max-w-xl">
                                 @include('profile.partials.delete-user-form')
                             </div>
@@ -133,6 +125,10 @@
             ::-webkit-scrollbar-track { background: transparent; }
             ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
             ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+            
+            /* Tighten up the margin inside the included partials if Breeze added any */
+            section header { margin-bottom: 1.5rem !important; }
+            form { margin-top: 1rem !important; }
         </style>
     @endpush
 

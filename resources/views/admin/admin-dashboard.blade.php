@@ -29,7 +29,7 @@
                         <i class="fas fa-home text-sm"></i>
                         <span class="text-gray-300">/</span>
                         <span class="text-sm font-bold text-gray-700">
-                            Dashboard Overview
+                            Overview
                         </span>
                     </div>
                 </div>
