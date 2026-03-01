@@ -2,8 +2,8 @@
 
 use App\Http\Controllers\ProfileController;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\Auth\RegisteredUserController; 
-use App\Http\Controllers\AdminController;    
+use App\Http\Controllers\Auth\RegisteredUserController;
+use App\Http\Controllers\AdminController;
 use App\Http\Controllers\Admin\TruckApprovalController;
 
 Route::get('/', function () {
@@ -13,7 +13,7 @@ Route::get('/', function () {
 Route::get('register', [RegisteredUserController::class, 'create'])
     ->name('register');
 
-// Standard User Dashboard
+// Standard User (Customer) Dashboard
 Route::get('/dashboard', function () {
     return view('dashboard');
 })->middleware(['auth', 'verified'])->name('dashboard');
@@ -27,26 +27,37 @@ Route::middleware('auth')->group(function () {
 
 /**
  * Admin Routes
- * Note: The 'admin.' name prefix is applied to EVERYTHING inside this group.
+ * Prefix: admin/  | Name Prefix: admin.
  */
 Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(function () {
-    
-    // URL: /admin/dashboard -> Route Name: admin.dashboard
     Route::get('/dashboard', [AdminController::class, 'index'])->name('dashboard');
-
-    // URL: /admin/pending -> Route Name: admin.pending.trucks
     Route::get('/pending', [AdminController::class, 'pendingTrucks'])->name('pending.trucks');
-
-    // URL: /admin/approve-user/{id} -> Route Name: admin.approve.user
     Route::post('/approve-user/{id}', [AdminController::class, 'approveUser'])->name('approve.user');
-
-    // URL: /admin/trucks/{id}/approve -> Route Name: admin.approve-truck
-    Route::post('/trucks/{id}/approve', [TruckApprovalController::class, 'approve'])
-        ->name('approve-truck');
-
-    // URL: /admin/trucks/{id}/reject -> Route Name: admin.reject-truck
-    Route::delete('/trucks/{id}/reject', [TruckApprovalController::class, 'reject'])
-        ->name('reject-truck');
+    Route::post('/trucks/{id}/approve', [TruckApprovalController::class, 'approve'])->name('approve-truck');
+    Route::delete('/trucks/{id}/reject', [TruckApprovalController::class, 'reject'])->name('reject-truck');
 });
 
+/**
+ * Food Truck Admin Routes (ftadmin)
+ * Prefix: ftadmin/ | Name Prefix: ftadmin.
+ */
+Route::middleware(['auth'])->prefix('ftadmin')->name('ftadmin.')->group(function () {
+    Route::get('/dashboard', function () {
+        return view('ftadmin.ftadmin-dashboard'); // Based on your image folder structure
+    })->name('dashboard');
+
+    // Add other ftadmin specific routes here
+});
+
+/**
+ * Food Truck Worker Routes (ftworker)
+ * Prefix: ftworker/ | Name Prefix: ftworker.
+ */
+Route::middleware(['auth'])->prefix('ftworker')->name('ftworker.')->group(function () {
+    Route::get('/dashboard', function () {
+        return view('ftworker.ftworker-dashboard'); // Based on your image folder structure
+    })->name('dashboard');
+
+    // Add other ftworker specific routes here
+});
 require __DIR__.'/auth.php';
