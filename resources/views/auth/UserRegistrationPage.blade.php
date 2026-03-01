@@ -125,6 +125,13 @@
             <button type="submit" class="w-full bg-indigo-600 text-white font-bold py-3 rounded-lg hover:bg-indigo-700 transition duration-300 shadow-lg mt-4">
                 Register Account
             </button>
+
+            <!-- Login Link -->
+            <p class="text-center text-sm text-gray-500 mt-6">
+                Already have an account?
+                <a href="{{ route('login') }}" class="text-indigo-600 font-bold hover:underline">Login here</a>
+            </p>
+
         </form>
     </div>
 
