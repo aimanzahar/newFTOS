@@ -21,7 +21,7 @@ class FoodTruck extends Model
         'business_license_no',
         'foodtruck_desc',
         'user_id',
-        'status', // CRITICAL: Added this
+        'status',
     ];
 
     /**

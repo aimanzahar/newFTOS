@@ -4,6 +4,7 @@ use App\Http\Controllers\ProfileController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth\RegisteredUserController; 
 use App\Http\Controllers\AdminController;    
+use App\Http\Controllers\Admin\TruckApprovalController;
 
 Route::get('/', function () {
     return view('welcome');
@@ -26,18 +27,26 @@ Route::middleware('auth')->group(function () {
 
 /**
  * Admin Routes
- * Note: Grouping with 'admin' prefix means the URLs inside don't need 'admin' repeated.
+ * Note: The 'admin.' name prefix is applied to EVERYTHING inside this group.
  */
-Route::middleware(['auth'])->prefix('admin')->group(function () {
+Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(function () {
     
-    // URL: /admin/dashboard
-    Route::get('/dashboard', [AdminController::class, 'index'])->name('admin.dashboard');
+    // URL: /admin/dashboard -> Route Name: admin.dashboard
+    Route::get('/dashboard', [AdminController::class, 'index'])->name('dashboard');
 
-    // URL: /admin/pending (Matches your Controller method)
-    Route::get('/pending', [AdminController::class, 'pendingTrucks'])->name('admin.pending.trucks');
+    // URL: /admin/pending -> Route Name: admin.pending.trucks
+    Route::get('/pending', [AdminController::class, 'pendingTrucks'])->name('pending.trucks');
 
-    // URL: /admin/approve-user/{id}
-    Route::post('/approve-user/{id}', [AdminController::class, 'approveUser'])->name('admin.approve.user');
+    // URL: /admin/approve-user/{id} -> Route Name: admin.approve.user
+    Route::post('/approve-user/{id}', [AdminController::class, 'approveUser'])->name('approve.user');
+
+    // URL: /admin/trucks/{id}/approve -> Route Name: admin.approve-truck
+    Route::post('/trucks/{id}/approve', [TruckApprovalController::class, 'approve'])
+        ->name('approve-truck');
+
+    // URL: /admin/trucks/{id}/reject -> Route Name: admin.reject-truck
+    Route::delete('/trucks/{id}/reject', [TruckApprovalController::class, 'reject'])
+        ->name('reject-truck');
 });
 
 require __DIR__.'/auth.php';
