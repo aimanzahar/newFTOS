@@ -88,7 +88,7 @@
         <a href="{{ route('profile.edit') }}"
            class="flex items-center py-2.5 px-4 rounded-xl transition duration-200 {{ request()->routeIs('profile.edit') ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-100' }}">
             <i class="fas fa-user-shield w-6 text-sm"></i>
-            <span class="text-sm font-medium">Admin Settings</span>
+            <span class="text-sm font-medium">Profile Settings</span>
         </a>
     </nav>
 
