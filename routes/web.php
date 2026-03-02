@@ -5,6 +5,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\Admin\TruckApprovalController;
+use App\Http\Controllers\StaffController; // Added this import
 use Illuminate\Support\Facades\Auth;
 
 Route::get('/', function () {
@@ -44,16 +45,21 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
  * Prefix: ftadmin/ | Name Prefix: ftadmin.
  */
 Route::middleware(['auth'])->prefix('ftadmin')->name('ftadmin.')->group(function () {
+    
+    // FT Admin Dashboard
     Route::get('/dashboard', function () {
-        // Fetch ftworkers (role 3) directly here for the modal
         $user = Auth::user();
         
+        // Standardized to 'foodtruck_id' to match your StaffController logic
         $ftworkers = \App\Models\User::where('role', 3)
             ->where('foodtruck_id', $user->foodtruck_id)
             ->get();
             
         return view('ftadmin.ftadmin-dashboard', compact('ftworkers'));
     })->name('dashboard');
+
+    // Handle Staff Registration POST request
+    Route::post('/register-staff', [StaffController::class, 'store'])->name('register.staff');
 });
 
 /**
