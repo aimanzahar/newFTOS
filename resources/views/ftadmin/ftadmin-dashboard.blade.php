@@ -120,7 +120,7 @@
                         </div>
                         <h3 class="text-sm font-bold text-gray-500 uppercase tracking-wider">Active Staff</h3>
                         <p class="text-3xl font-black text-gray-900 mt-1">{{ count($ftworkers ?? []) }}</p>
-                        <span class="text-[10px] font-bold text-blue-500 mt-2 block opacity-0 group-hover:opacity-100 transition-opacity uppercase">View Details</span>
+                        <span class="text-[10px] font-bold text-blue-500 mt-2 block opacity-0 group-hover:opacity-100 transition-opacity uppercase text-xs">View Details</span>
                     </button>
                 </div>
 
@@ -159,40 +159,71 @@
                     </div>
                     <h2 class="text-lg font-bold text-gray-800">Staff Management</h2>
                 </div>
-                <button @click="showStaffModal = false" class="text-gray-400 hover:text-gray-600 transition-colors"><i class="fas fa-times"></i></button>
+                <button @click="showStaffModal = false" class="text-gray-400 hover:text-gray-600 transition-colors">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
             </div>
 
             <div class="flex-1 overflow-y-auto p-6">
+                <!-- Modal Inner Header with Create Button -->
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-sm font-bold text-gray-400 uppercase tracking-widest">Active Members</h3>
+                    <a href="#" class="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl shadow-sm transition-all active:scale-95">
+                        <i class="fas fa-plus mr-2 text-xs"></i>
+                        Create Staff Member
+                    </a>
+                </div>
+
                 <table class="w-full">
                     <thead>
-                        <tr class="text-[11px] font-bold text-gray-400 uppercase tracking-widest border-b">
-                            <th class="pb-4 text-left">Staff Name</th>
-                            <th class="pb-4 text-left">Email</th>
-                            <th class="pb-4 text-left">Username</th>
-                            <th class="pb-4 text-right">Status</th>
+                        <tr class="text-[11px] font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100">
+                            <th class="pb-4 text-left px-2">Staff Name</th>
+                            <th class="pb-4 text-left px-2">Email</th>
+                            <th class="pb-4 text-left px-2">Username</th>
+                            <th class="pb-4 text-right px-2">Status</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-50">
                         @forelse($ftworkers ?? [] as $worker)
-                            <tr class="hover:bg-gray-50 transition-colors">
-                                <td class="py-4 text-sm font-bold text-gray-700">{{ $worker->full_name }}</td>
-                                <td class="py-4 text-sm text-gray-500">{{ $worker->email }}</td>
-                                <td class="py-4 text-xs font-mono text-gray-400">{{ $worker->username }}</td>
-                                <td class="py-4 text-right">
-                                    <span class="px-2 py-1 bg-green-50 text-green-600 text-[10px] font-bold rounded-full uppercase">Active</span>
+                            <tr class="hover:bg-gray-50/50 transition-colors group">
+                                <td class="py-4 px-2">
+                                    <div class="flex items-center">
+                                        <div class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500 font-bold text-xs mr-3">
+                                            {{ substr($worker->full_name, 0, 1) }}
+                                        </div>
+                                        <span class="text-sm font-bold text-gray-700">{{ $worker->full_name }}</span>
+                                    </div>
+                                </td>
+                                <td class="py-4 px-2 text-sm text-gray-500 font-medium">{{ $worker->email }}</td>
+                                <td class="py-4 px-2 text-xs font-mono text-gray-400">
+                                    <span class="bg-gray-100 px-2 py-1 rounded">{{ $worker->username }}</span>
+                                </td>
+                                <td class="py-4 px-2 text-right">
+                                    <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold uppercase bg-green-50 text-green-600 border border-green-100">
+                                        <span class="w-1 h-1 rounded-full bg-green-500 mr-1.5"></span>
+                                        Active
+                                    </span>
                                 </td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="4" class="py-12 text-center text-gray-400 font-medium">No staff found for this truck.</td>
+                                <td colspan="4" class="py-20 text-center">
+                                    <div class="flex flex-col items-center">
+                                        <i class="fas fa-user-slash text-4xl text-gray-200 mb-4"></i>
+                                        <h3 class="text-gray-900 font-bold">No Staff Found</h3>
+                                        <p class="text-gray-400 text-sm mt-1">Start by creating your first staff member.</p>
+                                    </div>
+                                </td>
                             </tr>
                         @endforelse
                     </tbody>
                 </table>
             </div>
 
-            <div class="px-6 py-4 bg-gray-50 border-t flex justify-end">
-                <button @click="showStaffModal = false" class="px-4 py-2 bg-white border rounded-xl text-sm font-bold text-gray-600 hover:bg-gray-100 transition shadow-sm">Close</button>
+            <div class="px-6 py-4 bg-gray-50 border-t border-gray-100 flex justify-end">
+                <button @click="showStaffModal = false" class="px-5 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-bold text-gray-600 hover:bg-gray-100 hover:border-gray-300 transition shadow-sm">
+                    Close
+                </button>
             </div>
         </div>
     </div>
