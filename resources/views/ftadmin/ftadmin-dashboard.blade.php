@@ -107,7 +107,7 @@
                                 </div>
                             </div>
                             <h3 class="text-sm font-bold text-gray-500 uppercase tracking-wider">Total Revenue</h3>
-                            <p class="text-3xl font-black text-gray-900 mt-1">$0.00</p>
+                            <p class="text-3xl font-black text-gray-900 mt-1">RM 0.00</p>
                         </div>
 
                         <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 group hover:shadow-md transition-shadow">
