@@ -1,5 +1,5 @@
 <aside id="sidebar"
-       class="fixed md:static inset-y-0 left-0 z-50 w-64 bg-[#0f172a] shadow-2xl flex flex-col border-r border-slate-800 transition-transform duration-300">
+       class="sidebar-hidden fixed md:static inset-y-0 left-0 z-50 w-64 bg-[#0f172a] shadow-2xl flex flex-col border-r border-slate-800 transition-transform duration-300">
 
     <!-- Branding Header -->
     <div class="h-16 flex items-center justify-between px-6 border-b border-slate-800 flex-shrink-0">
@@ -7,6 +7,10 @@
             <i class="fas fa-truck text-blue-500 mr-3 text-xl"></i>
             <span class="text-white font-bold text-lg tracking-tight">Truck Panel</span>
         </div>
+        <!-- Mobile Close Button -->
+        <button id="closeSidebar" class="md:hidden text-slate-400 hover:text-white">
+            <i class="fas fa-times text-xl"></i>
+        </button>
     </div>
 
     <!-- Navigation Content -->
@@ -29,19 +33,16 @@
                 Operations
             </div>
 
-            <!-- Handle Truck Menus -->
             <a href="#" class="flex items-center py-2.5 px-4 rounded-xl transition duration-200 text-slate-400 hover:bg-slate-800 hover:text-white">
                 <i class="fas fa-utensils w-6 text-sm"></i>
                 <span class="text-sm font-medium">Manage Menus</span>
             </a>
 
-            <!-- Manage Item Stock/Availability -->
             <a href="#" class="flex items-center py-2.5 px-4 rounded-xl transition duration-200 text-slate-400 hover:bg-slate-800 hover:text-white">
                 <i class="fas fa-boxes-stacked w-6 text-sm"></i>
                 <span class="text-sm font-medium">Stock Availability</span>
             </a>
 
-            <!-- View New Order & Update Status -->
             <a href="#" class="flex items-center py-2.5 px-4 rounded-xl transition duration-200 text-slate-400 hover:bg-slate-800 hover:text-white">
                 <i class="fas fa-receipt w-6 text-sm"></i>
                 <span class="text-sm font-medium">Orders Tracking</span>
@@ -52,7 +53,6 @@
                 Feedback
             </div>
 
-            <!-- View Customer Reviews/Ratings -->
             <a href="#" class="flex items-center py-2.5 px-4 rounded-xl transition duration-200 text-slate-400 hover:bg-slate-800 hover:text-white">
                 <i class="fas fa-star w-6 text-sm"></i>
                 <span class="text-sm font-medium">Reviews & Ratings</span>
@@ -63,8 +63,9 @@
                 Settings
             </div>
 
+            {{-- Improved Active Check: Highlights for any profile related route --}}
             <a href="{{ route('profile.edit') }}"
-               class="flex items-center py-2.5 px-4 rounded-xl transition duration-200 {{ request()->routeIs('profile.edit') ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-800 hover:text-white' }}">
+               class="flex items-center py-2.5 px-4 rounded-xl transition duration-200 {{ request()->routeIs('profile.*') ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-800 hover:text-white' }}">
                 <i class="fas fa-user-gear w-6 text-sm"></i>
                 <span class="text-sm font-medium">My Profile</span>
             </a>
@@ -73,9 +74,6 @@
 
     <!-- Bottom Action Area -->
     <div class="p-4 border-t border-slate-800 bg-[#0f172a] flex-shrink-0">
-        <form method="POST" action="{{ route('logout') }}" id="logout-form" class="hidden">
-            @csrf
-        </form>
         <button onclick="event.preventDefault(); document.getElementById('logout-form').submit();"
                 class="group w-full flex items-center py-2.5 px-4 rounded-xl transition duration-200 text-slate-400 hover:bg-red-500/10 hover:text-red-500">
             <i class="fas fa-power-off w-6 text-sm transition-transform group-hover:scale-110"></i>
