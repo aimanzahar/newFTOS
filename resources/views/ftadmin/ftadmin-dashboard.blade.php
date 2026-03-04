@@ -113,6 +113,7 @@
                         <p class="text-3xl font-black text-gray-900 mt-1">RM 0.00</p>
                     </div>
 
+                    <!-- Menu Items Tab -->
                     <button @click="showMenuModal = true" class="text-left bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hover:border-purple-300 hover:shadow-md transition-all group outline-none">
                         <div class="flex items-center justify-between mb-4">
                             <div class="p-3 bg-purple-50 text-purple-600 rounded-xl group-hover:bg-purple-600 group-hover:text-white transition-all duration-300">
@@ -122,19 +123,20 @@
                         </div>
                         <h3 class="text-sm font-bold text-gray-500 uppercase tracking-wider">Menu Items</h3>
                         <p class="text-3xl font-black text-gray-900 mt-1">0</p>
-                        <span class="text-[10px] font-bold text-blue-500 mt-2 block opacity-0 group-hover:opacity-100 transition-opacity uppercase tracking-widest">Manage Menu</span>
+                        <span class="text-[10px] font-bold text-purple-500 mt-2 block opacity-0 group-hover:opacity-100 transition-opacity uppercase tracking-widest">Manage Menu</span>
                     </button>
 
-                    <button @click="showStaffModal = true; showCreateForm = false; resetForm()" class="text-left bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hover:border-blue-300 hover:shadow-md transition-all group outline-none">
+                    <!-- Active Staff Tab (Modified hover border from blue to orange) -->
+                    <button @click="showStaffModal = true; showCreateForm = false; resetForm()" class="text-left bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hover:border-orange-300 hover:shadow-md transition-all group outline-none">
                         <div class="flex items-center justify-between mb-4">
                             <div class="p-3 bg-orange-50 text-orange-600 rounded-xl group-hover:bg-orange-600 group-hover:text-white transition-colors">
                                 <i class="fas fa-users text-xl"></i>
                             </div>
-                            <i class="fas fa-expand-alt text-gray-300 group-hover:text-blue-500"></i>
+                            <i class="fas fa-expand-alt text-gray-300 group-hover:text-orange-500"></i>
                         </div>
                         <h3 class="text-sm font-bold text-gray-500 uppercase tracking-wider">Active Staff</h3>
                         <p class="text-3xl font-black text-gray-900 mt-1">{{ count($workers) }}</p>
-                        <span class="text-[10px] font-bold text-blue-500 mt-2 block opacity-0 group-hover:opacity-100 transition-opacity uppercase tracking-widest">Manage Staff</span>
+                        <span class="text-[10px] font-bold text-orange-500 mt-2 block opacity-0 group-hover:opacity-100 transition-opacity uppercase tracking-widest">Manage Staff</span>
                     </button>
                 </div>
             </div>
