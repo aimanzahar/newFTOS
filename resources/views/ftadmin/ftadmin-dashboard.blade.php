@@ -113,10 +113,8 @@
                         <p class="text-3xl font-black text-gray-900 mt-1">RM 0.00</p>
                     </div>
 
-                    <!-- Menu Items Tab (Interactive & Updated) -->
                     <button @click="showMenuModal = true" class="text-left bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hover:border-purple-300 hover:shadow-md transition-all group outline-none">
                         <div class="flex items-center justify-between mb-4">
-                            <!-- Background transitions to full purple, icon to white -->
                             <div class="p-3 bg-purple-50 text-purple-600 rounded-xl group-hover:bg-purple-600 group-hover:text-white transition-all duration-300">
                                 <i class="fas fa-utensils text-xl"></i>
                             </div>
@@ -124,7 +122,6 @@
                         </div>
                         <h3 class="text-sm font-bold text-gray-500 uppercase tracking-wider">Menu Items</h3>
                         <p class="text-3xl font-black text-gray-900 mt-1">0</p>
-                        <!-- Text changed to blue color on hover to match Staff tab style -->
                         <span class="text-[10px] font-bold text-blue-500 mt-2 block opacity-0 group-hover:opacity-100 transition-opacity uppercase tracking-widest">Manage Menu</span>
                     </button>
 
@@ -144,7 +141,7 @@
         </div>
     </div>
 
-    <!-- STAFF MODAL (Untouched) -->
+    <!-- STAFF MODAL -->
     <div x-show="showStaffModal" 
          class="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm"
          style="display: none;"
@@ -154,9 +151,9 @@
          @keydown.escape.window="showStaffModal = false; resetForm()">
         
         <div @click.away="showStaffModal = false; resetForm()" 
-             class="bg-white w-full max-w-4xl rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] border border-white/20">
+             class="bg-white w-full max-w-4xl rounded-3xl shadow-2xl overflow-hidden flex flex-col h-[85vh] max-h-[750px] border border-white/20">
             
-            <div class="px-8 py-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+            <div class="px-8 py-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/50 flex-shrink-0">
                 <div class="flex items-center space-x-4">
                     <div class="bg-blue-600 text-white p-3 rounded-2xl shadow-lg shadow-blue-100">
                         <i class="fas" :class="showCreateForm ? 'fa-user-plus' : 'fa-users-cog'"></i>
@@ -171,12 +168,13 @@
                 </button>
             </div>
 
-            <div x-ref="modalScrollBody" class="flex-1 overflow-y-auto p-8">
-                <div x-show="!showCreateForm" x-transition>
+            <div x-ref="modalScrollBody" class="flex-1 overflow-y-auto px-8 py-8">
+                <!-- Directory View (Fixed size match) -->
+                <div x-show="!showCreateForm" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100">
                     <div class="flex items-center justify-between mb-8">
                         <div class="relative w-72">
                             <i class="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
-                            <input type="text" x-model="searchQuery" placeholder="Search name, email, or phone..." class="w-full pl-11 pr-4 py-2.5 bg-gray-100 border-transparent rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 transition-all text-sm font-medium">
+                            <input type="text" x-model="searchQuery" placeholder="Search name, email, or phone..." class="w-full pl-11 pr-4 py-2.5 bg-gray-100 border-transparent rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 transition-all text-sm font-medium outline-none">
                         </div>
                         <button @click="showCreateForm = true; resetForm()" class="inline-flex items-center px-5 py-2.5 bg-slate-900 hover:bg-blue-600 text-white text-sm font-bold rounded-xl shadow-md transition-all active:scale-95 group">
                             <i class="fas fa-plus mr-2.5 text-[10px] group-hover:rotate-90 transition-transform"></i>
@@ -232,7 +230,8 @@
                     </div>
                 </div>
 
-                <div x-show="showCreateForm" x-transition class="max-w-2xl mx-auto">
+                <!-- Register View (Same size container) -->
+                <div x-show="showCreateForm" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" class="max-w-2xl mx-auto">
                     <form x-ref="staffForm" action="{{ route('ftadmin.register.staff') }}" method="POST" class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
                         @csrf
                         <input type="hidden" name="role" value="3">
@@ -303,7 +302,7 @@
                 </div>
             </div>
 
-            <div class="px-8 py-6 bg-gray-50/80 border-t border-gray-100 flex items-center justify-between">
+            <div class="px-8 py-6 bg-gray-50/80 border-t border-gray-100 flex items-center justify-between flex-shrink-0">
                 <p class="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Authorized Access Only</p>
                 <button @click="showStaffModal = false; resetForm()" class="text-sm font-bold text-gray-500 hover:text-gray-800 transition-colors">
                     Close Management Tools
