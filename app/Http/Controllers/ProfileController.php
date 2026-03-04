@@ -16,20 +16,43 @@ class ProfileController extends Controller
      */
     public function edit(Request $request): View
     {
+        $user = $request->user();
+        
+        /**
+         * Determine layout based on user role
+         * Role 1: Admin (System Admin)
+         * Role 2: FT Admin (Food Truck Owner)
+         * Role 3: FT Worker (Food Truck Staff)
+         * Default: Customer
+         */
+        $layout = match ($user->role) {
+            1 => 'layouts.admin.admin-layout',
+            2 => 'layouts.ftadmin.ftadmin-layout',
+            3 => 'layouts.ftworker.ftworker-layout',
+            default => 'layouts.customer.customer-layout',
+        };
+
         return view('profile.edit', [
-            'user' => $request->user(),
+            'user' => $user,
+            'layout' => $layout,
         ]);
     }
 
     /**
      * Update the user's profile information.
      */
-    public function update(ProfileUpdateRequest $request): RedirectResponse {
-    $request->user()->fill($request->validated());
-    // ... existing email logic ...
-    $request->user()->save();
-    return Redirect::route('profile.edit')->with('status', 'profile-updated');
-}
+    public function update(ProfileUpdateRequest $request): RedirectResponse
+    {
+        $request->user()->fill($request->validated());
+
+        if ($request->user()->isDirty('email')) {
+            $request->user()->email_verified_at = null;
+        }
+
+        $request->user()->save();
+
+        return Redirect::route('profile.edit')->with('status', 'profile-updated');
+    }
 
     /**
      * Delete the user's account.

@@ -6,7 +6,7 @@ use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\Admin\TruckApprovalController;
 use App\Http\Controllers\StaffController;
-use App\Http\Controllers\MenuListController; // Added for Menu List features
+use App\Http\Controllers\MenuListController;
 use Illuminate\Support\Facades\Auth;
 
 Route::get('/', function () {
@@ -21,7 +21,10 @@ Route::get('/dashboard', function () {
     return view('dashboard');
 })->middleware(['auth', 'verified'])->name('dashboard');
 
-// Standard Authenticated User Routes
+/**
+ * Shared Profile Routes
+ * These are used by Customers, Admins, FT Admins, and FT Workers.
+ */
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
@@ -29,11 +32,9 @@ Route::middleware('auth')->group(function () {
 });
 
 /**
- * Admin Routes
- * Prefix: admin/  | Name Prefix: admin.
+ * Admin Routes (Super Admin)
  */
 Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(function () {
-    // Super Admin Dashboard
     Route::get('/dashboard', [AdminController::class, 'index'])->name('dashboard');
     Route::get('/pending', [AdminController::class, 'pendingTrucks'])->name('pending.trucks');
     Route::post('/approve-user/{id}', [AdminController::class, 'approveUser'])->name('approve.user');
@@ -43,14 +44,12 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
 
 /**
  * Food Truck Admin Routes (ftadmin)
- * Prefix: ftadmin/ | Name Prefix: ftadmin.
  */
 Route::middleware(['auth'])->prefix('ftadmin')->name('ftadmin.')->group(function () {
     
     // FT Admin Dashboard
     Route::get('/dashboard', function () {
         $user = Auth::user();
-        
         $ftworkers = \App\Models\User::where('role', 3)
             ->where('foodtruck_id', $user->foodtruck_id)
             ->get();
@@ -61,16 +60,10 @@ Route::middleware(['auth'])->prefix('ftadmin')->name('ftadmin.')->group(function
     // Staff Management
     Route::post('/register-staff', [StaffController::class, 'store'])->name('register.staff');
 
-    /**
-     * Menu List Operations
-     * Using your preferred naming "menu-list"
-     */
+    // Menu List Operations
     Route::prefix('menu-list')->name('menu_list.')->group(function () {
-        // View all menu items
         Route::get('/', [MenuListController::class, 'index'])->name('index');
-        // Store a new menu item
         Route::post('/store', [MenuListController::class, 'store'])->name('store');
-        // Future routes: update/delete
         Route::put('/{id}', [MenuListController::class, 'update'])->name('update');
         Route::delete('/{id}', [MenuListController::class, 'destroy'])->name('destroy');
     });
@@ -78,7 +71,6 @@ Route::middleware(['auth'])->prefix('ftadmin')->name('ftadmin.')->group(function
 
 /**
  * Food Truck Worker Routes (ftworker)
- * Prefix: ftworker/ | Name Prefix: ftworker.
  */
 Route::middleware(['auth'])->prefix('ftworker')->name('ftworker.')->group(function () {
     Route::get('/dashboard', function () {
