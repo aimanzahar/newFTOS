@@ -4,18 +4,33 @@
 @php
     $user = Auth::user();
     $role = $user->role;
-    // Ensure we get the correct foodtruck_id from the logged-in admin
     $adminFoodTruckId = $user->foodtruck_id;
+    $workers = $ftworkers ?? [];
 @endphp
 
 <div x-data="{ 
         showStaffModal: false, 
         showCreateForm: false,
+        searchQuery: '',
+        workers: {{ json_encode($workers) }},
         resetForm() {
             if(this.$refs.staffForm) this.$refs.staffForm.reset();
             if(this.$refs.modalScrollBody) {
                 this.$refs.modalScrollBody.scrollTop = 0;
             }
+            this.searchQuery = '';
+        },
+        matches(worker) {
+            if (!this.searchQuery) return true;
+            const query = this.searchQuery.toLowerCase();
+            return (
+                worker.full_name.toLowerCase().includes(query) ||
+                worker.email.toLowerCase().includes(query) ||
+                (worker.phone_no && worker.phone_no.includes(this.searchQuery))
+            );
+        },
+        get filteredCount() {
+            return this.workers.filter(w => this.matches(w)).length;
         }
      }" 
      class="relative min-h-full flex flex-col">
@@ -113,7 +128,7 @@
                             <i class="fas fa-expand-alt text-gray-300 group-hover:text-blue-500"></i>
                         </div>
                         <h3 class="text-sm font-bold text-gray-500 uppercase tracking-wider">Active Staff</h3>
-                        <p class="text-3xl font-black text-gray-900 mt-1">{{ count($ftworkers ?? []) }}</p>
+                        <p class="text-3xl font-black text-gray-900 mt-1">{{ count($workers) }}</p>
                         <span class="text-[10px] font-bold text-blue-500 mt-2 block opacity-0 group-hover:opacity-100 transition-opacity uppercase tracking-widest">Manage Staff</span>
                     </button>
                 </div>
@@ -154,7 +169,7 @@
                     <div class="flex items-center justify-between mb-8">
                         <div class="relative w-72">
                             <i class="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
-                            <input type="text" placeholder="Search staff..." class="w-full pl-11 pr-4 py-2.5 bg-gray-100 border-transparent rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 transition-all text-sm font-medium">
+                            <input type="text" x-model="searchQuery" placeholder="Search name, email, or phone..." class="w-full pl-11 pr-4 py-2.5 bg-gray-100 border-transparent rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 transition-all text-sm font-medium">
                         </div>
                         <button @click="showCreateForm = true; resetForm()" class="inline-flex items-center px-5 py-2.5 bg-slate-900 hover:bg-blue-600 text-white text-sm font-bold rounded-xl shadow-md transition-all active:scale-95 group">
                             <i class="fas fa-plus mr-2.5 text-[10px] group-hover:rotate-90 transition-transform"></i>
@@ -172,20 +187,18 @@
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-gray-50">
-                                @forelse($ftworkers ?? [] as $worker)
-                                    <tr class="hover:bg-blue-50/30 transition-colors group">
+                                <template x-for="worker in workers" :key="worker.id">
+                                    <tr x-show="matches(worker)" class="hover:bg-blue-50/30 transition-colors group">
                                         <td class="py-5 px-6">
                                             <div class="flex items-center">
-                                                <div class="w-10 h-10 rounded-xl bg-slate-800 text-white flex items-center justify-center font-black text-sm mr-4 shadow-sm group-hover:scale-110 transition-transform">
-                                                    {{ substr($worker->full_name, 0, 1) }}
-                                                </div>
-                                                <span class="text-sm font-bold text-gray-800">{{ $worker->full_name }}</span>
+                                                <div class="w-10 h-10 rounded-xl bg-slate-800 text-white flex items-center justify-center font-black text-sm mr-4 shadow-sm group-hover:scale-110 transition-transform" x-text="worker.full_name.charAt(0)"></div>
+                                                <span class="text-sm font-bold text-gray-800" x-text="worker.full_name"></span>
                                             </div>
                                         </td>
                                         <td class="py-5 px-6">
                                             <div class="flex flex-col">
-                                                <span class="text-sm font-medium text-gray-600">{{ $worker->email }}</span>
-                                                <span class="text-[11px] text-gray-400 mt-0.5 font-bold">{{ $worker->phone_no ?? 'No phone' }}</span>
+                                                <span class="text-sm font-medium text-gray-600" x-text="worker.email"></span>
+                                                <span class="text-[11px] text-gray-400 mt-0.5 font-bold" x-text="worker.phone_no || 'No phone'"></span>
                                             </div>
                                         </td>
                                         <td class="py-5 px-6 text-right">
@@ -194,7 +207,24 @@
                                             </span>
                                         </td>
                                     </tr>
-                                @empty
+                                </template>
+
+                                <!-- NO USER FOUND STATE -->
+                                <tr x-show="searchQuery !== '' && filteredCount === 0">
+                                    <td colspan="3" class="py-16 text-center">
+                                        <div class="flex flex-col items-center">
+                                            <div class="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mb-4">
+                                                <i class="fas fa-user-slash text-2xl text-red-300"></i>
+                                            </div>
+                                            <h3 class="text-base font-black text-gray-800">No User Found</h3>
+                                            <p class="text-xs text-gray-400 font-bold mt-1 uppercase tracking-wider">No results match your search query</p>
+                                            <button @click="searchQuery = ''" class="mt-4 text-[11px] font-black text-blue-600 hover:text-blue-800 uppercase tracking-widest">Clear Search</button>
+                                        </div>
+                                    </td>
+                                </tr>
+
+                                <!-- EMPTY DATABASE STATE -->
+                                <template x-if="workers.length === 0">
                                     <tr>
                                         <td colspan="3" class="py-24 text-center">
                                             <div class="flex flex-col items-center">
@@ -202,11 +232,11 @@
                                                     <i class="fas fa-user-plus text-3xl text-gray-200"></i>
                                                 </div>
                                                 <h3 class="text-lg font-bold text-gray-400">No staff members registered</h3>
-                                                <button @click="showCreateForm = true; resetForm()" class="mt-4 text-blue-600 font-bold hover:underline text-sm">Add your first worker now</button>
+                                                <button @click="showCreateForm = true; resetForm()" class="mt-4 text-blue-600 font-black hover:underline text-sm">Add your first worker now</button>
                                             </div>
                                         </td>
                                     </tr>
-                                @endforelse
+                                </template>
                             </tbody>
                         </table>
                     </div>
@@ -214,11 +244,9 @@
 
                 <!-- VIEW: CREATE STAFF FORM -->
                 <div x-show="showCreateForm" x-transition class="max-w-2xl mx-auto">
-                    <!-- Updated ACTION to point to a valid POST route -->
                     <form x-ref="staffForm" action="{{ route('ftadmin.register.staff') }}" method="POST" class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
                         @csrf
                         <input type="hidden" name="role" value="3">
-                        <!-- Correctly injecting the admin's foodtruck_id -->
                         <input type="hidden" name="foodtruck_id" value="{{ $adminFoodTruckId }}">
 
                         <div class="space-y-2 md:col-span-2">
