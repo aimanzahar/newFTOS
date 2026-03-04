@@ -10,6 +10,7 @@
 
 <div x-data="{ 
         showStaffModal: false, 
+        showMenuModal: false,
         showCreateForm: false,
         searchQuery: '',
         workers: {{ json_encode($workers) }},
@@ -112,13 +113,20 @@
                         <p class="text-3xl font-black text-gray-900 mt-1">RM 0.00</p>
                     </div>
 
-                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                        <div class="p-3 w-fit bg-purple-50 text-purple-600 rounded-xl mb-4">
-                            <i class="fas fa-utensils text-xl"></i>
+                    <!-- Menu Items Tab (Interactive & Updated) -->
+                    <button @click="showMenuModal = true" class="text-left bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hover:border-purple-300 hover:shadow-md transition-all group outline-none">
+                        <div class="flex items-center justify-between mb-4">
+                            <!-- Background transitions to full purple, icon to white -->
+                            <div class="p-3 bg-purple-50 text-purple-600 rounded-xl group-hover:bg-purple-600 group-hover:text-white transition-all duration-300">
+                                <i class="fas fa-utensils text-xl"></i>
+                            </div>
+                            <i class="fas fa-expand-alt text-gray-300 group-hover:text-purple-500 transition-colors"></i>
                         </div>
                         <h3 class="text-sm font-bold text-gray-500 uppercase tracking-wider">Menu Items</h3>
                         <p class="text-3xl font-black text-gray-900 mt-1">0</p>
-                    </div>
+                        <!-- Text changed to blue color on hover to match Staff tab style -->
+                        <span class="text-[10px] font-bold text-blue-500 mt-2 block opacity-0 group-hover:opacity-100 transition-opacity uppercase tracking-widest">Manage Menu</span>
+                    </button>
 
                     <button @click="showStaffModal = true; showCreateForm = false; resetForm()" class="text-left bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hover:border-blue-300 hover:shadow-md transition-all group outline-none">
                         <div class="flex items-center justify-between mb-4">
@@ -136,7 +144,7 @@
         </div>
     </div>
 
-    <!-- STAFF MODAL -->
+    <!-- STAFF MODAL (Untouched) -->
     <div x-show="showStaffModal" 
          class="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm"
          style="display: none;"
@@ -164,7 +172,6 @@
             </div>
 
             <div x-ref="modalScrollBody" class="flex-1 overflow-y-auto p-8">
-                <!-- VIEW: STAFF LIST -->
                 <div x-show="!showCreateForm" x-transition>
                     <div class="flex items-center justify-between mb-8">
                         <div class="relative w-72">
@@ -208,8 +215,6 @@
                                         </td>
                                     </tr>
                                 </template>
-
-                                <!-- NO USER FOUND STATE -->
                                 <tr x-show="searchQuery !== '' && filteredCount === 0">
                                     <td colspan="3" class="py-16 text-center">
                                         <div class="flex flex-col items-center">
@@ -222,27 +227,11 @@
                                         </div>
                                     </td>
                                 </tr>
-
-                                <!-- EMPTY DATABASE STATE -->
-                                <template x-if="workers.length === 0">
-                                    <tr>
-                                        <td colspan="3" class="py-24 text-center">
-                                            <div class="flex flex-col items-center">
-                                                <div class="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mb-6">
-                                                    <i class="fas fa-user-plus text-3xl text-gray-200"></i>
-                                                </div>
-                                                <h3 class="text-lg font-bold text-gray-400">No staff members registered</h3>
-                                                <button @click="showCreateForm = true; resetForm()" class="mt-4 text-blue-600 font-black hover:underline text-sm">Add your first worker now</button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                </template>
                             </tbody>
                         </table>
                     </div>
                 </div>
 
-                <!-- VIEW: CREATE STAFF FORM -->
                 <div x-show="showCreateForm" x-transition class="max-w-2xl mx-auto">
                     <form x-ref="staffForm" action="{{ route('ftadmin.register.staff') }}" method="POST" class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
                         @csrf
@@ -322,6 +311,22 @@
             </div>
         </div>
     </div>
+
+    <!-- MENU MODAL PLACEHOLDER -->
+    <div x-show="showMenuModal" 
+         class="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm"
+         style="display: none;"
+         x-transition>
+         <div @click.away="showMenuModal = false" class="bg-white p-12 rounded-3xl shadow-2xl max-w-lg text-center">
+             <div class="p-4 bg-purple-50 text-purple-600 rounded-2xl w-fit mx-auto mb-4">
+                <i class="fas fa-utensils text-3xl"></i>
+             </div>
+             <h2 class="text-2xl font-black text-gray-800">Menu Management</h2>
+             <p class="text-gray-500 mt-2">Menu customization features are currently being prepared.</p>
+             <button @click="showMenuModal = false" class="mt-8 px-6 py-3 bg-slate-900 text-white rounded-xl font-bold">Close</button>
+         </div>
+    </div>
+
 </div>
 
 
