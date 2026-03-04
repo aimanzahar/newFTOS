@@ -166,7 +166,7 @@
                         <table class="w-full">
                             <thead>
                                 <tr class="bg-gray-50/50 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] border-b border-gray-100">
-                                    <th class="py-4 text-left px-6">Identity</th>
+                                    <th class="py-4 text-left px-6">Staff Name</th>
                                     <th class="py-4 text-left px-6">Contact Details</th>
                                     <th class="py-4 text-right px-6">Status</th>
                                 </tr>
