@@ -153,6 +153,7 @@
         <div @click.away="showStaffModal = false; resetForm()" 
              class="bg-white w-full max-w-4xl rounded-3xl shadow-2xl overflow-hidden flex flex-col h-[85vh] max-h-[750px] border border-white/20">
             
+            <!-- Modal Header (Fixed) -->
             <div class="px-8 py-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/50 flex-shrink-0">
                 <div class="flex items-center space-x-4">
                     <div class="bg-blue-600 text-white p-3 rounded-2xl shadow-lg shadow-blue-100">
@@ -168,10 +169,18 @@
                 </button>
             </div>
 
-            <div x-ref="modalScrollBody" class="flex-1 overflow-y-auto px-8 py-8">
-                <!-- Directory View (Fixed size match) -->
-                <div x-show="!showCreateForm" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100">
-                    <div class="flex items-center justify-between mb-8">
+            <!-- Modal Body (Dynamic Layout) -->
+            <div class="flex-1 overflow-hidden flex flex-col">
+                
+                <!-- View: Staff Directory (Fixed Search, Scrollable Table) -->
+                <div x-show="!showCreateForm" 
+                     x-transition:enter="transition ease-out duration-200" 
+                     x-transition:enter-start="opacity-0" 
+                     x-transition:enter-end="opacity-100"
+                     class="flex-1 flex flex-col overflow-hidden">
+                    
+                    <!-- Search Header (Fixed inside directory view) -->
+                    <div class="px-8 py-6 flex-shrink-0 flex items-center justify-between">
                         <div class="relative w-72">
                             <i class="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
                             <input type="text" x-model="searchQuery" placeholder="Search name, email, or phone..." class="w-full pl-11 pr-4 py-2.5 bg-gray-100 border-transparent rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 transition-all text-sm font-medium outline-none">
@@ -182,126 +191,136 @@
                         </button>
                     </div>
 
-                    <div class="overflow-hidden border border-gray-100 rounded-2xl">
-                        <table class="w-full">
-                            <thead>
-                                <tr class="bg-gray-50/50 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] border-b border-gray-100">
-                                    <th class="py-4 text-left px-6">Staff Name</th>
-                                    <th class="py-4 text-left px-6">Contact Details</th>
-                                    <th class="py-4 text-right px-6">Status</th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-gray-50">
-                                <template x-for="worker in workers" :key="worker.id">
-                                    <tr x-show="matches(worker)" class="hover:bg-blue-50/30 transition-colors group">
-                                        <td class="py-5 px-6">
-                                            <div class="flex items-center">
-                                                <div class="w-10 h-10 rounded-xl bg-slate-800 text-white flex items-center justify-center font-black text-sm mr-4 shadow-sm group-hover:scale-110 transition-transform" x-text="worker.full_name.charAt(0)"></div>
-                                                <span class="text-sm font-bold text-gray-800" x-text="worker.full_name"></span>
+                    <!-- Scrollable Table Container -->
+                    <div class="flex-1 overflow-y-auto px-8 pb-8">
+                        <div class="overflow-hidden border border-gray-100 rounded-2xl">
+                            <table class="w-full">
+                                <thead class="sticky top-0 z-10">
+                                    <tr class="bg-gray-50 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] border-b border-gray-100">
+                                        <th class="py-4 text-left px-6">Staff Name</th>
+                                        <th class="py-4 text-left px-6">Contact Details</th>
+                                        <th class="py-4 text-right px-6">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-gray-50">
+                                    <template x-for="worker in workers" :key="worker.id">
+                                        <tr x-show="matches(worker)" class="hover:bg-blue-50/30 transition-colors group">
+                                            <td class="py-5 px-6">
+                                                <div class="flex items-center">
+                                                    <div class="w-10 h-10 rounded-xl bg-slate-800 text-white flex items-center justify-center font-black text-sm mr-4 shadow-sm group-hover:scale-110 transition-transform" x-text="worker.full_name.charAt(0)"></div>
+                                                    <span class="text-sm font-bold text-gray-800" x-text="worker.full_name"></span>
+                                                </div>
+                                            </td>
+                                            <td class="py-5 px-6">
+                                                <div class="flex flex-col">
+                                                    <span class="text-sm font-medium text-gray-600" x-text="worker.email"></span>
+                                                    <span class="text-[11px] text-gray-400 mt-0.5 font-bold" x-text="worker.phone_no || 'No phone'"></span>
+                                                </div>
+                                            </td>
+                                            <td class="py-5 px-6 text-right">
+                                                <span class="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black uppercase bg-emerald-50 text-emerald-600 border border-emerald-100">
+                                                    Active
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    </template>
+                                    <tr x-show="searchQuery !== '' && filteredCount === 0">
+                                        <td colspan="3" class="py-16 text-center">
+                                            <div class="flex flex-col items-center">
+                                                <div class="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mb-4">
+                                                    <i class="fas fa-user-slash text-2xl text-red-300"></i>
+                                                </div>
+                                                <h3 class="text-base font-black text-gray-800">No User Found</h3>
+                                                <p class="text-xs text-gray-400 font-bold mt-1 uppercase tracking-wider">No results match your search query</p>
+                                                <button @click="searchQuery = ''" class="mt-4 text-[11px] font-black text-blue-600 hover:text-blue-800 uppercase tracking-widest">Clear Search</button>
                                             </div>
-                                        </td>
-                                        <td class="py-5 px-6">
-                                            <div class="flex flex-col">
-                                                <span class="text-sm font-medium text-gray-600" x-text="worker.email"></span>
-                                                <span class="text-[11px] text-gray-400 mt-0.5 font-bold" x-text="worker.phone_no || 'No phone'"></span>
-                                            </div>
-                                        </td>
-                                        <td class="py-5 px-6 text-right">
-                                            <span class="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black uppercase bg-emerald-50 text-emerald-600 border border-emerald-100">
-                                                Active
-                                            </span>
                                         </td>
                                     </tr>
-                                </template>
-                                <tr x-show="searchQuery !== '' && filteredCount === 0">
-                                    <td colspan="3" class="py-16 text-center">
-                                        <div class="flex flex-col items-center">
-                                            <div class="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mb-4">
-                                                <i class="fas fa-user-slash text-2xl text-red-300"></i>
-                                            </div>
-                                            <h3 class="text-base font-black text-gray-800">No User Found</h3>
-                                            <p class="text-xs text-gray-400 font-bold mt-1 uppercase tracking-wider">No results match your search query</p>
-                                            <button @click="searchQuery = ''" class="mt-4 text-[11px] font-black text-blue-600 hover:text-blue-800 uppercase tracking-widest">Clear Search</button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
 
-                <!-- Register View (Same size container) -->
-                <div x-show="showCreateForm" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" class="max-w-2xl mx-auto">
-                    <form x-ref="staffForm" action="{{ route('ftadmin.register.staff') }}" method="POST" class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
-                        @csrf
-                        <input type="hidden" name="role" value="3">
-                        <input type="hidden" name="foodtruck_id" value="{{ $adminFoodTruckId }}">
+                <!-- View: Register Form (Full area scrollable) -->
+                <div x-show="showCreateForm" 
+                     x-transition:enter="transition ease-out duration-200" 
+                     x-transition:enter-start="opacity-0" 
+                     x-transition:enter-end="opacity-100" 
+                     class="flex-1 overflow-y-auto px-8 py-10">
+                    <div class="max-w-2xl mx-auto">
+                        <form x-ref="staffForm" action="{{ route('ftadmin.register.staff') }}" method="POST" class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+                            @csrf
+                            <input type="hidden" name="role" value="3">
+                            <input type="hidden" name="foodtruck_id" value="{{ $adminFoodTruckId }}">
 
-                        <div class="space-y-2 md:col-span-2">
-                            <label class="text-[11px] font-black uppercase tracking-widest text-gray-400 ml-1">Full Name <span class="text-red-500">*</span></label>
-                            <div class="relative group">
-                                <i class="fas fa-user absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-blue-500 transition-colors"></i>
-                                <input type="text" name="full_name" required placeholder="Ex: Ahmad Junaidi"
-                                       class="w-full pl-11 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all outline-none text-sm font-bold placeholder:text-gray-300">
+                            <div class="space-y-2 md:col-span-2">
+                                <label class="text-[11px] font-black uppercase tracking-widest text-gray-400 ml-1">Full Name <span class="text-red-500">*</span></label>
+                                <div class="relative group">
+                                    <i class="fas fa-user absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-blue-500 transition-colors"></i>
+                                    <input type="text" name="full_name" required placeholder="Ex: Ahmad Junaidi"
+                                           class="w-full pl-11 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all outline-none text-sm font-bold placeholder:text-gray-300">
+                                </div>
                             </div>
-                        </div>
 
-                        <div class="space-y-2">
-                            <label class="text-[11px] font-black uppercase tracking-widest text-gray-400 ml-1">Email Address <span class="text-red-500">*</span></label>
-                            <div class="relative group">
-                                <i class="fas fa-envelope absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-blue-500 transition-colors"></i>
-                                <input type="email" name="email" required placeholder="staff@vendor.com"
-                                       class="w-full pl-11 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all outline-none text-sm font-bold placeholder:text-gray-300">
+                            <div class="space-y-2">
+                                <label class="text-[11px] font-black uppercase tracking-widest text-gray-400 ml-1">Email Address <span class="text-red-500">*</span></label>
+                                <div class="relative group">
+                                    <i class="fas fa-envelope absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-blue-500 transition-colors"></i>
+                                    <input type="email" name="email" required placeholder="staff@vendor.com"
+                                           class="w-full pl-11 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all outline-none text-sm font-bold placeholder:text-gray-300">
+                                </div>
                             </div>
-                        </div>
 
-                        <div class="space-y-2">
-                            <label class="text-[11px] font-black uppercase tracking-widest text-gray-400 ml-1">Phone Number</label>
-                            <div class="relative group">
-                                <i class="fas fa-phone absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-blue-500 transition-colors"></i>
-                                <input type="text" name="phone_no" placeholder="012-3456789"
-                                       class="w-full pl-11 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all outline-none text-sm font-bold placeholder:text-gray-300">
+                            <div class="space-y-2">
+                                <label class="text-[11px] font-black uppercase tracking-widest text-gray-400 ml-1">Phone Number</label>
+                                <div class="relative group">
+                                    <i class="fas fa-phone absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-blue-500 transition-colors"></i>
+                                    <input type="text" name="phone_no" placeholder="012-3456789"
+                                           class="w-full pl-11 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all outline-none text-sm font-bold placeholder:text-gray-300">
+                                </div>
                             </div>
-                        </div>
 
-                        <div class="space-y-2">
-                            <label class="text-[11px] font-black uppercase tracking-widest text-gray-400 ml-1">Password <span class="text-red-500">*</span></label>
-                            <div class="relative group">
-                                <i class="fas fa-key absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-blue-500 transition-colors"></i>
-                                <input type="password" name="password" required 
-                                       pattern="(?=.*\d)(?=.*[a-z])(?=.*[A-Z])(?=.*[\W_]).{8,}"
-                                       title="Must be at least 8 characters long, include 1 uppercase letter, 1 number, and 1 special symbol."
-                                       placeholder="••••••••"
-                                       class="w-full pl-11 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all outline-none text-sm font-bold placeholder:text-gray-300">
+                            <div class="space-y-2">
+                                <label class="text-[11px] font-black uppercase tracking-widest text-gray-400 ml-1">Password <span class="text-red-500">*</span></label>
+                                <div class="relative group">
+                                    <i class="fas fa-key absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-blue-500 transition-colors"></i>
+                                    <input type="password" name="password" required 
+                                           pattern="(?=.*\d)(?=.*[a-z])(?=.*[A-Z])(?=.*[\W_]).{8,}"
+                                           title="Must be at least 8 characters long, include 1 uppercase letter, 1 number, and 1 special symbol."
+                                           placeholder="••••••••"
+                                           class="w-full pl-11 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all outline-none text-sm font-bold placeholder:text-gray-300">
+                                </div>
                             </div>
-                        </div>
 
-                        <div class="space-y-2">
-                            <label class="text-[11px] font-black uppercase tracking-widest text-gray-400 ml-1">Confirm Password <span class="text-red-500">*</span></label>
-                            <div class="relative group">
-                                <i class="fas fa-shield-check absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-blue-500 transition-colors"></i>
-                                <input type="password" name="password_confirmation" required 
-                                       pattern="(?=.*\d)(?=.*[a-z])(?=.*[A-Z])(?=.*[\W_]).{8,}"
-                                       placeholder="••••••••"
-                                       class="w-full pl-11 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all outline-none text-sm font-bold placeholder:text-gray-300">
+                            <div class="space-y-2">
+                                <label class="text-[11px] font-black uppercase tracking-widest text-gray-400 ml-1">Confirm Password <span class="text-red-500">*</span></label>
+                                <div class="relative group">
+                                    <i class="fas fa-shield-check absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-blue-500 transition-colors"></i>
+                                    <input type="password" name="password_confirmation" required 
+                                           pattern="(?=.*\d)(?=.*[a-z])(?=.*[A-Z])(?=.*[\W_]).{8,}"
+                                           placeholder="••••••••"
+                                           class="w-full pl-11 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all outline-none text-sm font-bold placeholder:text-gray-300">
+                                </div>
                             </div>
-                        </div>
 
-                        <div class="md:col-span-2 pt-6 flex items-center space-x-4">
-                            <button type="button" @click="showCreateForm = false; resetForm()"
-                                    class="flex-1 px-8 py-4 border-2 border-gray-100 rounded-2xl text-sm font-black text-gray-400 hover:bg-gray-50 hover:text-gray-600 transition-all active:scale-[0.98]">
-                                <i class="fas fa-arrow-left mr-2"></i>
-                                Back
-                            </button>
-                            <button type="submit"
-                                    class="flex-[2.5] px-8 py-4 bg-slate-900 text-white rounded-2xl text-sm font-black hover:bg-blue-600 shadow-xl shadow-slate-200 hover:shadow-blue-200 transition-all active:scale-[0.98]">
-                                Complete Registration
-                            </button>
-                        </div>
-                    </form>
+                            <div class="md:col-span-2 pt-6 flex items-center space-x-4">
+                                <button type="button" @click="showCreateForm = false; resetForm()"
+                                        class="flex-1 px-8 py-4 border-2 border-gray-100 rounded-2xl text-sm font-black text-gray-400 hover:bg-gray-50 hover:text-gray-600 transition-all active:scale-[0.98]">
+                                    <i class="fas fa-arrow-left mr-2"></i>
+                                    Back
+                                </button>
+                                <button type="submit"
+                                        class="flex-[2.5] px-8 py-4 bg-slate-900 text-white rounded-2xl text-sm font-black hover:bg-blue-600 shadow-xl shadow-slate-200 hover:shadow-blue-200 transition-all active:scale-[0.98]">
+                                    Complete Registration
+                                </button>
+                            </div>
+                        </form>
+                    </div>
                 </div>
             </div>
 
+            <!-- Modal Footer (Fixed) -->
             <div class="px-8 py-6 bg-gray-50/80 border-t border-gray-100 flex items-center justify-between flex-shrink-0">
                 <p class="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Authorized Access Only</p>
                 <button @click="showStaffModal = false; resetForm()" class="text-sm font-bold text-gray-500 hover:text-gray-800 transition-colors">
