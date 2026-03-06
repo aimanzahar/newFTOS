@@ -16,9 +16,8 @@
         workers: {{ json_encode($workers) }},
         resetForm() {
             if(this.$refs.staffForm) this.$refs.staffForm.reset();
-            if(this.$refs.modalScrollBody) {
-                this.$refs.modalScrollBody.scrollTop = 0;
-            }
+            if(this.$refs.staffDirectoryScroll) this.$refs.staffDirectoryScroll.scrollTop = 0;
+            if(this.$refs.registerFormScroll) this.$refs.registerFormScroll.scrollTop = 0;
             this.searchQuery = '';
         },
         matches(worker) {
@@ -194,7 +193,7 @@
                     </div>
 
                     <!-- Scrollable Table Container -->
-                    <div class="flex-1 overflow-y-auto px-8 pb-8">
+                    <div class="flex-1 overflow-y-auto px-8 pb-8" x-ref="staffDirectoryScroll">
                         <div class="overflow-hidden border border-gray-100 rounded-2xl">
                             <table class="w-full">
                                 <thead class="sticky top-0 z-10">
@@ -245,11 +244,12 @@
                 </div>
 
                 <!-- View: Register Form (Full area scrollable) -->
-                <div x-show="showCreateForm" 
-                     x-transition:enter="transition ease-out duration-200" 
-                     x-transition:enter-start="opacity-0" 
-                     x-transition:enter-end="opacity-100" 
-                     class="flex-1 overflow-y-auto px-8 py-10">
+                <div x-show="showCreateForm"
+                     x-transition:enter="transition ease-out duration-200"
+                     x-transition:enter-start="opacity-0"
+                     x-transition:enter-end="opacity-100"
+                     class="flex-1 overflow-y-auto px-8 py-10"
+                     x-ref="registerFormScroll">
                     <div class="max-w-2xl mx-auto">
                         <form x-ref="staffForm" action="{{ route('ftadmin.register.staff') }}" method="POST" class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
                             @csrf

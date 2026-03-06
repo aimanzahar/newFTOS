@@ -6,7 +6,7 @@ use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\Admin\TruckApprovalController;
 use App\Http\Controllers\StaffController;
-use App\Http\Controllers\MenuListController;
+use App\Http\Controllers\MenuController;
 use Illuminate\Support\Facades\Auth;
 
 Route::get('/', function () {
@@ -61,11 +61,11 @@ Route::middleware(['auth'])->prefix('ftadmin')->name('ftadmin.')->group(function
     Route::post('/register-staff', [StaffController::class, 'store'])->name('register.staff');
 
     // Menu List Operations
-    Route::prefix('menu-list')->name('menu_list.')->group(function () {
-        Route::get('/', [MenuListController::class, 'index'])->name('index');
-        Route::post('/store', [MenuListController::class, 'store'])->name('store');
-        Route::put('/{id}', [MenuListController::class, 'update'])->name('update');
-        Route::delete('/{id}', [MenuListController::class, 'destroy'])->name('destroy');
+    Route::prefix('menu')->name('menu.')->group(function () {
+        Route::get('/', [MenuController::class, 'index'])->name('index');
+        Route::post('/store', [MenuController::class, 'store'])->name('store');
+        Route::put('/{id}', [MenuController::class, 'update'])->name('update');
+        Route::delete('/{id}', [MenuController::class, 'destroy'])->name('destroy');
     });
 });
 
