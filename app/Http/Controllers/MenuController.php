@@ -6,6 +6,8 @@ use App\Models\Menu;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class MenuController extends Controller
 {
@@ -51,7 +53,15 @@ class MenuController extends Controller
         ]);
 
         $imagePath = null;
-        if ($request->hasFile('image')) {
+        if ($request->filled('image_data')) {
+            $base64 = $request->input('image_data');
+            if (str_contains($base64, ',')) {
+                $base64 = substr($base64, strpos($base64, ',') + 1);
+            }
+            $filename = 'menu-items/' . Str::uuid() . '.jpg';
+            Storage::disk('public')->put($filename, base64_decode($base64));
+            $imagePath = $filename;
+        } elseif ($request->hasFile('image')) {
             $imagePath = $request->file('image')->store('menu-items', 'public');
         }
 
@@ -79,12 +89,28 @@ class MenuController extends Controller
             ->firstOrFail();
 
         $request->validate([
-            'name'       => ['required', 'string', 'max:255'],
-            'base_price' => ['required', 'numeric'],
-            'quantity'   => ['required', 'integer'],
+            'name'        => ['required', 'string', 'max:255'],
+            'category'    => ['required', 'string', 'max:100'],
+            'base_price'  => ['required', 'numeric', 'min:0'],
+            'quantity'    => ['required', 'integer', 'min:0'],
+            'description' => ['nullable', 'string'],
         ]);
 
-        $item->update($request->all());
+        $data = $request->only(['name', 'category', 'base_price', 'quantity', 'description']);
+
+        if ($request->filled('image_data')) {
+            $base64 = $request->input('image_data');
+            if (str_contains($base64, ',')) {
+                $base64 = substr($base64, strpos($base64, ',') + 1);
+            }
+            $filename = 'menu-items/' . Str::uuid() . '.jpg';
+            Storage::disk('public')->put($filename, base64_decode($base64));
+            $data['image'] = $filename;
+        } elseif ($request->hasFile('image')) {
+            $data['image'] = $request->file('image')->store('menu-items', 'public');
+        }
+
+        $item->update($data);
 
         return redirect()->back()->with('success', 'Menu item updated.');
     }

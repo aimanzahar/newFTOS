@@ -6,19 +6,33 @@
     $role = $user->role;
     $adminFoodTruckId = $user->foodtruck_id;
     $workers = $ftworkers ?? [];
+    $menus = $menuItems ?? [];
 @endphp
 
-<div x-data="{ 
-        showStaffModal: false, 
+<div x-data="{
+        showStaffModal: false,
         showMenuModal: false,
         showCreateForm: false,
+        showMenuCreateForm: false,
         searchQuery: '',
+        menuSearchQuery: '',
         workers: {{ json_encode($workers) }},
+        menuItems: {{ json_encode($menus) }},
         resetForm() {
             if(this.$refs.staffForm) this.$refs.staffForm.reset();
             if(this.$refs.staffDirectoryScroll) this.$refs.staffDirectoryScroll.scrollTop = 0;
             if(this.$refs.registerFormScroll) this.$refs.registerFormScroll.scrollTop = 0;
             this.searchQuery = '';
+        },
+        resetMenuForm() {
+            this.formData = { name: '', category: '', base_price: '', quantity: '', description: '' };
+            localStorage.removeItem('ftos_addMenuForm');
+            this.croppedDataUrl = null;
+            this.imageDataUrl = null;
+            if (this.$refs.menuImageInput) this.$refs.menuImageInput.value = '';
+            if (this.$refs.menuDirectoryScroll) this.$refs.menuDirectoryScroll.scrollTop = 0;
+            if (this.$refs.menuCreateFormScroll) this.$refs.menuCreateFormScroll.scrollTop = 0;
+            this.menuSearchQuery = '';
         },
         matches(worker) {
             if (!this.searchQuery) return true;
@@ -29,10 +43,162 @@
                 (worker.phone_no && worker.phone_no.includes(this.searchQuery))
             );
         },
+        menuMatches(item) {
+            if (!this.menuSearchQuery) return true;
+            const query = this.menuSearchQuery.toLowerCase();
+            return (
+                item.name.toLowerCase().includes(query) ||
+                item.category.toLowerCase().includes(query)
+            );
+        },
         get filteredCount() {
             return this.workers.filter(w => this.matches(w)).length;
+        },
+        get menuFilteredCount() {
+            return this.menuItems.filter(i => this.menuMatches(i)).length;
+        },
+        showMenuEditModal: false,
+        selectedMenu: null,
+        editName: '',
+        editCategory: '',
+        editBasePrice: '',
+        editQuantity: 0,
+        editDescription: '',
+        openMenuEdit(item) {
+            this.selectedMenu = item;
+            this.editName = item.name;
+            this.editCategory = item.category;
+            this.editBasePrice = item.base_price;
+            this.editQuantity = item.quantity;
+            this.editDescription = item.description || '';
+            this.croppedDataUrl = null;
+            this.imageDataUrl = null;
+            this.showMenuEditModal = true;
+        },
+        closeMenuEdit() {
+            this.showMenuEditModal = false;
+            this.selectedMenu = null;
+            this.croppedDataUrl = null;
+            if (this.$refs.editMenuImageInput) this.$refs.editMenuImageInput.value = '';
+        },
+
+        /* ── Form persistence ── */
+        formData: { name: '', category: '', base_price: '', quantity: '', description: '' },
+
+        /* ── Image adjuster ── */
+        showImageAdjuster: false,
+        imageAdjusterSource: 'add',
+        imageDataUrl: null,
+        croppedDataUrl: null,
+        imageScale: 1,
+        imageMinScale: 1,
+        imageNaturalW: 0,
+        imageNaturalH: 0,
+        imageX: 0,
+        imageY: 0,
+        isDragging: false,
+        _dragStartX: 0, _dragStartY: 0, _dragStartImgX: 0, _dragStartImgY: 0,
+
+        handleImageSelect(event, source) {
+            const file = event.target.files[0];
+            if (!file) return;
+            this.imageAdjusterSource = source || 'add';
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                this.imageDataUrl = e.target.result;
+                this.imageX = 0;
+                this.imageY = 0;
+                const img = new Image();
+                img.onload = () => {
+                    const vp = 320;
+                    this.imageNaturalW = img.naturalWidth;
+                    this.imageNaturalH = img.naturalHeight;
+                    const minScale = Math.max(vp / img.naturalWidth, vp / img.naturalHeight);
+                    this.imageMinScale = minScale;
+                    this.imageScale = minScale;
+                };
+                img.src = e.target.result;
+                this.showImageAdjuster = true;
+            };
+            reader.readAsDataURL(file);
+        },
+        clampPosition() {
+            const vp = 320;
+            const hw = (this.imageNaturalW * this.imageScale) / 2;
+            const hh = (this.imageNaturalH * this.imageScale) / 2;
+            const maxX = Math.max(hw - vp / 2, 0);
+            const maxY = Math.max(hh - vp / 2, 0);
+            this.imageX = Math.min(Math.max(this.imageX, -maxX), maxX);
+            this.imageY = Math.min(Math.max(this.imageY, -maxY), maxY);
+        },
+        startDrag(event) {
+            this.isDragging = true;
+            const pt = event.touches ? event.touches[0] : event;
+            this._dragStartX = pt.clientX; this._dragStartY = pt.clientY;
+            this._dragStartImgX = this.imageX; this._dragStartImgY = this.imageY;
+        },
+        onDrag(event) {
+            if (!this.isDragging) return;
+            const pt = event.touches ? event.touches[0] : event;
+            this.imageX = this._dragStartImgX + (pt.clientX - this._dragStartX);
+            this.imageY = this._dragStartImgY + (pt.clientY - this._dragStartY);
+            this.clampPosition();
+        },
+        stopDrag() { this.isDragging = false; },
+        zoomIn()  { this.imageScale = Math.min(this.imageScale + 0.1, 4); this.clampPosition(); },
+        zoomOut() { this.imageScale = Math.max(this.imageScale - 0.1, this.imageMinScale); this.clampPosition(); },
+        resetZoom() { this.imageScale = this.imageMinScale; this.imageX = 0; this.imageY = 0; },
+        confirmCrop() {
+            const canvas = this.$refs.cropCanvas;
+            const ctx = canvas.getContext('2d');
+            const img = new Image();
+            img.onload = () => {
+                const size = 320;
+                canvas.width = size; canvas.height = size;
+                ctx.clearRect(0, 0, size, size);
+                ctx.save();
+                ctx.translate(size / 2 + this.imageX, size / 2 + this.imageY);
+                ctx.scale(this.imageScale, this.imageScale);
+                ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
+                ctx.restore();
+                this.croppedDataUrl = canvas.toDataURL('image/jpeg', 0.9);
+                this.showImageAdjuster = false;
+            };
+            img.src = this.imageDataUrl;
+        },
+        cancelImageAdjust() {
+            this.imageDataUrl = null;
+            this.croppedDataUrl = null;
+            this.showImageAdjuster = false;
+            if (this.$refs.menuImageInput) this.$refs.menuImageInput.value = '';
+            if (this.$refs.editMenuImageInput) this.$refs.editMenuImageInput.value = '';
+        },
+        selectNewImage() {
+            const ref = this.imageAdjusterSource === 'edit'
+                ? this.$refs.editMenuImageInput
+                : this.$refs.menuImageInput;
+            if (ref) ref.click();
         }
-     }" 
+     }"
+     x-init="
+         const saved = localStorage.getItem('ftos_addMenuForm');
+         if (saved) {
+             try {
+                 const d = JSON.parse(saved);
+                 if (d.name)        formData.name        = d.name;
+                 if (d.category)    formData.category    = d.category;
+                 if (d.base_price)  formData.base_price  = d.base_price;
+                 if (d.quantity)    formData.quantity    = d.quantity;
+                 if (d.description) formData.description = d.description;
+             } catch(e) {}
+         }
+         const save = () => localStorage.setItem('ftos_addMenuForm', JSON.stringify(formData));
+         $watch('formData.name',        save);
+         $watch('formData.category',    save);
+         $watch('formData.base_price',  save);
+         $watch('formData.quantity',    save);
+         $watch('formData.description', save);
+     "
      class="relative min-h-full flex flex-col">
 
     <!-- Fixed Top Header -->
@@ -113,7 +279,7 @@
                     </div>
 
                     <!-- Menu Items Tab -->
-                    <button @click="showMenuModal = true" class="text-left bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hover:border-purple-300 hover:shadow-md transition-all group outline-none">
+                    <button @click="showMenuModal = true; showMenuCreateForm = false; resetMenuForm()" class="text-left bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hover:border-purple-300 hover:shadow-md transition-all group outline-none">
                         <div class="flex items-center justify-between mb-4">
                             <div class="p-3 bg-purple-50 text-purple-600 rounded-xl group-hover:bg-purple-600 group-hover:text-white transition-all duration-300">
                                 <i class="fas fa-utensils text-xl"></i>
@@ -121,7 +287,7 @@
                             <i class="fas fa-expand-alt text-gray-300 group-hover:text-purple-500 transition-colors"></i>
                         </div>
                         <h3 class="text-sm font-bold text-gray-500 uppercase tracking-wider">Menu Items</h3>
-                        <p class="text-3xl font-black text-gray-900 mt-1">0</p>
+                        <p class="text-3xl font-black text-gray-900 mt-1">{{ count($menus) }}</p>
                         <span class="text-[10px] font-bold text-purple-500 mt-2 block opacity-0 group-hover:opacity-100 transition-opacity uppercase tracking-widest">Manage Menu</span>
                     </button>
 
@@ -332,19 +498,472 @@
         </div>
     </div>
 
-    <!-- MENU MODAL PLACEHOLDER -->
-    <div x-show="showMenuModal" 
+    <!-- MENU MODAL -->
+    <div x-show="showMenuModal"
          class="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm"
          style="display: none;"
-         x-transition>
-         <div @click.away="showMenuModal = false" class="bg-white p-12 rounded-3xl shadow-2xl max-w-lg text-center">
-             <div class="p-4 bg-purple-50 text-purple-600 rounded-2xl w-fit mx-auto mb-4">
-                <i class="fas fa-utensils text-3xl"></i>
-             </div>
-             <h2 class="text-2xl font-black text-gray-800">Menu Management</h2>
-             <p class="text-gray-500 mt-2">Menu customization features are currently being prepared.</p>
-             <button @click="showMenuModal = false" class="mt-8 px-6 py-3 bg-slate-900 text-white rounded-xl font-bold">Close</button>
-         </div>
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0 scale-95"
+         x-transition:enter-end="opacity-100 scale-100"
+         @keydown.escape.window="showMenuEditModal ? closeMenuEdit() : (showMenuModal = false, resetMenuForm())">
+
+        <div @click.away="!showImageAdjuster && (showMenuModal = false, resetMenuForm())"
+             class="bg-white w-full max-w-5xl rounded-3xl shadow-2xl overflow-hidden flex flex-col h-[85vh] max-h-[750px] border border-white/20">
+
+            <!-- Modal Header (Fixed) -->
+            <div class="px-8 py-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/50 flex-shrink-0">
+                <div class="flex items-center space-x-4">
+                    <div class="bg-purple-600 text-white p-3 rounded-2xl shadow-lg shadow-purple-100">
+                        <i class="fas" :class="showMenuCreateForm ? 'fa-plus' : 'fa-utensils'"></i>
+                    </div>
+                    <div>
+                        <h2 class="text-xl font-black text-gray-800 tracking-tight" x-text="showMenuCreateForm ? 'Add New Menu Item' : 'Menu Directory'"></h2>
+                        <p class="text-xs text-gray-400 font-bold uppercase tracking-widest mt-0.5" x-text="showMenuCreateForm ? 'Fill in the details below' : 'Manage your menu items'"></p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button type="button" x-show="showMenuCreateForm" x-cloak @click="resetMenuForm()"
+                            class="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gray-100 hover:bg-orange-50 text-gray-400 hover:text-orange-500 text-xs font-black uppercase tracking-wider transition-all">
+                        <i class="fas fa-redo-alt text-xs"></i> Refresh
+                    </button>
+                    <button @click="showMenuModal = false; resetMenuForm()" class="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-red-50 text-gray-400 hover:text-red-500 transition-all">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Modal Body -->
+            <div class="flex-1 overflow-hidden flex flex-col">
+
+                <!-- View: Menu Directory -->
+                <div x-show="!showMenuCreateForm"
+                     x-transition:enter="transition ease-out duration-200"
+                     x-transition:enter-start="opacity-0"
+                     x-transition:enter-end="opacity-100"
+                     class="flex-1 flex flex-col overflow-hidden">
+
+                    <!-- Search + Add Button -->
+                    <div class="px-8 py-6 flex-shrink-0 flex items-center justify-between">
+                        <div class="relative w-72">
+                            <i class="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
+                            <input type="text" x-model="menuSearchQuery" placeholder="Search name or category..." class="w-full pl-11 pr-4 py-2.5 bg-gray-100 border-transparent rounded-xl focus:bg-white focus:ring-2 focus:ring-purple-500 transition-all text-sm font-medium outline-none">
+                        </div>
+                        <button @click="showMenuCreateForm = true; resetMenuForm()" class="inline-flex items-center px-5 py-2.5 bg-slate-900 hover:bg-purple-600 text-white text-sm font-bold rounded-xl shadow-md transition-all active:scale-95 group">
+                            <i class="fas fa-plus mr-2.5 text-[10px] group-hover:rotate-90 transition-transform"></i>
+                            Add New Menu
+                        </button>
+                    </div>
+
+                    <!-- Scrollable Table -->
+                    <div class="flex-1 overflow-y-auto px-8 pb-8" x-ref="menuDirectoryScroll">
+                        <div class="overflow-hidden border border-gray-100 rounded-2xl">
+                            <table class="w-full">
+                                <thead class="sticky top-0 z-10">
+                                    <tr class="bg-gray-50 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] border-b border-gray-100">
+                                        <th class="py-4 text-left px-6">Menu Name</th>
+                                        <th class="py-4 text-left px-6">Category</th>
+                                        <th class="py-4 text-left px-6">Price</th>
+                                        <th class="py-4 text-right px-6">Qty</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-gray-50">
+                                    <template x-for="item in menuItems" :key="item.id">
+                                        <tr x-show="menuMatches(item)" @click="openMenuEdit(item)" class="hover:bg-purple-50/30 transition-colors group cursor-pointer">
+                                            <td class="py-5 px-6">
+                                                <div class="flex items-center">
+                                                    <template x-if="item.image">
+                                                        <img :src="'/storage/' + item.image" class="w-10 h-10 rounded-xl object-cover mr-4 shadow-sm group-hover:scale-110 transition-transform flex-shrink-0">
+                                                    </template>
+                                                    <template x-if="!item.image">
+                                                        <div class="w-10 h-10 rounded-xl bg-purple-600 text-white flex items-center justify-center font-black text-sm mr-4 shadow-sm group-hover:scale-110 transition-transform flex-shrink-0" x-text="item.name.charAt(0)"></div>
+                                                    </template>
+                                                    <span class="text-sm font-bold text-gray-800" x-text="item.name"></span>
+                                                </div>
+                                            </td>
+                                            <td class="py-5 px-6">
+                                                <span class="text-sm font-medium text-gray-600" x-text="item.category"></span>
+                                            </td>
+                                            <td class="py-5 px-6">
+                                                <span class="text-sm font-bold text-gray-800" x-text="'RM ' + parseFloat(item.base_price).toFixed(2)"></span>
+                                            </td>
+                                            <td class="py-5 px-6 text-right">
+                                                <span class="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black uppercase"
+                                                      :class="item.quantity > 0 ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-red-50 text-red-500 border border-red-100'"
+                                                      x-text="item.quantity > 0 ? item.quantity + ' left' : 'Out of Stock'">
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    </template>
+                                    <tr x-show="menuItems.length === 0">
+                                        <td colspan="4" class="py-16 text-center">
+                                            <div class="flex flex-col items-center">
+                                                <div class="w-16 h-16 bg-purple-50 rounded-full flex items-center justify-center mb-4">
+                                                    <i class="fas fa-utensils text-2xl text-purple-300"></i>
+                                                </div>
+                                                <h3 class="text-base font-black text-gray-800">No Menu Items Yet</h3>
+                                                <p class="text-xs text-gray-400 font-bold mt-1 uppercase tracking-wider">Add your first menu item to get started</p>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    <tr x-show="menuSearchQuery !== '' && menuFilteredCount === 0 && menuItems.length > 0">
+                                        <td colspan="4" class="py-16 text-center">
+                                            <div class="flex flex-col items-center">
+                                                <div class="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mb-4">
+                                                    <i class="fas fa-search text-2xl text-red-300"></i>
+                                                </div>
+                                                <h3 class="text-base font-black text-gray-800">No Results Found</h3>
+                                                <p class="text-xs text-gray-400 font-bold mt-1 uppercase tracking-wider">No menu items match your search query</p>
+                                                <button @click="menuSearchQuery = ''" class="mt-4 text-[11px] font-black text-purple-600 hover:text-purple-800 uppercase tracking-widest">Clear Search</button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- View: Add New Menu Form -->
+                <div x-show="showMenuCreateForm"
+                     x-transition:enter="transition ease-out duration-200"
+                     x-transition:enter-start="opacity-0"
+                     x-transition:enter-end="opacity-100"
+                     class="flex-1 overflow-y-auto px-8 py-10"
+                     x-ref="menuCreateFormScroll">
+                    <div class="max-w-2xl mx-auto">
+                        <form action="{{ route('ftadmin.menu.store') }}" method="POST" enctype="multipart/form-data" class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+                            @csrf
+                            <input type="hidden" name="foodtruck_id" value="{{ $adminFoodTruckId }}">
+                            <input type="hidden" name="image_data" :value="croppedDataUrl">
+                            <input type="file" x-ref="menuImageInput" accept="image/jpg,image/jpeg,image/png" class="hidden"
+                                   @change="handleImageSelect($event, 'add')">
+
+                            {{-- Row 1: Image (left) | Menu Name + Base Price stacked (right) --}}
+                            <div class="space-y-2">
+                                <label class="text-[11px] font-black uppercase tracking-widest text-gray-400 ml-1">Image</label>
+                                <div @click="$refs.menuImageInput.click()"
+                                     class="flex flex-col items-center justify-center h-[140px] border-2 border-dashed rounded-2xl cursor-pointer transition-all overflow-hidden"
+                                     :class="croppedDataUrl ? 'border-purple-400' : 'border-gray-200 hover:border-purple-400 bg-gray-50 hover:bg-purple-50/30 group'">
+                                    <template x-if="croppedDataUrl">
+                                        <img :src="croppedDataUrl" class="w-full h-full object-cover" style="pointer-events:none;">
+                                    </template>
+                                    <template x-if="!croppedDataUrl">
+                                        <div class="flex flex-col items-center py-6">
+                                            <i class="fas fa-cloud-upload-alt text-3xl text-gray-300 group-hover:text-purple-400 transition-colors mb-2"></i>
+                                            <span class="text-xs font-bold text-gray-400 group-hover:text-purple-500 transition-colors">Click to upload</span>
+                                            <span class="text-[10px] text-gray-300 mt-1">JPG, JPEG, PNG</span>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+
+                            <div class="flex flex-col gap-5">
+                                {{-- Menu Name --}}
+                                <div class="space-y-2">
+                                    <label class="text-[11px] font-black uppercase tracking-widest text-gray-400 ml-1">Menu Name <span class="text-red-500">*</span></label>
+                                    <div class="relative group">
+                                        <i class="fas fa-utensils absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-purple-500 transition-colors"></i>
+                                        <input type="text" name="name" required placeholder="Ex: Nasi Lemak Special"
+                                               x-model="formData.name"
+                                               class="w-full pl-11 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl focus:bg-white focus:ring-4 focus:ring-purple-500/10 focus:border-purple-500 transition-all outline-none text-sm font-bold placeholder:text-gray-300">
+                                    </div>
+                                </div>
+                                {{-- Base Price --}}
+                                <div class="space-y-2">
+                                    <label class="text-[11px] font-black uppercase tracking-widest text-gray-400 ml-1">Base Price (RM) <span class="text-red-500">*</span></label>
+                                    <div class="relative group">
+                                        <i class="fas fa-dollar-sign absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-purple-500 transition-colors"></i>
+                                        <input type="text" name="base_price" required placeholder="0.00" inputmode="decimal"
+                                               x-model="formData.base_price"
+                                               @input="formData.base_price = $event.target.value.replace(/[^0-9.]/g, '').replace(/(\..*?)\..*/g, '$1'); $event.target.value = formData.base_price"
+                                               class="w-full pl-11 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl focus:bg-white focus:ring-4 focus:ring-purple-500/10 focus:border-purple-500 transition-all outline-none text-sm font-bold placeholder:text-gray-300">
+                                    </div>
+                                </div>
+                            </div>
+
+                            {{-- Row 2: Category short (left) | Quantity short (right) --}}
+                            <div class="space-y-2">
+                                <label class="text-[11px] font-black uppercase tracking-widest text-gray-400 ml-1">Category <span class="text-red-500">*</span></label>
+                                <div class="relative group w-44">
+                                    <i class="fas fa-tag absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 pointer-events-none"></i>
+                                    <select name="category" required x-model="formData.category"
+                                            class="w-full pl-11 pr-8 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl focus:bg-white focus:ring-4 focus:ring-purple-500/10 focus:border-purple-500 transition-all outline-none text-sm font-bold text-gray-700 appearance-none cursor-pointer">
+                                        <option value="" disabled>Select</option>
+                                        <option value="Foods">Foods</option>
+                                        <option value="Drinks">Drinks</option>
+                                        <option value="Desserts">Desserts</option>
+                                    </select>
+                                    <i class="fas fa-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-gray-300 pointer-events-none text-xs"></i>
+                                </div>
+                            </div>
+
+                            <div class="space-y-2">
+                                <label class="text-[11px] font-black uppercase tracking-widest text-gray-400 ml-1">Quantity <span class="text-red-500">*</span></label>
+                                <div class="relative group w-36">
+                                    <i class="fas fa-layer-group absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-purple-500 transition-colors"></i>
+                                    <input type="text" name="quantity" required placeholder="0" inputmode="numeric"
+                                           x-model="formData.quantity"
+                                           @input="formData.quantity = $event.target.value.replace(/[^0-9]/g, ''); $event.target.value = formData.quantity"
+                                           class="w-full pl-11 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl focus:bg-white focus:ring-4 focus:ring-purple-500/10 focus:border-purple-500 transition-all outline-none text-sm font-bold placeholder:text-gray-300">
+                                </div>
+                            </div>
+
+                            {{-- Row 3: Description (full width) --}}
+                            <div class="space-y-2 md:col-span-2">
+                                <label class="text-[11px] font-black uppercase tracking-widest text-gray-400 ml-1">Description</label>
+                                <textarea name="description" rows="3" placeholder="Describe your menu item..."
+                                          x-model="formData.description"
+                                          class="w-full px-4 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl focus:bg-white focus:ring-4 focus:ring-purple-500/10 focus:border-purple-500 transition-all outline-none text-sm font-bold placeholder:text-gray-300 resize-none"></textarea>
+                            </div>
+
+                            {{-- Row 4: Buttons --}}
+                            <div class="md:col-span-2 pt-4 flex items-center space-x-4">
+                                <button type="button" @click="showMenuCreateForm = false; resetMenuForm()"
+                                        class="flex-1 px-8 py-4 border-2 border-gray-100 rounded-2xl text-sm font-black text-gray-400 hover:bg-gray-50 hover:text-gray-600 transition-all active:scale-[0.98]">
+                                    <i class="fas fa-arrow-left mr-2"></i>
+                                    Back
+                                </button>
+                                <button type="submit"
+                                        class="flex-[2.5] px-8 py-4 bg-slate-900 text-white rounded-2xl text-sm font-black hover:bg-purple-600 shadow-xl shadow-slate-200 hover:shadow-purple-200 transition-all active:scale-[0.98]">
+                                    Add Menu Item
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modal Footer (Fixed) -->
+            <div class="px-8 py-6 bg-gray-50/80 border-t border-gray-100 flex items-center justify-between flex-shrink-0">
+                <p class="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Authorized Access Only</p>
+                <button @click="showMenuModal = false; resetMenuForm()" class="text-sm font-bold text-gray-500 hover:text-gray-800 transition-colors">
+                    Close Management Tools
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MENU EDIT MODAL -->
+    <div x-show="showMenuEditModal"
+         class="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm"
+         style="display: none;"
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:enter-start="opacity-0 scale-95"
+         x-transition:enter-end="opacity-100 scale-100">
+
+        <div @click.away="!showImageAdjuster && closeMenuEdit()"
+             class="bg-white w-full max-w-5xl rounded-3xl shadow-2xl overflow-hidden flex flex-col h-[85vh] max-h-[750px] border border-white/20">
+
+            <!-- Modal Header -->
+            <div class="px-8 py-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/50 flex-shrink-0">
+                <div class="flex items-center space-x-4">
+                    <div class="bg-purple-600 text-white p-3 rounded-2xl shadow-lg shadow-purple-100">
+                        <i class="fas fa-pen"></i>
+                    </div>
+                    <div>
+                        <h2 class="text-xl font-black text-gray-800 tracking-tight">Edit Menu Item</h2>
+                        <p class="text-xs text-gray-400 font-bold uppercase tracking-widest mt-0.5">Update the details below</p>
+                    </div>
+                </div>
+                <button @click="closeMenuEdit()" class="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-red-50 text-gray-400 hover:text-red-500 transition-all">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <!-- Modal Body -->
+            <div class="flex-1 overflow-y-auto px-8 py-10">
+                <div class="max-w-2xl mx-auto" x-show="selectedMenu">
+                    <form :action="'/ftadmin/menu/' + (selectedMenu ? selectedMenu.id : '')" method="POST" enctype="multipart/form-data" class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+                        @csrf
+                        @method('PUT')
+
+                        {{-- Row 1: Image (left) | Menu Name + Base Price stacked (right) --}}
+                        <div class="space-y-2">
+                            <label class="text-[11px] font-black uppercase tracking-widest text-gray-400 ml-1">Image</label>
+                            <input type="hidden" name="image_data" :value="croppedDataUrl">
+                            <input type="file" x-ref="editMenuImageInput" accept="image/jpg,image/jpeg,image/png" class="hidden"
+                                   @change="handleImageSelect($event, 'edit')">
+                            <div @click="$refs.editMenuImageInput.click()"
+                                 class="flex flex-col items-center justify-center h-[140px] border-2 border-dashed rounded-2xl cursor-pointer transition-all overflow-hidden"
+                                 :class="croppedDataUrl ? 'border-purple-400' : 'border-gray-200 hover:border-purple-400 bg-gray-50 hover:bg-purple-50/30 group'">
+                                <template x-if="croppedDataUrl">
+                                    <img :src="croppedDataUrl" class="w-full h-full object-cover" style="pointer-events:none;">
+                                </template>
+                                <template x-if="!croppedDataUrl">
+                                    <div class="flex flex-col items-center py-6">
+                                        <i class="fas fa-cloud-upload-alt text-3xl text-gray-300 group-hover:text-purple-400 transition-colors mb-2"></i>
+                                        <span class="text-xs font-bold text-gray-400 group-hover:text-purple-500 transition-colors">Click to replace</span>
+                                        <span class="text-[10px] text-gray-300 mt-1">JPG, JPEG, PNG</span>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+
+                        <div class="flex flex-col gap-5">
+                            {{-- Menu Name --}}
+                            <div class="space-y-2">
+                                <label class="text-[11px] font-black uppercase tracking-widest text-gray-400 ml-1">Menu Name <span class="text-red-500">*</span></label>
+                                <div class="relative group">
+                                    <i class="fas fa-utensils absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-purple-500 transition-colors"></i>
+                                    <input type="text" name="name" required x-model="editName"
+                                           class="w-full pl-11 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl focus:bg-white focus:ring-4 focus:ring-purple-500/10 focus:border-purple-500 transition-all outline-none text-sm font-bold placeholder:text-gray-300">
+                                </div>
+                            </div>
+                            {{-- Base Price --}}
+                            <div class="space-y-2">
+                                <label class="text-[11px] font-black uppercase tracking-widest text-gray-400 ml-1">Base Price (RM) <span class="text-red-500">*</span></label>
+                                <div class="relative group">
+                                    <i class="fas fa-dollar-sign absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-purple-500 transition-colors"></i>
+                                    <input type="text" name="base_price" required placeholder="0.00" inputmode="decimal"
+                                           x-model="editBasePrice"
+                                           @input="editBasePrice = $event.target.value.replace(/[^0-9.]/g, '').replace(/(\..*?)\..*/g, '$1'); $event.target.value = editBasePrice"
+                                           class="w-full pl-11 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl focus:bg-white focus:ring-4 focus:ring-purple-500/10 focus:border-purple-500 transition-all outline-none text-sm font-bold placeholder:text-gray-300">
+                                </div>
+                            </div>
+                        </div>
+
+                        {{-- Row 2: Category short (left) | Quantity + Out of Stock (right) --}}
+                        <div class="space-y-2">
+                            <label class="text-[11px] font-black uppercase tracking-widest text-gray-400 ml-1">Category <span class="text-red-500">*</span></label>
+                            <div class="relative group w-44">
+                                <i class="fas fa-tag absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 pointer-events-none"></i>
+                                <select name="category" required x-model="editCategory"
+                                        class="w-full pl-11 pr-8 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl focus:bg-white focus:ring-4 focus:ring-purple-500/10 focus:border-purple-500 transition-all outline-none text-sm font-bold text-gray-700 appearance-none cursor-pointer">
+                                    <option value="" disabled>Select</option>
+                                    <option value="Foods">Foods</option>
+                                    <option value="Drinks">Drinks</option>
+                                    <option value="Desserts">Desserts</option>
+                                </select>
+                                <i class="fas fa-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-gray-300 pointer-events-none text-xs"></i>
+                            </div>
+                        </div>
+
+                        <div class="space-y-2">
+                            <label class="text-[11px] font-black uppercase tracking-widest text-gray-400 ml-1">Quantity <span class="text-red-500">*</span></label>
+                            <div class="flex items-center gap-3">
+                                <div class="relative group w-36">
+                                    <i class="fas fa-layer-group absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-purple-500 transition-colors"></i>
+                                    <input type="text" name="quantity" required placeholder="0" inputmode="numeric"
+                                           x-model="editQuantity"
+                                           @input="editQuantity = $event.target.value.replace(/[^0-9]/g, ''); $event.target.value = editQuantity"
+                                           class="w-full pl-11 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl focus:bg-white focus:ring-4 focus:ring-purple-500/10 focus:border-purple-500 transition-all outline-none text-sm font-bold placeholder:text-gray-300">
+                                </div>
+                                <button type="button" @click="editQuantity = 0"
+                                        class="px-4 py-3.5 bg-red-50 hover:bg-red-500 text-red-500 hover:text-white border border-red-200 hover:border-red-500 rounded-2xl text-xs font-black uppercase tracking-wider transition-all active:scale-95 whitespace-nowrap">
+                                    <i class="fas fa-ban mr-1.5"></i> Out of Stock
+                                </button>
+                            </div>
+                        </div>
+
+                        {{-- Row 3: Description (full width) --}}
+                        <div class="space-y-2 md:col-span-2">
+                            <label class="text-[11px] font-black uppercase tracking-widest text-gray-400 ml-1">Description</label>
+                            <textarea name="description" rows="3" x-model="editDescription"
+                                      placeholder="Describe your menu item..."
+                                      class="w-full px-4 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl focus:bg-white focus:ring-4 focus:ring-purple-500/10 focus:border-purple-500 transition-all outline-none text-sm font-bold placeholder:text-gray-300 resize-none"></textarea>
+                        </div>
+
+                        {{-- Row 4: Buttons --}}
+                        <div class="md:col-span-2 pt-4 flex items-center space-x-4">
+                            <button type="button" @click="closeMenuEdit()"
+                                    class="flex-1 px-8 py-4 border-2 border-gray-100 rounded-2xl text-sm font-black text-gray-400 hover:bg-gray-50 hover:text-gray-600 transition-all active:scale-[0.98]">
+                                <i class="fas fa-arrow-left mr-2"></i>
+                                Back
+                            </button>
+                            <button type="submit"
+                                    class="flex-[2.5] px-8 py-4 bg-slate-900 text-white rounded-2xl text-sm font-black hover:bg-purple-600 shadow-xl shadow-slate-200 hover:shadow-purple-200 transition-all active:scale-[0.98]">
+                                Save Changes
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="px-8 py-6 bg-gray-50/80 border-t border-gray-100 flex items-center justify-between flex-shrink-0">
+                <p class="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Authorized Access Only</p>
+                <button @click="closeMenuEdit()" class="text-sm font-bold text-gray-500 hover:text-gray-800 transition-colors">
+                    Close Management Tools
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- IMAGE ADJUSTER OVERLAY -->
+    <div x-show="showImageAdjuster"
+         class="fixed inset-0 z-[90] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+         style="display: none;"
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100">
+
+        <div class="bg-white rounded-3xl shadow-2xl flex flex-col items-center p-8 gap-6 w-full max-w-md">
+
+            <!-- Title -->
+            <div class="w-full flex items-center justify-between">
+                <h3 class="text-lg font-black text-gray-800">Adjust Image</h3>
+                <button type="button" @click="cancelImageAdjust()"
+                        class="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-red-50 text-gray-400 hover:text-red-500 transition-all">
+                    <i class="fas fa-times text-sm"></i>
+                </button>
+            </div>
+
+            <!-- Image Viewport (320×320) -->
+            <div class="relative w-80 h-80 rounded-2xl overflow-hidden bg-gray-100 border-2 border-gray-200 select-none"
+                 :class="isDragging ? 'cursor-grabbing' : 'cursor-grab'"
+                 @mousedown="startDrag($event)" @mousemove="onDrag($event)" @mouseup="stopDrag()" @mouseleave="stopDrag()"
+                 @touchstart.prevent="startDrag($event)" @touchmove.prevent="onDrag($event)" @touchend="stopDrag()">
+                <img :src="imageDataUrl"
+                     :style="{
+                         position: 'absolute',
+                         top: '50%',
+                         left: '50%',
+                         transform: 'translate(calc(-50% + ' + imageX + 'px), calc(-50% + ' + imageY + 'px)) scale(' + imageScale + ')',
+                         transformOrigin: 'center',
+                         pointerEvents: 'none',
+                         userSelect: 'none',
+                         maxWidth: 'none'
+                     }"
+                     alt="">
+                <div class="absolute inset-0 pointer-events-none border border-white/20 rounded-2xl"></div>
+            </div>
+
+            <!-- Zoom Controls -->
+            <div class="flex items-center gap-3 justify-center w-full">
+                <button type="button" @click="resetZoom()"
+                        class="px-3 h-10 flex items-center justify-center rounded-xl bg-gray-100 hover:bg-purple-100 text-gray-500 hover:text-purple-600 text-xs font-black uppercase tracking-wider transition-all">
+                    <i class="fas fa-undo-alt mr-1.5 text-[10px]"></i> Reset Zoom
+                </button>
+                <button type="button" @click="zoomOut()"
+                        class="w-10 h-10 flex items-center justify-center rounded-xl bg-gray-100 hover:bg-purple-100 text-gray-500 hover:text-purple-600 transition-all">
+                    <i class="fas fa-search-minus text-sm"></i>
+                </button>
+                <span class="text-xs font-black text-gray-400 w-12 text-center" x-text="Math.round(imageScale * 100) + '%'"></span>
+                <button type="button" @click="zoomIn()"
+                        class="w-10 h-10 flex items-center justify-center rounded-xl bg-gray-100 hover:bg-purple-100 text-gray-500 hover:text-purple-600 transition-all">
+                    <i class="fas fa-search-plus text-sm"></i>
+                </button>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="w-full flex items-center gap-3">
+                <button type="button" @click="selectNewImage()"
+                        class="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs font-black rounded-2xl uppercase tracking-wider transition-all active:scale-95">
+                    <i class="fas fa-folder-open mr-1.5"></i> Select New Image
+                </button>
+                <button type="button" @click="cancelImageAdjust()"
+                        class="px-4 py-3 border-2 border-gray-200 text-gray-400 hover:text-gray-600 hover:border-gray-300 text-xs font-black rounded-2xl uppercase tracking-wider transition-all active:scale-95">
+                    Cancel
+                </button>
+                <button type="button" @click="confirmCrop()"
+                        class="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white text-xs font-black rounded-2xl uppercase tracking-wider shadow-lg shadow-purple-200 transition-all active:scale-95">
+                    Confirm
+                </button>
+            </div>
+
+            <!-- Hidden canvas for crop rendering -->
+            <canvas x-ref="cropCanvas" class="hidden"></canvas>
+        </div>
     </div>
 
 </div>
