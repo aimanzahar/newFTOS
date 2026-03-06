@@ -63,6 +63,7 @@ Route::middleware(['auth'])->prefix('ftadmin')->name('ftadmin.')->group(function
 
     // Staff Management
     Route::post('/register-staff', [StaffController::class, 'store'])->name('register.staff');
+    Route::post('/staff/{id}/deactivate', [StaffController::class, 'deactivate'])->name('staff.deactivate');
 
     // Menu List Operations
     Route::prefix('menu')->name('menu.')->group(function () {

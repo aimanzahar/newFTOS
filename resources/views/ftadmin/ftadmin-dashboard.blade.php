@@ -62,6 +62,22 @@
         openActionMenu: null,
         actionMenuX: 0,
         actionMenuY: 0,
+        actionMenuType: '',
+        async deactivateStaff(id) {
+            const res = await fetch('/ftadmin/staff/' + id + '/deactivate', {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').getAttribute('content'),
+                    'Accept': 'application/json'
+                }
+            });
+            const data = await res.json();
+            if (data.success) {
+                const w = this.workers.find(w => w.id === id);
+                if (w) w.status = data.status;
+            }
+            this.openActionMenu = null;
+        },
         editName: '',
         editCategory: '',
         editBasePrice: '',
@@ -542,13 +558,14 @@
 
                     <!-- Scrollable Table Container -->
                     <div class="flex-1 overflow-y-auto px-8 pb-8" x-ref="staffDirectoryScroll">
-                        <div class="overflow-hidden border border-gray-100 rounded-2xl">
-                            <table class="w-full">
+                        <div class="overflow-clip border border-gray-100 rounded-2xl">
+                            <table class="w-full table-fixed">
                                 <thead class="sticky top-0 z-10">
                                     <tr class="bg-gray-50 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] border-b border-gray-100">
                                         <th class="py-4 text-left px-6">Staff Name</th>
                                         <th class="py-4 text-left px-6">Contact Details</th>
-                                        <th class="py-4 text-right px-6">Status</th>
+                                        <th class="py-4 text-left px-6 w-36">Status</th>
+                                        <th class="py-4 text-center px-6 w-24">Action</th>
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-gray-50">
@@ -566,15 +583,32 @@
                                                     <span class="text-[11px] text-gray-400 mt-0.5 font-bold" x-text="worker.phone_no || 'No phone'"></span>
                                                 </div>
                                             </td>
-                                            <td class="py-5 px-6 text-right">
-                                                <span class="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black uppercase bg-emerald-50 text-emerald-600 border border-emerald-100">
-                                                    Active
+                                            <td class="py-5 px-6 w-36 whitespace-nowrap">
+                                                <span class="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black uppercase"
+                                                      :class="worker.status === 'deactivated'
+                                                          ? 'bg-orange-50 text-orange-500 border border-orange-100'
+                                                          : 'bg-emerald-50 text-emerald-600 border border-emerald-100'"
+                                                      x-text="worker.status === 'deactivated' ? 'Deactivated' : 'Active'">
                                                 </span>
+                                            </td>
+                                            <td class="py-5 px-6 w-24 text-center">
+                                                <button type="button"
+                                                        @click.stop="
+                                                            if (openActionMenu === worker.id && actionMenuType === 'staff') { openActionMenu = null; return; }
+                                                            const rect = $el.getBoundingClientRect();
+                                                            actionMenuX = rect.right + 4;
+                                                            actionMenuY = rect.top;
+                                                            actionMenuType = 'staff';
+                                                            openActionMenu = worker.id;
+                                                        "
+                                                        class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 hover:bg-blue-100 text-gray-400 hover:text-blue-600 transition-all mx-auto">
+                                                    <i class="fas fa-ellipsis-v text-xs"></i>
+                                                </button>
                                             </td>
                                         </tr>
                                     </template>
                                     <tr x-show="searchQuery !== '' && filteredCount === 0">
-                                        <td colspan="3" class="py-16 text-center">
+                                        <td colspan="4" class="py-16 text-center">
                                             <div class="flex flex-col items-center">
                                                 <div class="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mb-4">
                                                     <i class="fas fa-user-slash text-2xl text-red-300"></i>
@@ -738,7 +772,7 @@
 
                     <!-- Scrollable Table -->
                     <div class="flex-1 overflow-y-auto px-8 pb-8" x-ref="menuDirectoryScroll">
-                        <div class="overflow-hidden border border-gray-100 rounded-2xl">
+                        <div class="overflow-clip border border-gray-100 rounded-2xl">
                             <table class="w-full">
                                 <thead class="sticky top-0 z-10">
                                     <tr class="bg-gray-50 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] border-b border-gray-100">
@@ -778,10 +812,11 @@
                                             <td class="py-5 px-6 text-center" @click.stop>
                                                 <button type="button"
                                                         @click.stop="
-                                                            if (openActionMenu === item.id) { openActionMenu = null; return; }
+                                                            if (openActionMenu === item.id && actionMenuType === 'menu') { openActionMenu = null; return; }
                                                             const rect = $el.getBoundingClientRect();
                                                             actionMenuX = rect.right + 4;
                                                             actionMenuY = rect.top;
+                                                            actionMenuType = 'menu';
                                                             openActionMenu = item.id;
                                                         "
                                                         class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 hover:bg-purple-100 text-gray-400 hover:text-purple-600 transition-all mx-auto">
@@ -1219,33 +1254,59 @@
         </div>
     </div>
 
-    <!-- ACTION MENU DROPDOWN (fixed portal — not clipped by table overflow) -->
+    <!-- ACTION MENU DROPDOWN (fixed portal — not clipped by any overflow-hidden parent) -->
     <div x-show="openActionMenu !== null"
          @click.away="openActionMenu = null"
          :style="{ position: 'fixed', left: actionMenuX + 'px', top: actionMenuY + 'px', zIndex: 300 }"
          style="display:none;"
          class="bg-white rounded-xl shadow-xl border border-gray-100 py-1 w-36">
-        <!-- Unavailable (placeholder — not functional yet) -->
-        <button type="button" @click.stop="openActionMenu = null"
-                class="w-full text-left px-4 py-2.5 text-xs font-bold text-gray-400 flex items-center gap-2.5 opacity-50 cursor-not-allowed">
-            <i class="fas fa-ban text-orange-400 w-3 text-center"></i>
-            Unavailable
-        </button>
-        <div class="border-t border-gray-100 mx-3 my-0.5"></div>
-        <!-- Delete -->
-        <button type="button"
-                @click.stop="
-                    if (confirm('Delete this menu item? This cannot be undone.')) {
-                        $refs.deleteMenuForm.action = '/ftadmin/menu/' + openActionMenu;
-                        $refs.deleteMenuForm.submit();
-                    } else {
-                        openActionMenu = null;
-                    }
-                "
-                class="w-full text-left px-4 py-2.5 text-xs font-bold text-red-500 hover:bg-red-50 flex items-center gap-2.5 transition-colors">
-            <i class="fas fa-trash-alt w-3 text-center"></i>
-            Delete
-        </button>
+
+        <!-- ── MENU item actions ── -->
+        <template x-if="actionMenuType === 'menu'">
+            <div>
+                <button type="button" @click.stop="openActionMenu = null"
+                        class="w-full text-left px-4 py-2.5 text-xs font-bold text-gray-400 flex items-center gap-2.5 opacity-50 cursor-not-allowed">
+                    <i class="fas fa-ban text-orange-400 w-3 text-center"></i>
+                    Unavailable
+                </button>
+                <div class="border-t border-gray-100 mx-3 my-0.5"></div>
+                <button type="button"
+                        @click.stop="
+                            if (confirm('Delete this menu item? This cannot be undone.')) {
+                                $refs.deleteMenuForm.action = '/ftadmin/menu/' + openActionMenu;
+                                $refs.deleteMenuForm.submit();
+                            } else {
+                                openActionMenu = null;
+                            }
+                        "
+                        class="w-full text-left px-4 py-2.5 text-xs font-bold text-red-500 hover:bg-red-50 flex items-center gap-2.5 transition-colors">
+                    <i class="fas fa-trash-alt w-3 text-center"></i>
+                    Delete
+                </button>
+            </div>
+        </template>
+
+        <!-- ── STAFF actions ── -->
+        <template x-if="actionMenuType === 'staff'">
+            <div>
+                <button type="button"
+                        @click.stop="deactivateStaff(openActionMenu)"
+                        :class="workers.find(w => w.id === openActionMenu)?.status === 'deactivated'
+                            ? 'text-emerald-600 hover:bg-emerald-50'
+                            : 'text-orange-500 hover:bg-orange-50'"
+                        class="w-full text-left px-4 py-2.5 text-xs font-bold flex items-center gap-2.5 transition-colors">
+                    <i class="fas fa-user-slash w-3 text-center"></i>
+                    <span x-text="workers.find(w => w.id === openActionMenu)?.status === 'deactivated' ? 'Reactivate' : 'Deactivate'"></span>
+                </button>
+                <div class="border-t border-gray-100 mx-3 my-0.5"></div>
+                <button type="button" @click.stop="openActionMenu = null"
+                        class="w-full text-left px-4 py-2.5 text-xs font-bold text-red-500 hover:bg-red-50 flex items-center gap-2.5 transition-colors">
+                    <i class="fas fa-user-times w-3 text-center"></i>
+                    Fired
+                </button>
+            </div>
+        </template>
+
     </div>
 
     <!-- Hidden delete form -->

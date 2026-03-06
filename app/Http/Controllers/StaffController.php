@@ -41,6 +41,24 @@ class StaffController extends Controller
     }
 
     /**
+     * Toggle a staff member's status between active and deactivated.
+     */
+    public function deactivate($id)
+    {
+        $admin = Auth::user();
+
+        $staff = User::where('id', $id)
+            ->where('foodtruck_id', $admin->foodtruck_id)
+            ->where('role', 3)
+            ->firstOrFail();
+
+        $newStatus = $staff->status === 'deactivated' ? 'active' : 'deactivated';
+        $staff->update(['status' => $newStatus]);
+
+        return response()->json(['success' => true, 'status' => $newStatus]);
+    }
+
+    /**
      * List staff for the specific food truck
      */
     public function index()

@@ -23,6 +23,7 @@ class User extends Authenticatable
         'phone_no',
         'role',
         'foodtruck_id',
+        'status',
     ];
 
     protected $hidden = [
