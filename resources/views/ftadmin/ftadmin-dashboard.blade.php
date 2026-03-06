@@ -59,6 +59,9 @@
         },
         showMenuEditModal: false,
         selectedMenu: null,
+        openActionMenu: null,
+        actionMenuX: 0,
+        actionMenuY: 0,
         editName: '',
         editCategory: '',
         editBasePrice: '',
@@ -742,7 +745,8 @@
                                         <th class="py-4 text-left px-6">Menu Name</th>
                                         <th class="py-4 text-left px-6">Category</th>
                                         <th class="py-4 text-left px-6">Price</th>
-                                        <th class="py-4 text-right px-6">Qty</th>
+                                        <th class="py-4 text-left px-6">Qty</th>
+                                        <th class="py-4 text-center px-6">Action</th>
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-gray-50">
@@ -765,16 +769,29 @@
                                             <td class="py-5 px-6">
                                                 <span class="text-sm font-bold text-gray-800" x-text="'RM ' + parseFloat(item.base_price).toFixed(2)"></span>
                                             </td>
-                                            <td class="py-5 px-6 text-right">
+                                            <td class="py-5 px-6">
                                                 <span class="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black uppercase"
                                                       :class="item.quantity > 0 ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-red-50 text-red-500 border border-red-100'"
                                                       x-text="item.quantity > 0 ? item.quantity + ' left' : 'Out of Stock'">
                                                 </span>
                                             </td>
+                                            <td class="py-5 px-6 text-center" @click.stop>
+                                                <button type="button"
+                                                        @click.stop="
+                                                            if (openActionMenu === item.id) { openActionMenu = null; return; }
+                                                            const rect = $el.getBoundingClientRect();
+                                                            actionMenuX = rect.right + 4;
+                                                            actionMenuY = rect.top;
+                                                            openActionMenu = item.id;
+                                                        "
+                                                        class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 hover:bg-purple-100 text-gray-400 hover:text-purple-600 transition-all mx-auto">
+                                                    <i class="fas fa-ellipsis-v text-xs"></i>
+                                                </button>
+                                            </td>
                                         </tr>
                                     </template>
                                     <tr x-show="menuItems.length === 0">
-                                        <td colspan="4" class="py-16 text-center">
+                                        <td colspan="5" class="py-16 text-center">
                                             <div class="flex flex-col items-center">
                                                 <div class="w-16 h-16 bg-purple-50 rounded-full flex items-center justify-center mb-4">
                                                     <i class="fas fa-utensils text-2xl text-purple-300"></i>
@@ -785,7 +802,7 @@
                                         </td>
                                     </tr>
                                     <tr x-show="menuSearchQuery !== '' && menuFilteredCount === 0 && menuItems.length > 0">
-                                        <td colspan="4" class="py-16 text-center">
+                                        <td colspan="5" class="py-16 text-center">
                                             <div class="flex flex-col items-center">
                                                 <div class="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mb-4">
                                                     <i class="fas fa-search text-2xl text-red-300"></i>
@@ -1201,6 +1218,41 @@
             <canvas x-ref="cropCanvas" class="hidden"></canvas>
         </div>
     </div>
+
+    <!-- ACTION MENU DROPDOWN (fixed portal — not clipped by table overflow) -->
+    <div x-show="openActionMenu !== null"
+         @click.away="openActionMenu = null"
+         :style="{ position: 'fixed', left: actionMenuX + 'px', top: actionMenuY + 'px', zIndex: 300 }"
+         style="display:none;"
+         class="bg-white rounded-xl shadow-xl border border-gray-100 py-1 w-36">
+        <!-- Unavailable (placeholder — not functional yet) -->
+        <button type="button" @click.stop="openActionMenu = null"
+                class="w-full text-left px-4 py-2.5 text-xs font-bold text-gray-400 flex items-center gap-2.5 opacity-50 cursor-not-allowed">
+            <i class="fas fa-ban text-orange-400 w-3 text-center"></i>
+            Unavailable
+        </button>
+        <div class="border-t border-gray-100 mx-3 my-0.5"></div>
+        <!-- Delete -->
+        <button type="button"
+                @click.stop="
+                    if (confirm('Delete this menu item? This cannot be undone.')) {
+                        $refs.deleteMenuForm.action = '/ftadmin/menu/' + openActionMenu;
+                        $refs.deleteMenuForm.submit();
+                    } else {
+                        openActionMenu = null;
+                    }
+                "
+                class="w-full text-left px-4 py-2.5 text-xs font-bold text-red-500 hover:bg-red-50 flex items-center gap-2.5 transition-colors">
+            <i class="fas fa-trash-alt w-3 text-center"></i>
+            Delete
+        </button>
+    </div>
+
+    <!-- Hidden delete form -->
+    <form x-ref="deleteMenuForm" method="POST" style="display:none;">
+        @csrf
+        @method('DELETE')
+    </form>
 
 </div>
 
