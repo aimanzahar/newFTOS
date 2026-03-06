@@ -19,6 +19,7 @@ class Menu extends Model
         'quantity',
         'description',
         'image',
+        'original_image',
     ];
 
     public function foodTruck()

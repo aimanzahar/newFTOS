@@ -71,16 +71,55 @@
             this.editBasePrice = item.base_price;
             this.editQuantity = item.quantity;
             this.editDescription = item.description || '';
-            // if menu has stored image, preload it for preview and adjuster
-            if (item.image) {
-                const src = '/storage/' + item.image;
-                this.croppedDataUrl = src;
-                this.imageDataUrl = src;
-            } else {
-                this.croppedDataUrl = null;
-                this.imageDataUrl = null;
-            }
+            // ensure preview actions state
+            this.previewActionSource = 'edit';
+            this.showPreviewActions = false;
+            // clear any previous preview then open modal
+            this.croppedDataUrl = null;
+            this.imageDataUrl = null;
             this.showMenuEditModal = true;
+            // assign the image shortly after opening to avoid Alpine x-if timing issues
+            setTimeout(() => {
+                if (item.image) {
+                    const croppedSrc = '/storage/' + item.image;
+                    // Use original_image for naturalW/H so Reset Zoom reflects the original file dimensions
+                    const originalSrc = item.original_image ? '/storage/' + item.original_image : croppedSrc;
+
+                    // Set croppedDataUrl immediately so the preview shows the saved crop
+                    this.croppedDataUrl = croppedSrc;
+
+                    // Load the original image to capture its natural dimensions for Reset Zoom
+                    const origImg = new Image();
+                    origImg.onload = () => {
+                        this.imageNaturalW = origImg.naturalWidth;
+                        this.imageNaturalH = origImg.naturalHeight;
+                        this.imageVPW = 320; this.imageVPH = 320;
+                        const minScale = Math.max(this.imageVPW / origImg.naturalWidth, this.imageVPH / origImg.naturalHeight);
+                        this.imageMinScale = minScale;
+                        this.imageScale = minScale;
+                        this.imageDataUrl = originalSrc;
+                    };
+                    origImg.onerror = () => {
+                        // fallback: use cropped image dimensions
+                        const fallback = new Image();
+                        fallback.onload = () => {
+                            this.imageNaturalW = fallback.naturalWidth;
+                            this.imageNaturalH = fallback.naturalHeight;
+                            this.imageVPW = 320; this.imageVPH = 320;
+                            const minScale = Math.max(this.imageVPW / fallback.naturalWidth, this.imageVPH / fallback.naturalHeight);
+                            this.imageMinScale = minScale;
+                            this.imageScale = minScale;
+                            this.imageDataUrl = croppedSrc;
+                        };
+                        fallback.onerror = () => {
+                            this.imageDataUrl = null;
+                            this.croppedDataUrl = null;
+                        };
+                        fallback.src = croppedSrc;
+                    };
+                    origImg.src = originalSrc;
+                }
+            }, 50);
         },
         closeMenuEdit() {
             this.showMenuEditModal = false;
@@ -136,6 +175,8 @@
         handleImageSelect(event, source) {
             const file = event.target.files[0];
             if (!file) return;
+            this._prevCroppedDataUrl = this.croppedDataUrl;
+            this._prevImageDataUrl   = this.imageDataUrl;
             this.imageAdjusterSource = source || 'add';
             const reader = new FileReader();
             reader.onload = (e) => {
@@ -228,8 +269,10 @@
             img.src = this.imageDataUrl;
         },
         cancelImageAdjust() {
-            this.imageDataUrl = null;
-            this.croppedDataUrl = null;
+            this.croppedDataUrl = this._prevCroppedDataUrl || null;
+            this.imageDataUrl   = this._prevImageDataUrl   || this.croppedDataUrl;
+            this._prevCroppedDataUrl = null;
+            this._prevImageDataUrl   = null;
             this.showImageAdjuster = false;
             if (this.$refs.menuImageInput) this.$refs.menuImageInput.value = '';
             if (this.$refs.editMenuImageInput) this.$refs.editMenuImageInput.value = '';
@@ -243,6 +286,8 @@
         ,
         openImageAdjusterFromData(source) {
             this.showPreviewActions = false;
+            this._prevCroppedDataUrl = this.croppedDataUrl;
+            this._prevImageDataUrl   = this.imageDataUrl;
             this.imageAdjusterSource = source || 'add';
             // prefer the original selected image if available, otherwise fall back to cropped preview
             const src = this.imageDataUrl || this.croppedDataUrl;
@@ -641,7 +686,7 @@
          x-transition:enter-end="opacity-100 scale-100"
          @keydown.escape.window="showMenuEditModal ? closeMenuEdit() : (showMenuModal = false, resetMenuForm())">
 
-        <div @click.away="!showImageAdjuster && (showMenuModal = false, resetMenuForm())"
+        <div @click.away="!showMenuEditModal && !showImageAdjuster && (showMenuModal = false, resetMenuForm())"
              class="bg-white w-full max-w-5xl rounded-3xl shadow-2xl overflow-hidden flex flex-col h-[85vh] max-h-[750px] border border-white/20">
 
             <!-- Modal Header (Fixed) -->
@@ -769,6 +814,7 @@
                             @csrf
                             <input type="hidden" name="foodtruck_id" value="{{ $adminFoodTruckId }}">
                             <input type="hidden" name="image_data" :value="croppedDataUrl">
+                            <input type="hidden" name="original_image_data" :value="imageDataUrl">
                             <input type="file" x-ref="menuImageInput" accept="image/jpg,image/jpeg,image/png" class="hidden"
                                    @change="handleImageSelect($event, 'add')">
 
@@ -776,6 +822,7 @@
                             <div class="space-y-2">
                                 <label class="text-[11px] font-black uppercase tracking-widest text-gray-400 ml-1">Image</label>
                                 <div @click="!croppedDataUrl ? $refs.menuImageInput.click() : (previewActionSource='add', showPreviewActions = !showPreviewActions)"
+                                         @click.away="previewActionSource === 'add' && (showPreviewActions = false)"
                                          x-ref="menuImageContainer"
                                          :style="croppedDataUrl ? '' : ('width: ' + emptyImageSize + 'px; height: ' + emptyImageSize + 'px;')"
                                          class="flex items-center justify-center min-h-[140px] max-h-[420px] border-2 border-dashed rounded-2xl cursor-pointer transition-all overflow-hidden relative"
@@ -783,12 +830,16 @@
                                         <template x-if="croppedDataUrl">
                                             <div class="w-full h-full relative">
                                                 <img :src="croppedDataUrl" class="max-w-full max-h-[420px] object-contain" style="pointer-events:none; display:block; margin:0 auto;">
-                                                <div x-show="showPreviewActions && previewActionSource === 'add'" x-cloak @click.away="showPreviewActions = false"
+                                                <div x-show="showPreviewActions && previewActionSource === 'add'"
                                                      class="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/30">
-                                                        <button @click.stop="openImageAdjusterFromData('add')"
-                                                            class="px-4 py-2 bg-white text-sm font-black rounded-2xl">Click to adjust</button>
-                                                    <button @click.stop="(previewActionSource='add', replacePreviewImage())"
-                                                            class="px-4 py-2 bg-white text-sm font-black rounded-2xl">Click to replace</button>
+                                                    <button type="button" @click.stop="openImageAdjusterFromData('add')"
+                                                            class="px-5 py-2.5 bg-white hover:bg-purple-50 text-gray-800 text-sm font-black rounded-2xl shadow-lg transition-all active:scale-95">
+                                                        <i class="fas fa-sliders-h mr-2 text-purple-500"></i>Click to Adjust
+                                                    </button>
+                                                    <button type="button" @click.stop="replacePreviewImage()"
+                                                            class="px-5 py-2.5 bg-white hover:bg-purple-50 text-gray-800 text-sm font-black rounded-2xl shadow-lg transition-all active:scale-95">
+                                                        <i class="fas fa-exchange-alt mr-2 text-purple-500"></i>Click to Replace
+                                                    </button>
                                                 </div>
                                             </div>
                                         </template>
@@ -928,34 +979,40 @@
                         <div class="space-y-2">
                             <label class="text-[11px] font-black uppercase tracking-widest text-gray-400 ml-1">Image</label>
                             <input type="hidden" name="image_data" :value="croppedDataUrl">
+                            <input type="hidden" name="original_image_data" :value="imageDataUrl">
                             <input type="file" x-ref="editMenuImageInput" accept="image/jpg,image/jpeg,image/png" class="hidden"
                                    @change="handleImageSelect($event, 'edit')">
                             <div @click="!croppedDataUrl ? $refs.editMenuImageInput.click() : (previewActionSource='edit', showPreviewActions = !showPreviewActions)"
-                                  class="flex items-center justify-center min-h-[140px] max-h-[420px] border-2 border-dashed rounded-2xl cursor-pointer transition-all overflow-hidden relative"
-                                  :class="croppedDataUrl ? 'border-purple-400' : 'border-gray-200 hover:border-purple-400 bg-gray-50 hover:bg-purple-50/30 group'">
+                                 @click.away="previewActionSource === 'edit' && (showPreviewActions = false)"
+                                 class="flex items-center justify-center min-h-[140px] max-h-[420px] border-2 border-dashed rounded-2xl cursor-pointer transition-all overflow-hidden relative"
+                                 :class="croppedDataUrl ? 'border-purple-400' : 'border-gray-200 hover:border-purple-400 bg-gray-50 hover:bg-purple-50/30 group'">
                                 <template x-if="croppedDataUrl">
                                     <div class="w-full h-full relative">
                                         <img :src="croppedDataUrl" class="max-w-full max-h-[420px] object-contain" style="pointer-events:none; display:block; margin:0 auto;">
-                                        <div x-show="showPreviewActions && previewActionSource === 'edit'" x-cloak @click.away="showPreviewActions = false"
+                                        <div x-show="showPreviewActions && previewActionSource === 'edit'"
                                              class="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/30">
-                                                <button @click.stop="openImageAdjusterFromData('edit')"
-                                                    class="px-4 py-2 bg-white text-sm font-black rounded-2xl">Click to adjust</button>
-                                            <button @click.stop="(previewActionSource='edit', replacePreviewImage())"
-                                                    class="px-4 py-2 bg-white text-sm font-black rounded-2xl">Click to replace</button>
+                                            <button type="button" @click.stop="openImageAdjusterFromData('edit')"
+                                                    class="px-5 py-2.5 bg-white hover:bg-purple-50 text-gray-800 text-sm font-black rounded-2xl shadow-lg transition-all active:scale-95">
+                                                <i class="fas fa-sliders-h mr-2 text-purple-500"></i>Click to Adjust
+                                            </button>
+                                            <button type="button" @click.stop="replacePreviewImage()"
+                                                    class="px-5 py-2.5 bg-white hover:bg-purple-50 text-gray-800 text-sm font-black rounded-2xl shadow-lg transition-all active:scale-95">
+                                                <i class="fas fa-exchange-alt mr-2 text-purple-500"></i>Click to Replace
+                                            </button>
                                         </div>
                                     </div>
                                 </template>
                                 <template x-if="!croppedDataUrl">
                                     <div class="flex flex-col items-center py-6">
                                         <i class="fas fa-cloud-upload-alt text-3xl text-gray-300 group-hover:text-purple-400 transition-colors mb-2"></i>
-                                        <span class="text-xs font-bold text-gray-400 group-hover:text-purple-500 transition-colors">Click to replace</span>
+                                        <span class="text-xs font-bold text-gray-400 group-hover:text-purple-500 transition-colors">Click to upload</span>
                                         <span class="text-[10px] text-gray-300 mt-1">JPG, JPEG, PNG</span>
                                     </div>
                                 </template>
                             </div>
                         </div>
 
-                        <div class="flex flex-col gap-5">
+                        <div x-ref="menuRightColEdit" class="flex flex-col gap-6">
                             {{-- Menu Name --}}
                             <div class="space-y-2">
                                 <label class="text-[11px] font-black uppercase tracking-widest text-gray-400 ml-1">Menu Name <span class="text-red-500">*</span></label>
@@ -976,39 +1033,44 @@
                                            class="w-full pl-11 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl focus:bg-white focus:ring-4 focus:ring-purple-500/10 focus:border-purple-500 transition-all outline-none text-sm font-bold placeholder:text-gray-300">
                                 </div>
                             </div>
-                        </div>
 
-                        {{-- Row 2: Category short (left) | Quantity + Out of Stock (right) --}}
-                        <div class="space-y-2">
-                            <label class="text-[11px] font-black uppercase tracking-widest text-gray-400 ml-1">Category <span class="text-red-500">*</span></label>
-                            <div class="relative group w-44">
-                                <i class="fas fa-tag absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 pointer-events-none"></i>
-                                <select name="category" required x-model="editCategory"
-                                        class="w-full pl-11 pr-8 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl focus:bg-white focus:ring-4 focus:ring-purple-500/10 focus:border-purple-500 transition-all outline-none text-sm font-bold text-gray-700 appearance-none cursor-pointer">
-                                    <option value="" disabled>Select</option>
-                                    <option value="Foods">Foods</option>
-                                    <option value="Drinks">Drinks</option>
-                                    <option value="Desserts">Desserts</option>
-                                </select>
-                                <i class="fas fa-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-gray-300 pointer-events-none text-xs"></i>
-                            </div>
-                        </div>
-
-                        <div class="space-y-2">
-                            <label class="text-[11px] font-black uppercase tracking-widest text-gray-400 ml-1">Quantity <span class="text-red-500">*</span></label>
-                            <div class="flex items-center gap-3">
-                                <div class="relative group w-36">
-                                    <i class="fas fa-layer-group absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-purple-500 transition-colors"></i>
-                                    <input type="text" name="quantity" required placeholder="0" inputmode="numeric"
-                                           x-model="editQuantity"
-                                           @input="editQuantity = $event.target.value.replace(/[^0-9]/g, ''); $event.target.value = editQuantity"
-                                           class="w-full pl-11 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl focus:bg-white focus:ring-4 focus:ring-purple-500/10 focus:border-purple-500 transition-all outline-none text-sm font-bold placeholder:text-gray-300">
+                            <div class="flex items-end gap-4 mt-2 w-full">
+                                <div class="space-y-2 flex-1">
+                                    <label class="text-[11px] font-black uppercase tracking-widest text-gray-400 ml-1">Category <span class="text-red-500">*</span></label>
+                                    <div class="relative group">
+                                        <i class="fas fa-tag absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 pointer-events-none"></i>
+                                        <select name="category" required x-model="editCategory"
+                                                class="w-full pl-11 pr-8 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl focus:bg-white focus:ring-4 focus:ring-purple-500/10 focus:border-purple-500 transition-all outline-none text-sm font-bold text-gray-700 appearance-none cursor-pointer">
+                                            <option value="" disabled>Select</option>
+                                            <option value="Foods">Foods</option>
+                                            <option value="Drinks">Drinks</option>
+                                            <option value="Desserts">Desserts</option>
+                                        </select>
+                                        <i class="fas fa-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-gray-300 pointer-events-none text-xs"></i>
+                                    </div>
                                 </div>
-                                <button type="button" @click="editQuantity = 0"
-                                        class="px-4 py-3.5 bg-red-50 hover:bg-red-500 text-red-500 hover:text-white border border-red-200 hover:border-red-500 rounded-2xl text-xs font-black uppercase tracking-wider transition-all active:scale-95 whitespace-nowrap">
-                                    <i class="fas fa-ban mr-1.5"></i> Out of Stock
-                                </button>
+
+                                <div class="space-y-2 flex-1">
+                                    <label class="text-[11px] font-black uppercase tracking-widest text-gray-400 ml-1">Quantity <span class="text-red-500">*</span></label>
+                                    <div class="relative group">
+                                        <i class="fas fa-layer-group absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-purple-500 transition-colors"></i>
+                                        <input type="text" name="quantity" required placeholder="0" inputmode="numeric"
+                                               x-model="editQuantity"
+                                               @input="editQuantity = $event.target.value.replace(/[^0-9]/g, ''); $event.target.value = editQuantity"
+                                               class="w-full pl-11 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl focus:bg-white focus:ring-4 focus:ring-purple-500/10 focus:border-purple-500 transition-all outline-none text-sm font-bold placeholder:text-gray-300">
+                                    </div>
+                                </div>
                             </div>
+
+                            {{-- Out of Stock button --}}
+                            <button type="button" @click="editQuantity = '0'"
+                                    :class="editQuantity == 0 && editQuantity !== ''
+                                        ? 'bg-red-500 text-white border-red-500 shadow-lg shadow-red-100'
+                                        : 'bg-red-50 text-red-500 border-red-200 hover:bg-red-500 hover:text-white hover:border-red-500'"
+                                    class="w-full mt-1 py-3 border-2 rounded-2xl text-xs font-black uppercase tracking-wider transition-all active:scale-[0.98] flex items-center justify-center gap-2">
+                                <i class="fas fa-ban"></i>
+                                <span x-text="editQuantity == 0 && editQuantity !== '' ? 'Out of Stock' : 'Set Out of Stock'"></span>
+                            </button>
                         </div>
 
                         {{-- Row 3: Description (full width) --}}

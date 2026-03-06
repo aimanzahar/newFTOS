@@ -53,11 +53,13 @@ class MenuController extends Controller
         ]);
 
         $imagePath = null;
-        if ($request->filled('image_data')) {
-            $base64 = $request->input('image_data');
-            if (str_contains($base64, ',')) {
-                $base64 = substr($base64, strpos($base64, ',') + 1);
-            }
+        $originalImagePath = null;
+
+        $imageData = $request->input('image_data', '');
+        if (str_starts_with($imageData, 'data:')) {
+            $base64 = str_contains($imageData, ',')
+                ? substr($imageData, strpos($imageData, ',') + 1)
+                : $imageData;
             $filename = 'menu-items/' . Str::uuid() . '.jpg';
             Storage::disk('public')->put($filename, base64_decode($base64));
             $imagePath = $filename;
@@ -65,14 +67,25 @@ class MenuController extends Controller
             $imagePath = $request->file('image')->store('menu-items', 'public');
         }
 
+        $originalData = $request->input('original_image_data', '');
+        if (str_starts_with($originalData, 'data:')) {
+            $base64Orig = str_contains($originalData, ',')
+                ? substr($originalData, strpos($originalData, ',') + 1)
+                : $originalData;
+            $origFilename = 'menu-items/orig_' . Str::uuid() . '.jpg';
+            Storage::disk('public')->put($origFilename, base64_decode($base64Orig));
+            $originalImagePath = $origFilename;
+        }
+
         Menu::create([
-            'foodtruck_id' => $user->foodtruck_id,
-            'name'         => $request->name,
-            'category'     => $request->category,
-            'base_price'   => $request->base_price,
-            'quantity'     => $request->quantity,
-            'description'  => $request->description,
-            'image'        => $imagePath,
+            'foodtruck_id'   => $user->foodtruck_id,
+            'name'           => $request->name,
+            'category'       => $request->category,
+            'base_price'     => $request->base_price,
+            'quantity'       => $request->quantity,
+            'description'    => $request->description,
+            'image'          => $imagePath,
+            'original_image' => $originalImagePath,
         ]);
 
         return redirect()->back()->with('success', 'Menu item added successfully!');
@@ -98,16 +111,26 @@ class MenuController extends Controller
 
         $data = $request->only(['name', 'category', 'base_price', 'quantity', 'description']);
 
-        if ($request->filled('image_data')) {
-            $base64 = $request->input('image_data');
-            if (str_contains($base64, ',')) {
-                $base64 = substr($base64, strpos($base64, ',') + 1);
-            }
+        $imageData = $request->input('image_data', '');
+        if (str_starts_with($imageData, 'data:')) {
+            $base64 = str_contains($imageData, ',')
+                ? substr($imageData, strpos($imageData, ',') + 1)
+                : $imageData;
             $filename = 'menu-items/' . Str::uuid() . '.jpg';
             Storage::disk('public')->put($filename, base64_decode($base64));
             $data['image'] = $filename;
         } elseif ($request->hasFile('image')) {
             $data['image'] = $request->file('image')->store('menu-items', 'public');
+        }
+
+        $originalData = $request->input('original_image_data', '');
+        if (str_starts_with($originalData, 'data:')) {
+            $base64Orig = str_contains($originalData, ',')
+                ? substr($originalData, strpos($originalData, ',') + 1)
+                : $originalData;
+            $origFilename = 'menu-items/orig_' . Str::uuid() . '.jpg';
+            Storage::disk('public')->put($origFilename, base64_decode($base64Orig));
+            $data['original_image'] = $origFilename;
         }
 
         $item->update($data);
