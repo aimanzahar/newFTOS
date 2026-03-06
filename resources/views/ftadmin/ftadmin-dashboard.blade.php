@@ -71,8 +71,15 @@
             this.editBasePrice = item.base_price;
             this.editQuantity = item.quantity;
             this.editDescription = item.description || '';
-            this.croppedDataUrl = null;
-            this.imageDataUrl = null;
+            // if menu has stored image, preload it for preview and adjuster
+            if (item.image) {
+                const src = '/storage/' + item.image;
+                this.croppedDataUrl = src;
+                this.imageDataUrl = src;
+            } else {
+                this.croppedDataUrl = null;
+                this.imageDataUrl = null;
+            }
             this.showMenuEditModal = true;
         },
         closeMenuEdit() {
@@ -96,6 +103,33 @@
         imageNaturalH: 0,
         imageX: 0,
         imageY: 0,
+        /* viewport / ratio */
+        imageVPW: 320,
+        imageVPH: 320,
+        /* fixed adjuster container size (px) - keeps modal size stable */
+        adjusterContainerSize: 320,
+        imageRatio: '', // '' = placeholder, 'square' or '16:9'
+        showRatioOptions: false,
+        /* empty-preview sizing for add form */
+        emptyImageSize: 320,
+        updateEmptyImageSize() {
+            try {
+                const ref = this.$refs.menuRightCol;
+                if (ref) {
+                    // measure and clamp between min/max
+                    const h = ref.clientHeight || 320;
+                    this.emptyImageSize = Math.max(140, Math.min(h, 420));
+                }
+            } catch(e) {}
+        },
+        lastCrop: null,
+        showPreviewActions: false,
+        previewActionSource: 'add',
+        replacePreviewImage() {
+            const ref = this.previewActionSource === 'edit' ? this.$refs.editMenuImageInput : this.$refs.menuImageInput;
+            if (ref) ref.click();
+            this.showPreviewActions = false;
+        },
         isDragging: false,
         _dragStartX: 0, _dragStartY: 0, _dragStartImgX: 0, _dragStartImgY: 0,
 
@@ -110,10 +144,9 @@
                 this.imageY = 0;
                 const img = new Image();
                 img.onload = () => {
-                    const vp = 320;
                     this.imageNaturalW = img.naturalWidth;
                     this.imageNaturalH = img.naturalHeight;
-                    const minScale = Math.max(vp / img.naturalWidth, vp / img.naturalHeight);
+                    const minScale = Math.max(this.imageVPW / img.naturalWidth, this.imageVPH / img.naturalHeight);
                     this.imageMinScale = minScale;
                     this.imageScale = minScale;
                 };
@@ -123,11 +156,12 @@
             reader.readAsDataURL(file);
         },
         clampPosition() {
-            const vp = 320;
+            const vpW = this.imageVPW;
+            const vpH = this.imageVPH;
             const hw = (this.imageNaturalW * this.imageScale) / 2;
             const hh = (this.imageNaturalH * this.imageScale) / 2;
-            const maxX = Math.max(hw - vp / 2, 0);
-            const maxY = Math.max(hh - vp / 2, 0);
+            const maxX = Math.max(hw - vpW / 2, 0);
+            const maxY = Math.max(hh - vpH / 2, 0);
             this.imageX = Math.min(Math.max(this.imageX, -maxX), maxX);
             this.imageY = Math.min(Math.max(this.imageY, -maxY), maxY);
         },
@@ -140,28 +174,55 @@
         onDrag(event) {
             if (!this.isDragging) return;
             const pt = event.touches ? event.touches[0] : event;
-            this.imageX = this._dragStartImgX + (pt.clientX - this._dragStartX);
-            this.imageY = this._dragStartImgY + (pt.clientY - this._dragStartY);
+            const scale = this.getViewportScale() || 1;
+            this.imageX = this._dragStartImgX + (pt.clientX - this._dragStartX) / scale;
+            this.imageY = this._dragStartImgY + (pt.clientY - this._dragStartY) / scale;
             this.clampPosition();
         },
         stopDrag() { this.isDragging = false; },
         zoomIn()  { this.imageScale = Math.min(this.imageScale + 0.1, 4); this.clampPosition(); },
         zoomOut() { this.imageScale = Math.max(this.imageScale - 0.1, this.imageMinScale); this.clampPosition(); },
-        resetZoom() { this.imageScale = this.imageMinScale; this.imageX = 0; this.imageY = 0; },
+        resetZoom() {
+            // Reset: switch viewport to Square and restore the initial inserted zoom (fit-to-viewport)
+            this.imageRatio = 'square';
+            this.imageVPW = 320;
+            this.imageVPH = 320;
+            if (this.imageNaturalW && this.imageNaturalH) {
+                // compute minScale for the square viewport (same logic as initial load)
+                const minScale = Math.max(this.imageVPW / this.imageNaturalW, this.imageVPH / this.imageNaturalH);
+                this.imageMinScale = minScale;
+                // reset scale to the minScale so image is fully visible (fit/contain behavior)
+                this.imageScale = minScale;
+            } else {
+                this.imageScale = this.imageMinScale;
+            }
+            this.imageX = 0;
+            this.imageY = 0;
+            this.clampPosition();
+        },
         confirmCrop() {
             const canvas = this.$refs.cropCanvas;
             const ctx = canvas.getContext('2d');
             const img = new Image();
             img.onload = () => {
-                const size = 320;
-                canvas.width = size; canvas.height = size;
-                ctx.clearRect(0, 0, size, size);
+                const w = this.imageVPW;
+                const h = this.imageVPH;
+                canvas.width = w; canvas.height = h;
+                ctx.clearRect(0, 0, w, h);
                 ctx.save();
-                ctx.translate(size / 2 + this.imageX, size / 2 + this.imageY);
+                ctx.translate(w / 2 + this.imageX, h / 2 + this.imageY);
                 ctx.scale(this.imageScale, this.imageScale);
                 ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
                 ctx.restore();
                 this.croppedDataUrl = canvas.toDataURL('image/jpeg', 0.9);
+                // save last crop parameters so we can reopen adjuster with same framing
+                this.lastCrop = {
+                    imageScale: this.imageScale,
+                    imageX: this.imageX,
+                    imageY: this.imageY,
+                    imageVPW: this.imageVPW,
+                    imageVPH: this.imageVPH
+                };
                 this.showImageAdjuster = false;
             };
             img.src = this.imageDataUrl;
@@ -179,6 +240,76 @@
                 : this.$refs.menuImageInput;
             if (ref) ref.click();
         }
+        ,
+        openImageAdjusterFromData(source) {
+            this.showPreviewActions = false;
+            this.imageAdjusterSource = source || 'add';
+            // prefer the original selected image if available, otherwise fall back to cropped preview
+            const src = this.imageDataUrl || this.croppedDataUrl;
+            if (!src) return;
+            this.imageDataUrl = src;
+            this.imageX = 0; this.imageY = 0;
+            const img = new Image();
+            img.onload = () => {
+                this.imageNaturalW = img.naturalWidth;
+                this.imageNaturalH = img.naturalHeight;
+                // if we have a lastCrop, restore its viewport and transform
+                if (this.lastCrop) {
+                    this.imageVPW = this.lastCrop.imageVPW || this.imageVPW;
+                    this.imageVPH = this.lastCrop.imageVPH || this.imageVPH;
+                    this.imageScale = this.lastCrop.imageScale || this.imageScale;
+                    this.imageX = this.lastCrop.imageX || this.imageX;
+                    this.imageY = this.lastCrop.imageY || this.imageY;
+                    this.imageMinScale = Math.max(this.imageVPW / img.naturalWidth, this.imageVPH / img.naturalHeight);
+                    this.clampPosition();
+                } else {
+                    const minScale = Math.max(this.imageVPW / img.naturalWidth, this.imageVPH / img.naturalHeight);
+                    this.imageMinScale = minScale;
+                    this.imageScale = minScale;
+                    this.clampPosition();
+                }
+            };
+            img.src = src;
+            this.showImageAdjuster = true;
+        }
+        ,
+        setRatio(r) {
+            if (!r) return;
+            this.imageRatio = r;
+            if (r === '16:9') {
+                this.imageVPW = 426;
+                this.imageVPH = 240;
+            } else if (r === 'square') {
+                this.imageVPW = 320;
+                this.imageVPH = 320;
+            }
+            if (this.imageDataUrl) {
+                const img = new Image();
+                img.onload = () => {
+                    const minScale = Math.max(this.imageVPW / img.naturalWidth, this.imageVPH / img.naturalHeight);
+                    this.imageMinScale = minScale;
+                    this.imageScale = Math.max(this.imageScale, minScale);
+                    this.clampPosition();
+                };
+                img.src = this.imageDataUrl;
+            }
+            this.showRatioOptions = false;
+        }
+,
+        /* compute scale so the internal crop viewport fits inside fixed container */
+        getViewportScale() {
+            const cw = this.adjusterContainerSize;
+            const ch = this.adjusterContainerSize;
+            return Math.min(cw / this.imageVPW, ch / this.imageVPH);
+        },
+
+        cropViewportStyle() {
+            const s = this.getViewportScale();
+            const w = Math.round(this.imageVPW * s);
+            const h = Math.round(this.imageVPH * s);
+            return `width: ${w}px; height: ${h}px;`;
+        },
+
      }"
      x-init="
          const saved = localStorage.getItem('ftos_addMenuForm');
@@ -198,6 +329,9 @@
          $watch('formData.base_price',  save);
          $watch('formData.quantity',    save);
          $watch('formData.description', save);
+         // ensure empty preview sizing is calculated and kept on resize
+         updateEmptyImageSize();
+         window.addEventListener('resize', updateEmptyImageSize);
      "
      class="relative min-h-full flex flex-col">
 
@@ -641,23 +775,34 @@
                             {{-- Row 1: Image (left) | Menu Name + Base Price stacked (right) --}}
                             <div class="space-y-2">
                                 <label class="text-[11px] font-black uppercase tracking-widest text-gray-400 ml-1">Image</label>
-                                <div @click="$refs.menuImageInput.click()"
-                                     class="flex flex-col items-center justify-center h-[140px] border-2 border-dashed rounded-2xl cursor-pointer transition-all overflow-hidden"
-                                     :class="croppedDataUrl ? 'border-purple-400' : 'border-gray-200 hover:border-purple-400 bg-gray-50 hover:bg-purple-50/30 group'">
-                                    <template x-if="croppedDataUrl">
-                                        <img :src="croppedDataUrl" class="w-full h-full object-cover" style="pointer-events:none;">
-                                    </template>
-                                    <template x-if="!croppedDataUrl">
-                                        <div class="flex flex-col items-center py-6">
-                                            <i class="fas fa-cloud-upload-alt text-3xl text-gray-300 group-hover:text-purple-400 transition-colors mb-2"></i>
-                                            <span class="text-xs font-bold text-gray-400 group-hover:text-purple-500 transition-colors">Click to upload</span>
-                                            <span class="text-[10px] text-gray-300 mt-1">JPG, JPEG, PNG</span>
-                                        </div>
-                                    </template>
-                                </div>
+                                <div @click="!croppedDataUrl ? $refs.menuImageInput.click() : (previewActionSource='add', showPreviewActions = !showPreviewActions)"
+                                         x-ref="menuImageContainer"
+                                         :style="croppedDataUrl ? '' : ('width: ' + emptyImageSize + 'px; height: ' + emptyImageSize + 'px;')"
+                                         class="flex items-center justify-center min-h-[140px] max-h-[420px] border-2 border-dashed rounded-2xl cursor-pointer transition-all overflow-hidden relative"
+                                         :class="croppedDataUrl ? 'border-purple-400' : 'border-gray-200 hover:border-purple-400 bg-gray-50 hover:bg-purple-50/30 group'">
+                                        <template x-if="croppedDataUrl">
+                                            <div class="w-full h-full relative">
+                                                <img :src="croppedDataUrl" class="max-w-full max-h-[420px] object-contain" style="pointer-events:none; display:block; margin:0 auto;">
+                                                <div x-show="showPreviewActions && previewActionSource === 'add'" x-cloak @click.away="showPreviewActions = false"
+                                                     class="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/30">
+                                                        <button @click.stop="openImageAdjusterFromData('add')"
+                                                            class="px-4 py-2 bg-white text-sm font-black rounded-2xl">Click to adjust</button>
+                                                    <button @click.stop="(previewActionSource='add', replacePreviewImage())"
+                                                            class="px-4 py-2 bg-white text-sm font-black rounded-2xl">Click to replace</button>
+                                                </div>
+                                            </div>
+                                        </template>
+                                        <template x-if="!croppedDataUrl">
+                                            <div class="flex flex-col items-center py-6">
+                                                <i class="fas fa-cloud-upload-alt text-3xl text-gray-300 group-hover:text-purple-400 transition-colors mb-2"></i>
+                                                <span class="text-xs font-bold text-gray-400 group-hover:text-purple-500 transition-colors">Click to upload</span>
+                                                <span class="text-[10px] text-gray-300 mt-1">JPG, JPEG, PNG</span>
+                                            </div>
+                                        </template>
+                                    </div>
                             </div>
 
-                            <div class="flex flex-col gap-5">
+                            <div x-ref="menuRightCol" class="flex flex-col gap-6">
                                 {{-- Menu Name --}}
                                 <div class="space-y-2">
                                     <label class="text-[11px] font-black uppercase tracking-widest text-gray-400 ml-1">Menu Name <span class="text-red-500">*</span></label>
@@ -679,34 +824,36 @@
                                                class="w-full pl-11 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl focus:bg-white focus:ring-4 focus:ring-purple-500/10 focus:border-purple-500 transition-all outline-none text-sm font-bold placeholder:text-gray-300">
                                     </div>
                                 </div>
-                            </div>
+                                <div class="flex items-end gap-4 mt-2 w-full">
+                                    <div class="space-y-2 flex-1">
+                                        <label class="text-[11px] font-black uppercase tracking-widest text-gray-400 ml-1">Category <span class="text-red-500">*</span></label>
+                                        <div class="relative group">
+                                            <i class="fas fa-tag absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 pointer-events-none"></i>
+                                            <select name="category" required x-model="formData.category"
+                                                    class="w-full pl-11 pr-8 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl focus:bg-white focus:ring-4 focus:ring-purple-500/10 focus:border-purple-500 transition-all outline-none text-sm font-bold text-gray-700 appearance-none cursor-pointer">
+                                                <option value="" disabled>Select</option>
+                                                <option value="Foods">Foods</option>
+                                                <option value="Drinks">Drinks</option>
+                                                <option value="Desserts">Desserts</option>
+                                            </select>
+                                            <i class="fas fa-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-gray-300 pointer-events-none text-xs"></i>
+                                        </div>
+                                    </div>
 
-                            {{-- Row 2: Category short (left) | Quantity short (right) --}}
-                            <div class="space-y-2">
-                                <label class="text-[11px] font-black uppercase tracking-widest text-gray-400 ml-1">Category <span class="text-red-500">*</span></label>
-                                <div class="relative group w-44">
-                                    <i class="fas fa-tag absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 pointer-events-none"></i>
-                                    <select name="category" required x-model="formData.category"
-                                            class="w-full pl-11 pr-8 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl focus:bg-white focus:ring-4 focus:ring-purple-500/10 focus:border-purple-500 transition-all outline-none text-sm font-bold text-gray-700 appearance-none cursor-pointer">
-                                        <option value="" disabled>Select</option>
-                                        <option value="Foods">Foods</option>
-                                        <option value="Drinks">Drinks</option>
-                                        <option value="Desserts">Desserts</option>
-                                    </select>
-                                    <i class="fas fa-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-gray-300 pointer-events-none text-xs"></i>
+                                    <div class="space-y-2 flex-1">
+                                        <label class="text-[11px] font-black uppercase tracking-widest text-gray-400 ml-1">Quantity <span class="text-red-500">*</span></label>
+                                        <div class="relative group">
+                                            <i class="fas fa-layer-group absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-purple-500 transition-colors"></i>
+                                            <input type="text" name="quantity" required placeholder="0" inputmode="numeric"
+                                                   x-model="formData.quantity"
+                                                   @input="formData.quantity = $event.target.value.replace(/[^0-9]/g, ''); $event.target.value = formData.quantity"
+                                                   class="w-full pl-11 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl focus:bg-white focus:ring-4 focus:ring-purple-500/10 focus:border-purple-500 transition-all outline-none text-sm font-bold placeholder:text-gray-300">
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
 
-                            <div class="space-y-2">
-                                <label class="text-[11px] font-black uppercase tracking-widest text-gray-400 ml-1">Quantity <span class="text-red-500">*</span></label>
-                                <div class="relative group w-36">
-                                    <i class="fas fa-layer-group absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-purple-500 transition-colors"></i>
-                                    <input type="text" name="quantity" required placeholder="0" inputmode="numeric"
-                                           x-model="formData.quantity"
-                                           @input="formData.quantity = $event.target.value.replace(/[^0-9]/g, ''); $event.target.value = formData.quantity"
-                                           class="w-full pl-11 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl focus:bg-white focus:ring-4 focus:ring-purple-500/10 focus:border-purple-500 transition-all outline-none text-sm font-bold placeholder:text-gray-300">
-                                </div>
-                            </div>
+                            
 
                             {{-- Row 3: Description (full width) --}}
                             <div class="space-y-2 md:col-span-2">
@@ -783,11 +930,20 @@
                             <input type="hidden" name="image_data" :value="croppedDataUrl">
                             <input type="file" x-ref="editMenuImageInput" accept="image/jpg,image/jpeg,image/png" class="hidden"
                                    @change="handleImageSelect($event, 'edit')">
-                            <div @click="$refs.editMenuImageInput.click()"
-                                 class="flex flex-col items-center justify-center h-[140px] border-2 border-dashed rounded-2xl cursor-pointer transition-all overflow-hidden"
-                                 :class="croppedDataUrl ? 'border-purple-400' : 'border-gray-200 hover:border-purple-400 bg-gray-50 hover:bg-purple-50/30 group'">
+                            <div @click="!croppedDataUrl ? $refs.editMenuImageInput.click() : (previewActionSource='edit', showPreviewActions = !showPreviewActions)"
+                                  class="flex items-center justify-center min-h-[140px] max-h-[420px] border-2 border-dashed rounded-2xl cursor-pointer transition-all overflow-hidden relative"
+                                  :class="croppedDataUrl ? 'border-purple-400' : 'border-gray-200 hover:border-purple-400 bg-gray-50 hover:bg-purple-50/30 group'">
                                 <template x-if="croppedDataUrl">
-                                    <img :src="croppedDataUrl" class="w-full h-full object-cover" style="pointer-events:none;">
+                                    <div class="w-full h-full relative">
+                                        <img :src="croppedDataUrl" class="max-w-full max-h-[420px] object-contain" style="pointer-events:none; display:block; margin:0 auto;">
+                                        <div x-show="showPreviewActions && previewActionSource === 'edit'" x-cloak @click.away="showPreviewActions = false"
+                                             class="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/30">
+                                                <button @click.stop="openImageAdjusterFromData('edit')"
+                                                    class="px-4 py-2 bg-white text-sm font-black rounded-2xl">Click to adjust</button>
+                                            <button @click.stop="(previewActionSource='edit', replacePreviewImage())"
+                                                    class="px-4 py-2 bg-white text-sm font-black rounded-2xl">Click to replace</button>
+                                        </div>
+                                    </div>
                                 </template>
                                 <template x-if="!croppedDataUrl">
                                     <div class="flex flex-col items-center py-6">
@@ -908,24 +1064,32 @@
                 </button>
             </div>
 
-            <!-- Image Viewport (320×320) -->
-            <div class="relative w-80 h-80 rounded-2xl overflow-hidden bg-gray-100 border-2 border-gray-200 select-none"
+            <!-- Image Viewport (fixed modal size) -->
+            <div class="relative rounded-2xl overflow-hidden bg-gray-100 border-2 border-gray-200 select-none w-80 h-80 flex items-center justify-center"
                  :class="isDragging ? 'cursor-grabbing' : 'cursor-grab'"
                  @mousedown="startDrag($event)" @mousemove="onDrag($event)" @mouseup="stopDrag()" @mouseleave="stopDrag()"
                  @touchstart.prevent="startDrag($event)" @touchmove.prevent="onDrag($event)" @touchend="stopDrag()">
-                <img :src="imageDataUrl"
-                     :style="{
-                         position: 'absolute',
-                         top: '50%',
-                         left: '50%',
-                         transform: 'translate(calc(-50% + ' + imageX + 'px), calc(-50% + ' + imageY + 'px)) scale(' + imageScale + ')',
-                         transformOrigin: 'center',
-                         pointerEvents: 'none',
-                         userSelect: 'none',
-                         maxWidth: 'none'
-                     }"
-                     alt="">
-                <div class="absolute inset-0 pointer-events-none border border-white/20 rounded-2xl"></div>
+
+                <!-- inner crop viewport: centered fixed-size box whose aspect changes only inside the modal -->
+                 <div class="absolute rounded-lg overflow-hidden bg-transparent border border-white/30 flex items-center justify-center"
+                     :style="cropViewportStyle()">
+                    <img :src="imageDataUrl"
+                         :style="{
+                             position: 'absolute',
+                             top: '50%',
+                             left: '50%',
+                             transform: 'translate(calc(-50% + ' + (imageX * getViewportScale()) + 'px), calc(-50% + ' + (imageY * getViewportScale()) + 'px)) scale(' + (imageScale * getViewportScale()) + ')',
+                             transformOrigin: 'center',
+                             pointerEvents: 'none',
+                             userSelect: 'none',
+                             maxWidth: 'none'
+                         }"
+                         alt="">
+                    <div class="absolute inset-0 pointer-events-none border border-white/20"></div>
+                </div>
+
+                <!-- subtle outer border for modal area -->
+                <div class="absolute inset-0 pointer-events-none rounded-2xl"></div>
             </div>
 
             <!-- Zoom Controls -->
@@ -934,11 +1098,21 @@
                         class="px-3 h-10 flex items-center justify-center rounded-xl bg-gray-100 hover:bg-purple-100 text-gray-500 hover:text-purple-600 text-xs font-black uppercase tracking-wider transition-all">
                     <i class="fas fa-undo-alt mr-1.5 text-[10px]"></i> Reset Zoom
                 </button>
+                <div class="relative w-44 ml-2">
+                    <i class="fas fa-expand absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 pointer-events-none"></i>
+                    <select x-model="imageRatio" @change="setRatio(imageRatio)"
+                            class="w-full pl-11 pr-8 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl focus:bg-white focus:ring-4 focus:ring-purple-500/10 focus:border-purple-500 transition-all outline-none text-sm font-bold text-gray-700 appearance-none cursor-pointer">
+                        <option value="" disabled selected>Ratio</option>
+                        <option value="square">Square</option>
+                        <option value="16:9">16:9</option>
+                    </select>
+                    <i class="fas fa-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-gray-300 pointer-events-none text-xs"></i>
+                </div>
                 <button type="button" @click="zoomOut()"
                         class="w-10 h-10 flex items-center justify-center rounded-xl bg-gray-100 hover:bg-purple-100 text-gray-500 hover:text-purple-600 transition-all">
                     <i class="fas fa-search-minus text-sm"></i>
                 </button>
-                <span class="text-xs font-black text-gray-400 w-12 text-center" x-text="Math.round(imageScale * 100) + '%'"></span>
+                <span class="text-xs font-black text-gray-400 w-12 text-center" x-text="Math.round((imageScale * getViewportScale()) * 100) + '%'"></span>
                 <button type="button" @click="zoomIn()"
                         class="w-10 h-10 flex items-center justify-center rounded-xl bg-gray-100 hover:bg-purple-100 text-gray-500 hover:text-purple-600 transition-all">
                     <i class="fas fa-search-plus text-sm"></i>
