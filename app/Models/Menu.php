@@ -27,4 +27,9 @@ class Menu extends Model
     {
         return $this->belongsTo(FoodTruck::class);
     }
+
+    public function optionGroups()
+    {
+        return $this->hasMany(MenuOptionGroup::class)->orderBy('sort_order');
+    }
 }

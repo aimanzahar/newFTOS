@@ -53,7 +53,8 @@ Route::middleware(['auth'])->prefix('ftadmin')->name('ftadmin.')->group(function
         $ftworkers = \App\Models\User::where('role', 3)
             ->where('foodtruck_id', $user->foodtruck_id)
             ->get();
-        $menuItems = \App\Models\Menu::where('foodtruck_id', $user->foodtruck_id)
+        $menuItems = \App\Models\Menu::with('optionGroups.choices')
+            ->where('foodtruck_id', $user->foodtruck_id)
             ->orderBy('category', 'asc')
             ->orderBy('name', 'asc')
             ->get();

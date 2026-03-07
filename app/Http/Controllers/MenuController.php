@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Menu;
+use App\Models\MenuOptionGroup;
+use App\Models\MenuChoice;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -88,6 +90,32 @@ class MenuController extends Controller
             'original_image' => $originalImagePath,
         ]);
 
+        // Save option groups and their choices
+        $optionGroups = json_decode($request->input('option_groups', '[]'), true);
+        if (is_array($optionGroups)) {
+            foreach ($optionGroups as $i => $groupData) {
+                if (empty($groupData['name'])) continue;
+                $selType = in_array($groupData['selectionType'] ?? 'single', ['single', 'multiple'])
+                    ? $groupData['selectionType']
+                    : 'single';
+                $group = $item->optionGroups()->create([
+                    'name'           => $groupData['name'],
+                    'selection_type' => $selType,
+                    'sort_order'     => $i,
+                ]);
+                foreach (($groupData['choices'] ?? []) as $j => $choiceData) {
+                    if (empty($choiceData['name'])) continue;
+                    $group->choices()->create([
+                        'name'       => $choiceData['name'],
+                        'price'      => is_numeric($choiceData['price'] ?? '') ? (float) $choiceData['price'] : 0,
+                        'quantity'   => is_numeric($choiceData['quantity'] ?? '') ? (int) $choiceData['quantity'] : 0,
+                        'sort_order' => $j,
+                        'status'     => in_array($choiceData['status'] ?? 'available', ['available', 'unavailable']) ? $choiceData['status'] : 'available',
+                    ]);
+                }
+            }
+        }
+
         if ($request->wantsJson()) {
             return response()->json(['success' => true, 'item' => $item->fresh()]);
         }
@@ -138,6 +166,33 @@ class MenuController extends Controller
         }
 
         $item->update($data);
+
+        // Replace option groups
+        $item->optionGroups()->delete();
+        $optionGroups = json_decode($request->input('option_groups', '[]'), true);
+        if (is_array($optionGroups)) {
+            foreach ($optionGroups as $i => $groupData) {
+                if (empty($groupData['name'])) continue;
+                $selType = in_array($groupData['selectionType'] ?? 'single', ['single', 'multiple'])
+                    ? $groupData['selectionType']
+                    : 'single';
+                $group = $item->optionGroups()->create([
+                    'name'           => $groupData['name'],
+                    'selection_type' => $selType,
+                    'sort_order'     => $i,
+                ]);
+                foreach (($groupData['choices'] ?? []) as $j => $choiceData) {
+                    if (empty($choiceData['name'])) continue;
+                    $group->choices()->create([
+                        'name'       => $choiceData['name'],
+                        'price'      => is_numeric($choiceData['price'] ?? '') ? (float) $choiceData['price'] : 0,
+                        'quantity'   => is_numeric($choiceData['quantity'] ?? '') ? (int) $choiceData['quantity'] : 0,
+                        'sort_order' => $j,
+                        'status'     => in_array($choiceData['status'] ?? 'available', ['available', 'unavailable']) ? $choiceData['status'] : 'available',
+                    ]);
+                }
+            }
+        }
 
         return redirect()->back()->with('success', 'Menu item updated.');
     }

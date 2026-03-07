@@ -67,6 +67,10 @@
             this.showMenuFilter = false;
             this.showMenuSuccess = false;
             this.menuSuccessMessage = '';
+            this.optionGroups = [];
+            this._groupIdCounter = 0;
+            this._choiceIdCounter = 0;
+            this.addOptionGroup();
         },
         matches(worker) {
             if (this.staffFilter && worker.status !== this.staffFilter) return false;
@@ -95,10 +99,65 @@
         },
         showMenuEditModal: false,
         selectedMenu: null,
+        optionGroups: [],
+        _groupIdCounter: 0,
+        _choiceIdCounter: 0,
+        editOptionGroups: [],
+        _editGroupIdCounter: 0,
+        _editChoiceIdCounter: 0,
         openActionMenu: null,
         actionMenuX: 0,
         actionMenuY: 0,
         actionMenuType: '',
+        _newChoice(id) {
+            return { _id: id, name: '', price: '', quantity: '', status: 'available', openMenu: false };
+        },
+        addOptionGroup() {
+            this._groupIdCounter++;
+            this.optionGroups.push({
+                _id: this._groupIdCounter,
+                name: '',
+                selectionType: 'single',
+                choices: [this._newChoice(++this._choiceIdCounter)]
+            });
+        },
+        removeOptionGroup(gi) {
+            this.optionGroups.splice(gi, 1);
+        },
+        addChoice(gi) {
+            this._choiceIdCounter++;
+            this.optionGroups[gi].choices.push(this._newChoice(this._choiceIdCounter));
+            this.$nextTick(() => {
+                const inputs = document.querySelectorAll('.add-choice-name-input');
+                if (inputs.length) inputs[inputs.length - 1].focus();
+            });
+        },
+        removeChoice(gi, ci) {
+            this.optionGroups[gi].choices.splice(ci, 1);
+        },
+        addEditOptionGroup() {
+            this._editGroupIdCounter++;
+            this.editOptionGroups.push({
+                _id: this._editGroupIdCounter,
+                name: '',
+                selectionType: 'single',
+                choices: [this._newChoice(++this._editChoiceIdCounter)]
+            });
+        },
+        removeEditOptionGroup(gi) {
+            this.editOptionGroups.splice(gi, 1);
+        },
+        addEditChoice(gi) {
+            this._editChoiceIdCounter++;
+            this.editOptionGroups[gi].choices.push(this._newChoice(this._editChoiceIdCounter));
+            this.$nextTick(() => {
+                const inputs = document.querySelectorAll('.edit-choice-name-input');
+                if (inputs.length) inputs[inputs.length - 1].focus();
+            });
+        },
+        removeEditChoice(gi, ci) {
+            this.editOptionGroups[gi].choices.splice(ci, 1);
+        },
         async submitStaffForm() {
             const form = this.$refs.staffForm;
             const formData = new FormData(form);
@@ -189,6 +248,24 @@
             this.editBasePrice = item.base_price;
             this.editQuantity = item.quantity;
             this.editDescription = item.description || '';
+            // Load option groups from saved data
+            this._editGroupIdCounter = 0;
+            this._editChoiceIdCounter = 0;
+            this.editOptionGroups = (item.option_groups || []).map(group => ({
+                _id: ++this._editGroupIdCounter,
+                id: group.id,
+                name: group.name,
+                selectionType: group.selection_type,
+                choices: (group.choices || []).map(choice => ({
+                    _id: ++this._editChoiceIdCounter,
+                    id: choice.id,
+                    name: choice.name,
+                    price: choice.price,
+                    quantity: choice.quantity,
+                    status: choice.status ?? 'available',
+                    openMenu: false
+                }))
+            }));
             // ensure preview actions state
             this.previewActionSource = 'edit';
             this.showPreviewActions = false;
@@ -196,6 +273,9 @@
             this.croppedDataUrl = null;
             this.imageDataUrl = null;
             this.showMenuEditModal = true;
+            this.$nextTick(() => {
+                if (this.$refs.editMenuBodyScroll) this.$refs.editMenuBodyScroll.scrollTop = 0;
+            });
             // assign the image shortly after opening to avoid Alpine x-if timing issues
             setTimeout(() => {
                 if (item.image) {
@@ -243,6 +323,7 @@
             this.showMenuEditModal = false;
             this.selectedMenu = null;
             this.croppedDataUrl = null;
+            this.editOptionGroups = [];
             if (this.$refs.editMenuImageInput) this.$refs.editMenuImageInput.value = '';
         },
 
@@ -1179,8 +1260,14 @@
                             <input type="hidden" name="foodtruck_id" value="{{ $adminFoodTruckId }}">
                             <input type="hidden" name="image_data" :value="croppedDataUrl">
                             <input type="hidden" name="original_image_data" :value="imageDataUrl">
+                            <input type="hidden" name="option_groups" :value="JSON.stringify(optionGroups)">
                             <input type="file" x-ref="menuImageInput" accept="image/jpg,image/jpeg,image/png" class="hidden"
                                    @change="handleImageSelect($event, 'add')">
+
+                            {{-- Section 1 Title --}}
+                            <div class="md:col-span-2 mb-2">
+                                <h3 class="text-xs font-black uppercase tracking-widest text-gray-700 border-b border-gray-100 pb-3">1. Menu Details</h3>
+                            </div>
 
                             {{-- Row 1: Image (left) | Menu Name + Base Price stacked (right) --}}
                             <div class="space-y-2">
@@ -1278,6 +1365,127 @@
                                           class="w-full px-4 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl focus:bg-white focus:ring-4 focus:ring-purple-500/10 focus:border-purple-500 transition-all outline-none text-sm font-bold placeholder:text-gray-300 resize-none"></textarea>
                             </div>
 
+                            {{-- Section 2: Choices / Options --}}
+                            <div class="md:col-span-2 pt-2">
+                                <div class="flex items-center justify-between mb-5">
+                                    <div>
+                                        <h3 class="text-xs font-black uppercase tracking-widest text-gray-700">2. Choices / Options</h3>
+                                        <p class="text-[10px] text-gray-400 font-medium mt-0.5">Optional — add customizable options for this menu item</p>
+                                    </div>
+                                    <button type="button" @click="addOptionGroup()"
+                                            class="inline-flex items-center gap-1.5 px-4 py-2 bg-purple-50 hover:bg-purple-100 text-purple-600 text-xs font-black rounded-xl border border-purple-200 transition-all">
+                                        <i class="fas fa-plus text-[10px]"></i>
+                                        Add Option Group
+                                    </button>
+                                </div>
+
+                                <div class="space-y-4">
+                                    <template x-for="(group, gi) in optionGroups" :key="group._id">
+                                        <div class="border border-gray-200 rounded-2xl p-5 bg-gray-50/30">
+                                            <!-- Group header: name + selection type + remove -->
+                                            <div class="flex items-end gap-3 mb-4">
+                                                <div class="flex-1">
+                                                    <label class="text-[10px] font-black uppercase tracking-widest text-purple-500 mb-1.5 block">Group Name</label>
+                                                    <input type="text" x-model="group.name" placeholder="e.g. Sugar Level"
+                                                           class="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-bold placeholder:text-gray-300 outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-400 transition-all">
+                                                </div>
+                                                <div class="flex-shrink-0">
+                                                    <label class="text-[10px] font-black uppercase tracking-widest text-purple-500 mb-1.5 block">Selection Type</label>
+                                                    <div class="flex rounded-xl border border-gray-200 overflow-hidden bg-white">
+                                                        <button type="button" @click="group.selectionType = 'single'"
+                                                                :class="group.selectionType === 'single' ? 'bg-purple-600 text-white' : 'bg-white text-gray-400 hover:text-gray-600'"
+                                                                class="px-5 py-2.5 text-xs font-black uppercase tracking-wider transition-all">Single</button>
+                                                        <div class="w-px bg-gray-200 flex-shrink-0"></div>
+                                                        <button type="button" @click="group.selectionType = 'multiple'"
+                                                                :class="group.selectionType === 'multiple' ? 'bg-purple-600 text-white' : 'bg-white text-gray-400 hover:text-gray-600'"
+                                                                class="px-5 py-2.5 text-xs font-black uppercase tracking-wider transition-all">Multiple</button>
+                                                    </div>
+                                                </div>
+                                                <button type="button" @click="removeOptionGroup(gi)"
+                                                        class="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-red-50 text-gray-300 hover:text-red-400 transition-all flex-shrink-0 mb-0.5">
+                                                    <i class="fas fa-times"></i>
+                                                </button>
+                                            </div>
+
+                                            <!-- Column headers -->
+                                            <div class="grid grid-cols-12 gap-2 px-1 mb-2">
+                                                <div class="col-span-4 text-[10px] font-black uppercase tracking-widest text-gray-400">Choice Name</div>
+                                                <div class="col-span-2 text-[10px] font-black uppercase tracking-widest text-purple-400">Price</div>
+                                                <div class="col-span-2 text-[10px] font-black uppercase tracking-widest text-purple-400">Qty</div>
+                                                <div class="col-span-3 text-[10px] font-black uppercase tracking-widest text-gray-400">Status</div>
+                                                <div class="col-span-1"></div>
+                                            </div>
+
+                                            <!-- Choice rows -->
+                                            <div class="space-y-2">
+                                                <template x-for="(choice, ci) in group.choices" :key="choice._id">
+                                                    <div class="grid grid-cols-12 gap-2 items-center">
+                                                        <div class="col-span-4">
+                                                            <input type="text" x-model="choice.name" placeholder="Choice name"
+                                                                   class="add-choice-name-input w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium placeholder:text-gray-300 outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-400 transition-all">
+                                                        </div>
+                                                        <div class="col-span-2 relative">
+                                                            <span class="absolute left-2 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400 pointer-events-none">RM</span>
+                                                            <input type="text" x-model="choice.price" placeholder="0.00" inputmode="decimal"
+                                                                   @input="choice.price = $event.target.value.replace(/[^0-9.]/g, '').replace(/(\..*?)\..*/g, '$1'); $event.target.value = choice.price"
+                                                                   class="w-full pl-7 pr-1 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium placeholder:text-gray-300 outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-400 transition-all">
+                                                        </div>
+                                                        <div class="col-span-2">
+                                                            <input type="text" x-model="choice.quantity" placeholder="Qty" inputmode="numeric"
+                                                                   @input="choice.quantity = $event.target.value.replace(/[^0-9]/g, ''); $event.target.value = choice.quantity"
+                                                                   class="w-full px-2 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium placeholder:text-gray-300 outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-400 transition-all text-center">
+                                                        </div>
+                                                        <div class="col-span-3">
+                                                            <span class="inline-flex items-center px-2 py-1 rounded-full text-[10px] font-black uppercase border whitespace-nowrap"
+                                                                  :class="choice.status === 'unavailable' ? 'bg-orange-50 text-orange-500 border-orange-100' : 'bg-emerald-50 text-emerald-600 border-emerald-100'"
+                                                                  x-text="choice.status === 'unavailable' ? 'Unavailable' : 'Available'">
+                                                            </span>
+                                                        </div>
+                                                        <div class="col-span-1 flex items-center justify-center gap-1">
+                                                            <div class="relative">
+                                                                <button type="button" @click.stop="choice.openMenu = !choice.openMenu"
+                                                                        class="w-7 h-7 flex items-center justify-center rounded-lg bg-gray-100 hover:bg-purple-100 text-gray-400 hover:text-purple-600 transition-all">
+                                                                    <i class="fas fa-ellipsis-v text-xs"></i>
+                                                                </button>
+                                                                <div x-show="choice.openMenu"
+                                                                     @click.away="choice.openMenu = false"
+                                                                     style="display:none;"
+                                                                     class="absolute right-0 bottom-full mb-1 bg-white rounded-xl shadow-xl border border-gray-100 py-1 w-36 z-50">
+                                                                    <button type="button"
+                                                                            @click.stop="choice.status = choice.status === 'unavailable' ? 'available' : 'unavailable'; choice.openMenu = false"
+                                                                            :class="choice.status === 'unavailable' ? 'text-emerald-600 hover:bg-emerald-50' : 'text-orange-500 hover:bg-orange-50'"
+                                                                            class="w-full text-left px-4 py-2.5 text-xs font-bold flex items-center gap-2.5 transition-colors">
+                                                                        <i class="fas w-3 text-center" :class="choice.status === 'unavailable' ? 'fa-check' : 'fa-ban'"></i>
+                                                                        <span x-text="choice.status === 'unavailable' ? 'Set Available' : 'Unavailable'"></span>
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                            <button type="button" @click="removeChoice(gi, ci)"
+                                                                    class="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-red-50 text-gray-300 hover:text-red-400 transition-all">
+                                                                <i class="fas fa-times text-xs"></i>
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </template>
+                                            </div>
+
+                                            <!-- Add Choice -->
+                                            <button type="button" @click="addChoice(gi)"
+                                                    class="mt-3 inline-flex items-center gap-1.5 text-xs font-black text-purple-500 hover:text-purple-700 transition-colors">
+                                                <i class="fas fa-plus text-[10px]"></i>
+                                                Add Choice
+                                            </button>
+                                        </div>
+                                    </template>
+
+                                    <!-- Empty state -->
+                                    <div x-show="optionGroups.length === 0"
+                                         class="border-2 border-dashed border-gray-100 rounded-2xl py-6 text-center">
+                                        <p class="text-[11px] font-bold text-gray-300 uppercase tracking-wider">No option groups yet — click "Add Option Group" to create one</p>
+                                    </div>
+                                </div>
+                            </div>
+
                             {{-- Row 4: Buttons --}}
                             <div class="md:col-span-2 pt-4 flex items-center space-x-4">
                                 <button type="button" @click="showMenuCreateForm = false; resetMenuForm()"
@@ -1333,17 +1541,23 @@
             </div>
 
             <!-- Modal Body -->
-            <div class="flex-1 overflow-y-auto px-8 py-10">
+            <div class="flex-1 overflow-y-auto px-8 py-10" x-ref="editMenuBodyScroll">
                 <div class="max-w-2xl mx-auto" x-show="selectedMenu">
                     <form :action="'/ftadmin/menu/' + (selectedMenu ? selectedMenu.id : '')" method="POST" enctype="multipart/form-data" class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
                         @csrf
                         @method('PUT')
+
+                        {{-- Section 1 Title --}}
+                        <div class="md:col-span-2 mb-2">
+                            <h3 class="text-xs font-black uppercase tracking-widest text-gray-700 border-b border-gray-100 pb-3">1. Menu Details</h3>
+                        </div>
 
                         {{-- Row 1: Image (left) | Menu Name + Base Price stacked (right) --}}
                         <div class="space-y-2">
                             <label class="text-[11px] font-black uppercase tracking-widest text-gray-400 ml-1">Image</label>
                             <input type="hidden" name="image_data" :value="croppedDataUrl">
                             <input type="hidden" name="original_image_data" :value="imageDataUrl">
+                            <input type="hidden" name="option_groups" :value="JSON.stringify(editOptionGroups)">
                             <input type="file" x-ref="editMenuImageInput" accept="image/jpg,image/jpeg,image/png" class="hidden"
                                    @change="handleImageSelect($event, 'edit')">
                             <div @click="!croppedDataUrl ? $refs.editMenuImageInput.click() : (previewActionSource='edit', showPreviewActions = !showPreviewActions)"
@@ -1445,9 +1659,125 @@
                                       class="w-full px-4 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl focus:bg-white focus:ring-4 focus:ring-purple-500/10 focus:border-purple-500 transition-all outline-none text-sm font-bold placeholder:text-gray-300 resize-none"></textarea>
                         </div>
 
+                        {{-- Section 2: Choices / Options --}}
+                        <div class="md:col-span-2 pt-2">
+                            <div class="flex items-center justify-between mb-5">
+                                <div>
+                                    <h3 class="text-xs font-black uppercase tracking-widest text-gray-700">2. Choices / Options</h3>
+                                    <p class="text-[10px] text-gray-400 font-medium mt-0.5">Optional — add customizable options for this menu item</p>
+                                </div>
+                                <button type="button" @click="addEditOptionGroup()"
+                                        class="inline-flex items-center gap-1.5 px-4 py-2 bg-purple-50 hover:bg-purple-100 text-purple-600 text-xs font-black rounded-xl border border-purple-200 transition-all">
+                                    <i class="fas fa-plus text-[10px]"></i>
+                                    Add Option Group
+                                </button>
+                            </div>
+
+                            <div class="space-y-4">
+                                <template x-for="(group, gi) in editOptionGroups" :key="group._id">
+                                    <div class="border border-gray-200 rounded-2xl p-5 bg-gray-50/30">
+                                        <div class="flex items-end gap-3 mb-4">
+                                            <div class="flex-1">
+                                                <label class="text-[10px] font-black uppercase tracking-widest text-purple-500 mb-1.5 block">Group Name</label>
+                                                <input type="text" x-model="group.name" placeholder="e.g. Sugar Level"
+                                                       class="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-bold placeholder:text-gray-300 outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-400 transition-all">
+                                            </div>
+                                            <div class="flex-shrink-0">
+                                                <label class="text-[10px] font-black uppercase tracking-widest text-purple-500 mb-1.5 block">Selection Type</label>
+                                                <div class="flex rounded-xl border border-gray-200 overflow-hidden bg-white">
+                                                    <button type="button" @click="group.selectionType = 'single'"
+                                                            :class="group.selectionType === 'single' ? 'bg-purple-600 text-white' : 'bg-white text-gray-400 hover:text-gray-600'"
+                                                            class="px-5 py-2.5 text-xs font-black uppercase tracking-wider transition-all">Single</button>
+                                                    <div class="w-px bg-gray-200 flex-shrink-0"></div>
+                                                    <button type="button" @click="group.selectionType = 'multiple'"
+                                                            :class="group.selectionType === 'multiple' ? 'bg-purple-600 text-white' : 'bg-white text-gray-400 hover:text-gray-600'"
+                                                            class="px-5 py-2.5 text-xs font-black uppercase tracking-wider transition-all">Multiple</button>
+                                                </div>
+                                            </div>
+                                            <button type="button" @click="removeEditOptionGroup(gi)"
+                                                    class="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-red-50 text-gray-300 hover:text-red-400 transition-all flex-shrink-0 mb-0.5">
+                                                <i class="fas fa-times"></i>
+                                            </button>
+                                        </div>
+
+                                        <div class="grid grid-cols-12 gap-2 px-1 mb-2">
+                                            <div class="col-span-4 text-[10px] font-black uppercase tracking-widest text-gray-400">Choice Name</div>
+                                            <div class="col-span-2 text-[10px] font-black uppercase tracking-widest text-purple-400">Price</div>
+                                            <div class="col-span-2 text-[10px] font-black uppercase tracking-widest text-purple-400">Qty</div>
+                                            <div class="col-span-3 text-[10px] font-black uppercase tracking-widest text-gray-400">Status</div>
+                                            <div class="col-span-1"></div>
+                                        </div>
+
+                                        <div class="space-y-2">
+                                            <template x-for="(choice, ci) in group.choices" :key="choice._id">
+                                                <div class="grid grid-cols-12 gap-2 items-center">
+                                                    <div class="col-span-4">
+                                                        <input type="text" x-model="choice.name" placeholder="Choice name"
+                                                               class="edit-choice-name-input w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium placeholder:text-gray-300 outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-400 transition-all">
+                                                    </div>
+                                                    <div class="col-span-2 relative">
+                                                        <span class="absolute left-2 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400 pointer-events-none">RM</span>
+                                                        <input type="text" x-model="choice.price" placeholder="0.00" inputmode="decimal"
+                                                               @input="choice.price = $event.target.value.replace(/[^0-9.]/g, '').replace(/(\..*?)\..*/g, '$1'); $event.target.value = choice.price"
+                                                               class="w-full pl-7 pr-1 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium placeholder:text-gray-300 outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-400 transition-all">
+                                                    </div>
+                                                    <div class="col-span-2">
+                                                        <input type="text" x-model="choice.quantity" placeholder="Qty" inputmode="numeric"
+                                                               @input="choice.quantity = $event.target.value.replace(/[^0-9]/g, ''); $event.target.value = choice.quantity"
+                                                               class="w-full px-2 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium placeholder:text-gray-300 outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-400 transition-all text-center">
+                                                    </div>
+                                                    <div class="col-span-3">
+                                                        <span class="inline-flex items-center px-2 py-1 rounded-full text-[10px] font-black uppercase border whitespace-nowrap"
+                                                              :class="choice.status === 'unavailable' ? 'bg-orange-50 text-orange-500 border-orange-100' : 'bg-emerald-50 text-emerald-600 border-emerald-100'"
+                                                              x-text="choice.status === 'unavailable' ? 'Unavailable' : 'Available'">
+                                                        </span>
+                                                    </div>
+                                                    <div class="col-span-1 flex items-center justify-center gap-1">
+                                                        <div class="relative">
+                                                            <button type="button" @click.stop="choice.openMenu = !choice.openMenu"
+                                                                    class="w-7 h-7 flex items-center justify-center rounded-lg bg-gray-100 hover:bg-purple-100 text-gray-400 hover:text-purple-600 transition-all">
+                                                                <i class="fas fa-ellipsis-v text-xs"></i>
+                                                            </button>
+                                                            <div x-show="choice.openMenu"
+                                                                 @click.away="choice.openMenu = false"
+                                                                 style="display:none;"
+                                                                 class="absolute right-0 bottom-full mb-1 bg-white rounded-xl shadow-xl border border-gray-100 py-1 w-36 z-50">
+                                                                <button type="button"
+                                                                        @click.stop="choice.status = choice.status === 'unavailable' ? 'available' : 'unavailable'; choice.openMenu = false"
+                                                                        :class="choice.status === 'unavailable' ? 'text-emerald-600 hover:bg-emerald-50' : 'text-orange-500 hover:bg-orange-50'"
+                                                                        class="w-full text-left px-4 py-2.5 text-xs font-bold flex items-center gap-2.5 transition-colors">
+                                                                    <i class="fas w-3 text-center" :class="choice.status === 'unavailable' ? 'fa-check' : 'fa-ban'"></i>
+                                                                    <span x-text="choice.status === 'unavailable' ? 'Set Available' : 'Unavailable'"></span>
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                        <button type="button" @click="removeEditChoice(gi, ci)"
+                                                                class="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-red-50 text-gray-300 hover:text-red-400 transition-all">
+                                                            <i class="fas fa-times text-xs"></i>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </template>
+                                        </div>
+
+                                        <button type="button" @click="addEditChoice(gi)"
+                                                class="mt-3 inline-flex items-center gap-1.5 text-xs font-black text-purple-500 hover:text-purple-700 transition-colors">
+                                            <i class="fas fa-plus text-[10px]"></i>
+                                            Add Choice
+                                        </button>
+                                    </div>
+                                </template>
+
+                                <div x-show="editOptionGroups.length === 0"
+                                     class="border-2 border-dashed border-gray-100 rounded-2xl py-6 text-center">
+                                    <p class="text-[11px] font-bold text-gray-300 uppercase tracking-wider">No option groups yet — click "Add Option Group" to create one</p>
+                                </div>
+                            </div>
+                        </div>
+
                         {{-- Row 4: Buttons --}}
                         <div class="md:col-span-2 pt-4 flex items-center space-x-4">
-                            <button type="button" @click="closeMenuEdit()"
+                            <button type="button" @click.stop="closeMenuEdit(); showMenuModal = true;"
                                     class="flex-1 px-8 py-4 border-2 border-gray-100 rounded-2xl text-sm font-black text-gray-400 hover:bg-gray-50 hover:text-gray-600 transition-all active:scale-[0.98]">
                                 <i class="fas fa-arrow-left mr-2"></i>
                                 Back
