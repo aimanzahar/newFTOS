@@ -74,6 +74,9 @@ class="sidebar-hidden fixed md:static inset-y-0 left-0 z-50 w-64 bg-[#0f172a] sh
 
 <!-- Bottom Action Area -->
 <div class="p-4 border-t border-slate-800 bg-[#0f172a] flex-shrink-0">
+    <form id="logout-form" method="POST" action="{{ route('logout') }}">
+        @csrf
+    </form>
     <button onclick="event.preventDefault(); document.getElementById('logout-form').submit();"
             class="group w-full flex items-center py-2.5 px-4 rounded-xl transition duration-200 text-slate-400 hover:bg-red-500/10 hover:text-red-500">
         <i class="fas fa-power-off w-6 text-sm transition-transform group-hover:scale-110"></i>
