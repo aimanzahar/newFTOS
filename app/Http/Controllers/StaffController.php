@@ -36,8 +36,29 @@ class StaffController extends Controller
             'foodtruck_id' => $admin->foodtruck_id,
         ]);
 
+        if ($request->wantsJson()) {
+            return response()->json(['success' => true, 'user' => $user->fresh()]);
+        }
+
         // 3. Redirect back with success message
         return redirect()->back()->with('success', 'Staff member registered successfully.');
+    }
+
+    /**
+     * Mark a staff member as fired.
+     */
+    public function fire($id)
+    {
+        $admin = Auth::user();
+
+        $staff = User::where('id', $id)
+            ->where('foodtruck_id', $admin->foodtruck_id)
+            ->where('role', 3)
+            ->firstOrFail();
+
+        $staff->update(['status' => 'fired']);
+
+        return response()->json(['success' => true, 'status' => 'fired']);
     }
 
     /**
@@ -56,6 +77,23 @@ class StaffController extends Controller
         $staff->update(['status' => $newStatus]);
 
         return response()->json(['success' => true, 'status' => $newStatus]);
+    }
+
+    /**
+     * Permanently delete a fired staff member.
+     */
+    public function delete($id)
+    {
+        $admin = Auth::user();
+
+        $staff = User::where('id', $id)
+            ->where('foodtruck_id', $admin->foodtruck_id)
+            ->where('role', 3)
+            ->firstOrFail();
+
+        $staff->delete();
+
+        return response()->json(['success' => true]);
     }
 
     /**

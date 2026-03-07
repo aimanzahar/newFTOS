@@ -64,12 +64,15 @@ Route::middleware(['auth'])->prefix('ftadmin')->name('ftadmin.')->group(function
     // Staff Management
     Route::post('/register-staff', [StaffController::class, 'store'])->name('register.staff');
     Route::post('/staff/{id}/deactivate', [StaffController::class, 'deactivate'])->name('staff.deactivate');
+    Route::post('/staff/{id}/fire', [StaffController::class, 'fire'])->name('staff.fire');
+    Route::delete('/staff/{id}', [StaffController::class, 'delete'])->name('staff.delete');
 
     // Menu List Operations
     Route::prefix('menu')->name('menu.')->group(function () {
         Route::get('/', [MenuController::class, 'index'])->name('index');
         Route::post('/store', [MenuController::class, 'store'])->name('store');
         Route::put('/{id}', [MenuController::class, 'update'])->name('update');
+        Route::post('/{id}/toggle-status', [MenuController::class, 'toggleStatus'])->name('toggle-status');
         Route::delete('/{id}', [MenuController::class, 'destroy'])->name('destroy');
     });
 });

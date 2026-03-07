@@ -77,7 +77,7 @@ class MenuController extends Controller
             $originalImagePath = $origFilename;
         }
 
-        Menu::create([
+        $item = Menu::create([
             'foodtruck_id'   => $user->foodtruck_id,
             'name'           => $request->name,
             'category'       => $request->category,
@@ -87,6 +87,10 @@ class MenuController extends Controller
             'image'          => $imagePath,
             'original_image' => $originalImagePath,
         ]);
+
+        if ($request->wantsJson()) {
+            return response()->json(['success' => true, 'item' => $item->fresh()]);
+        }
 
         return redirect()->back()->with('success', 'Menu item added successfully!');
     }
@@ -139,9 +143,26 @@ class MenuController extends Controller
     }
 
     /**
+     * Toggle a menu item's status between available and unavailable.
+     */
+    public function toggleStatus($id)
+    {
+        $user = Auth::user();
+
+        $item = Menu::where('id', $id)
+            ->where('foodtruck_id', $user->foodtruck_id)
+            ->firstOrFail();
+
+        $newStatus = $item->status === 'unavailable' ? 'available' : 'unavailable';
+        $item->update(['status' => $newStatus]);
+
+        return response()->json(['success' => true, 'status' => $newStatus]);
+    }
+
+    /**
      * Remove the specified menu item.
      */
-    public function destroy($id)
+    public function destroy(Request $request, $id)
     {
         $user = Auth::user();
         
@@ -150,6 +171,10 @@ class MenuController extends Controller
             ->firstOrFail();
 
         $item->delete();
+
+        if ($request->wantsJson()) {
+            return response()->json(['success' => true]);
+        }
 
         return redirect()->back()->with('success', 'Menu item deleted.');
     }

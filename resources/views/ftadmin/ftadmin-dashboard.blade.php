@@ -18,11 +18,41 @@
         menuSearchQuery: '',
         workers: {{ json_encode($workers) }},
         menuItems: {{ json_encode($menus) }},
+        staffFilter: '',
+        showStaffFilter: false,
+        menuCategoryFilter: '',
+        showMenuFilter: false,
+        menuSuccessMessage: '',
+        showMenuSuccess: false,
+        _menuSuccessTimer: null,
+        async submitAddMenuForm() {
+            const form = this.$refs.addMenuForm;
+            const formData = new FormData(form);
+            try {
+                const res = await fetch(form.action, {
+                    method: 'POST',
+                    headers: { 'Accept': 'application/json' },
+                    body: formData
+                });
+                const data = await res.json();
+                if (data.success) {
+                    this.menuItems.unshift(data.item);
+                    this.menuSuccessMessage = 'New Menu: ' + data.item.name + ' has been added into the Menu Directory.';
+                    this.showMenuSuccess = true;
+                    this.showMenuCreateForm = false;
+                    this.resetMenuForm();
+                    if (this._menuSuccessTimer) clearTimeout(this._menuSuccessTimer);
+                    this._menuSuccessTimer = setTimeout(() => { this.showMenuSuccess = false; }, 5000);
+                }
+            } catch(e) { console.error(e); }
+        },
         resetForm() {
             if(this.$refs.staffForm) this.$refs.staffForm.reset();
             if(this.$refs.staffDirectoryScroll) this.$refs.staffDirectoryScroll.scrollTop = 0;
             if(this.$refs.registerFormScroll) this.$refs.registerFormScroll.scrollTop = 0;
             this.searchQuery = '';
+            this.staffFilter = '';
+            this.showStaffFilter = false;
         },
         resetMenuForm() {
             this.formData = { name: '', category: '', base_price: '', quantity: '', description: '' };
@@ -33,8 +63,13 @@
             if (this.$refs.menuDirectoryScroll) this.$refs.menuDirectoryScroll.scrollTop = 0;
             if (this.$refs.menuCreateFormScroll) this.$refs.menuCreateFormScroll.scrollTop = 0;
             this.menuSearchQuery = '';
+            this.menuCategoryFilter = '';
+            this.showMenuFilter = false;
+            this.showMenuSuccess = false;
+            this.menuSuccessMessage = '';
         },
         matches(worker) {
+            if (this.staffFilter && worker.status !== this.staffFilter) return false;
             if (!this.searchQuery) return true;
             const query = this.searchQuery.toLowerCase();
             return (
@@ -44,6 +79,7 @@
             );
         },
         menuMatches(item) {
+            if (this.menuCategoryFilter && item.category !== this.menuCategoryFilter) return false;
             if (!this.menuSearchQuery) return true;
             const query = this.menuSearchQuery.toLowerCase();
             return (
@@ -63,8 +99,71 @@
         actionMenuX: 0,
         actionMenuY: 0,
         actionMenuType: '',
+        async submitStaffForm() {
+            const form = this.$refs.staffForm;
+            const formData = new FormData(form);
+            try {
+                const res = await fetch(form.action, {
+                    method: 'POST',
+                    headers: { 'Accept': 'application/json' },
+                    body: formData
+                });
+                const data = await res.json();
+                if (data.success) {
+                    this.workers.unshift(data.user);
+                    this.showCreateForm = false;
+                    if (this.$refs.staffForm) this.$refs.staffForm.reset();
+                    this.searchQuery = '';
+                    this.staffFilter = '';
+                }
+            } catch(e) { console.error(e); }
+        },
         async deactivateStaff(id) {
             const res = await fetch('/ftadmin/staff/' + id + '/deactivate', {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').getAttribute('content'),
+                    'Accept': 'application/json'
+                }
+            });
+            const data = await res.json();
+            if (data.success) {
+                const w = this.workers.find(w => w.id === id);
+                if (w) w.status = data.status;
+            }
+            this.openActionMenu = null;
+        },
+        async toggleMenuStatus(id) {
+            const res = await fetch('/ftadmin/menu/' + id + '/toggle-status', {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').getAttribute('content'),
+                    'Accept': 'application/json'
+                }
+            });
+            const data = await res.json();
+            if (data.success) {
+                const item = this.menuItems.find(i => i.id === id);
+                if (item) item.status = data.status;
+            }
+            this.openActionMenu = null;
+        },
+        async deleteStaff(id) {
+            const res = await fetch('/ftadmin/staff/' + id, {
+                method: 'DELETE',
+                headers: {
+                    'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').getAttribute('content'),
+                    'Accept': 'application/json'
+                }
+            });
+            const data = await res.json();
+            if (data.success) {
+                this.workers = this.workers.filter(w => w.id !== id);
+            }
+            this.openActionMenu = null;
+        },
+        async fireStaff(id) {
+            const res = await fetch('/ftadmin/staff/' + id + '/fire', {
                 method: 'POST',
                 headers: {
                     'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').getAttribute('content'),
@@ -546,10 +645,70 @@
                     
                     <!-- Search Header (Fixed inside directory view) -->
                     <div class="px-8 py-6 flex-shrink-0 flex items-center justify-between">
+                        <!-- Search + Filter grouped together -->
+                        <div class="flex items-center gap-2">
                         <div class="relative w-72">
                             <i class="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
                             <input type="text" x-model="searchQuery" placeholder="Search name, email, or phone..." class="w-full pl-11 pr-4 py-2.5 bg-gray-100 border-transparent rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 transition-all text-sm font-medium outline-none">
                         </div>
+
+                        <!-- Filter Button -->
+                        <div class="relative flex-shrink-0">
+                            <button type="button" @click.stop="showStaffFilter = !showStaffFilter"
+                                    :class="staffFilter === 'active'      ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' :
+                                            staffFilter === 'deactivated' ? 'bg-orange-50 text-orange-500 border border-orange-200' :
+                                            staffFilter === 'fired'       ? 'bg-red-50 text-red-500 border border-red-200' :
+                                                                            'bg-gray-100 text-gray-500 border border-transparent hover:bg-gray-200'"
+                                    class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all">
+                                <i class="fas fa-filter text-xs"></i>
+                                <span x-text="staffFilter ? staffFilter.charAt(0).toUpperCase() + staffFilter.slice(1) : 'Filter'"></span>
+                                <i class="fas fa-chevron-down text-[10px] transition-transform duration-200" :class="showStaffFilter ? 'rotate-180' : ''"></i>
+                            </button>
+
+                            <div x-show="showStaffFilter"
+                                 @click.away="showStaffFilter = false"
+                                 x-transition:enter="transition ease-out duration-150"
+                                 x-transition:enter-start="opacity-0 scale-95"
+                                 x-transition:enter-end="opacity-100 scale-100"
+                                 style="display:none;"
+                                 class="absolute right-0 top-full mt-1 bg-white rounded-2xl shadow-xl border border-gray-100 py-1.5 w-44 z-50">
+
+                                <!-- All (clear filter) -->
+                                <button type="button" @click.stop="staffFilter = ''; showStaffFilter = false"
+                                        :class="!staffFilter ? 'bg-gray-50 font-black text-gray-700' : 'text-gray-500 hover:bg-gray-50'"
+                                        class="w-full text-left px-4 py-2 text-xs font-bold flex items-center gap-2.5 transition-colors">
+                                    <span class="w-2 h-2 rounded-full bg-gray-300 flex-shrink-0"></span>
+                                    All
+                                </button>
+                                <div class="border-t border-gray-50 mx-3 my-0.5"></div>
+
+                                <!-- Active -->
+                                <button type="button" @click.stop="staffFilter = 'active'; showStaffFilter = false"
+                                        :class="staffFilter === 'active' ? 'bg-emerald-50 font-black text-emerald-600' : 'text-gray-500 hover:bg-emerald-50 hover:text-emerald-600'"
+                                        class="w-full text-left px-4 py-2 text-xs font-bold flex items-center gap-2.5 transition-colors">
+                                    <span class="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0"></span>
+                                    Active
+                                </button>
+
+                                <!-- Deactivated -->
+                                <button type="button" @click.stop="staffFilter = 'deactivated'; showStaffFilter = false"
+                                        :class="staffFilter === 'deactivated' ? 'bg-orange-50 font-black text-orange-500' : 'text-gray-500 hover:bg-orange-50 hover:text-orange-500'"
+                                        class="w-full text-left px-4 py-2 text-xs font-bold flex items-center gap-2.5 transition-colors">
+                                    <span class="w-2 h-2 rounded-full bg-orange-500 flex-shrink-0"></span>
+                                    Deactivated
+                                </button>
+
+                                <!-- Fired -->
+                                <button type="button" @click.stop="staffFilter = 'fired'; showStaffFilter = false"
+                                        :class="staffFilter === 'fired' ? 'bg-red-50 font-black text-red-500' : 'text-gray-500 hover:bg-red-50 hover:text-red-500'"
+                                        class="w-full text-left px-4 py-2 text-xs font-bold flex items-center gap-2.5 transition-colors">
+                                    <span class="w-2 h-2 rounded-full bg-red-500 flex-shrink-0"></span>
+                                    Fired
+                                </button>
+                            </div>
+                        </div>
+                        </div><!-- end search+filter group -->
+
                         <button @click="showCreateForm = true; resetForm()" class="inline-flex items-center px-5 py-2.5 bg-slate-900 hover:bg-blue-600 text-white text-sm font-bold rounded-xl shadow-md transition-all active:scale-95 group">
                             <i class="fas fa-plus mr-2.5 text-[10px] group-hover:rotate-90 transition-transform"></i>
                             Add New Staff
@@ -585,10 +744,12 @@
                                             </td>
                                             <td class="py-5 px-6 w-36 whitespace-nowrap">
                                                 <span class="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black uppercase"
-                                                      :class="worker.status === 'deactivated'
-                                                          ? 'bg-orange-50 text-orange-500 border border-orange-100'
-                                                          : 'bg-emerald-50 text-emerald-600 border border-emerald-100'"
-                                                      x-text="worker.status === 'deactivated' ? 'Deactivated' : 'Active'">
+                                                      :class="worker.status === 'fired'
+                                                          ? 'bg-red-50 text-red-500 border border-red-100'
+                                                          : worker.status === 'deactivated'
+                                                              ? 'bg-orange-50 text-orange-500 border border-orange-100'
+                                                              : 'bg-emerald-50 text-emerald-600 border border-emerald-100'"
+                                                      x-text="worker.status === 'fired' ? 'Fired' : worker.status === 'deactivated' ? 'Deactivated' : 'Active'">
                                                 </span>
                                             </td>
                                             <td class="py-5 px-6 w-24 text-center">
@@ -607,7 +768,46 @@
                                             </td>
                                         </tr>
                                     </template>
-                                    <tr x-show="searchQuery !== '' && filteredCount === 0">
+                                    <!-- Empty: no staff at all -->
+                                    <tr x-show="workers.length === 0">
+                                        <td colspan="4" class="py-16 text-center">
+                                            <div class="flex flex-col items-center">
+                                                <div class="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mb-4">
+                                                    <i class="fas fa-user text-2xl text-blue-300"></i>
+                                                </div>
+                                                <h3 class="text-base font-black text-gray-800">No Users Yet</h3>
+                                                <p class="text-xs text-gray-400 font-bold mt-1 uppercase tracking-wider">Add your first staff member to get started</p>
+                                            </div>
+                                        </td>
+                                    </tr>
+
+                                    <!-- Empty: filter active, no matches -->
+                                    <tr x-show="staffFilter !== '' && filteredCount === 0 && workers.length > 0">
+                                        <td colspan="4" class="py-16 text-center">
+                                            <div class="flex flex-col items-center">
+                                                <div class="w-16 h-16 rounded-full flex items-center justify-center mb-4"
+                                                     :class="staffFilter === 'active'      ? 'bg-emerald-50' :
+                                                             staffFilter === 'deactivated' ? 'bg-orange-50'  : 'bg-red-50'">
+                                                    <i class="text-2xl"
+                                                       :class="staffFilter === 'active'      ? 'fas fa-user-check text-emerald-300' :
+                                                               staffFilter === 'deactivated' ? 'fas fa-user-slash text-orange-300'  :
+                                                                                               'fas fa-user-times text-red-300'"></i>
+                                                </div>
+                                                <h3 class="text-base font-black text-gray-800">
+                                                    No Staff For
+                                                    <span :class="staffFilter === 'active'      ? 'text-emerald-600' :
+                                                                   staffFilter === 'deactivated' ? 'text-orange-500'  : 'text-red-500'"
+                                                          x-text="staffFilter.charAt(0).toUpperCase() + staffFilter.slice(1)"></span>
+                                                    Status
+                                                </h3>
+                                                <p class="text-xs text-gray-400 font-bold mt-1 uppercase tracking-wider">No staff members match this status</p>
+                                                <button @click="staffFilter = ''" class="mt-4 text-[11px] font-black text-blue-600 hover:text-blue-800 uppercase tracking-widest">Clear Filter</button>
+                                            </div>
+                                        </td>
+                                    </tr>
+
+                                    <!-- Empty: search query active (no status filter), no matches -->
+                                    <tr x-show="staffFilter === '' && searchQuery !== '' && filteredCount === 0 && workers.length > 0">
                                         <td colspan="4" class="py-16 text-center">
                                             <div class="flex flex-col items-center">
                                                 <div class="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mb-4">
@@ -633,7 +833,7 @@
                      class="flex-1 overflow-y-auto px-8 py-10"
                      x-ref="registerFormScroll">
                     <div class="max-w-2xl mx-auto">
-                        <form x-ref="staffForm" action="{{ route('ftadmin.register.staff') }}" method="POST" class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+                        <form x-ref="staffForm" action="{{ route('ftadmin.register.staff') }}" method="POST" @submit.prevent="submitStaffForm()" class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
                             @csrf
                             <input type="hidden" name="role" value="3">
                             <input type="hidden" name="foodtruck_id" value="{{ $adminFoodTruckId }}">
@@ -727,8 +927,8 @@
              class="bg-white w-full max-w-5xl rounded-3xl shadow-2xl overflow-hidden flex flex-col h-[85vh] max-h-[750px] border border-white/20">
 
             <!-- Modal Header (Fixed) -->
-            <div class="px-8 py-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/50 flex-shrink-0">
-                <div class="flex items-center space-x-4">
+            <div class="px-8 py-6 border-b border-gray-100 flex items-center justify-between gap-4 bg-gray-50/50 flex-shrink-0">
+                <div class="flex items-center space-x-4 flex-shrink-0">
                     <div class="bg-purple-600 text-white p-3 rounded-2xl shadow-lg shadow-purple-100">
                         <i class="fas" :class="showMenuCreateForm ? 'fa-plus' : 'fa-utensils'"></i>
                     </div>
@@ -737,7 +937,26 @@
                         <p class="text-xs text-gray-400 font-bold uppercase tracking-widest mt-0.5" x-text="showMenuCreateForm ? 'Fill in the details below' : 'Manage your menu items'"></p>
                     </div>
                 </div>
-                <div class="flex items-center gap-2">
+
+                <!-- Success banner (appears in header when a menu is added) -->
+                <div x-show="showMenuSuccess && !showMenuCreateForm"
+                     x-transition:enter="transition ease-out duration-300"
+                     x-transition:enter-start="opacity-0 scale-95"
+                     x-transition:enter-end="opacity-100 scale-100"
+                     x-transition:leave="transition ease-in duration-200"
+                     x-transition:leave-start="opacity-100 scale-100"
+                     x-transition:leave-end="opacity-0 scale-95"
+                     style="display:none;"
+                     class="flex-1 flex items-center gap-2.5 px-4 py-2.5 bg-emerald-50 border border-emerald-200 rounded-2xl min-w-0">
+                    <i class="fas fa-check-circle text-emerald-500 flex-shrink-0"></i>
+                    <span class="text-sm font-bold text-emerald-700 truncate" x-text="menuSuccessMessage"></span>
+                    <button type="button" @click="showMenuSuccess = false"
+                            class="ml-auto flex-shrink-0 text-emerald-400 hover:text-emerald-600 transition-colors">
+                        <i class="fas fa-times text-xs"></i>
+                    </button>
+                </div>
+
+                <div class="flex items-center gap-2 flex-shrink-0">
                     <button type="button" x-show="showMenuCreateForm" x-cloak @click="resetMenuForm()"
                             class="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gray-100 hover:bg-orange-50 text-gray-400 hover:text-orange-500 text-xs font-black uppercase tracking-wider transition-all">
                         <i class="fas fa-redo-alt text-xs"></i> Refresh
@@ -760,10 +979,67 @@
 
                     <!-- Search + Add Button -->
                     <div class="px-8 py-6 flex-shrink-0 flex items-center justify-between">
-                        <div class="relative w-72">
-                            <i class="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
-                            <input type="text" x-model="menuSearchQuery" placeholder="Search name or category..." class="w-full pl-11 pr-4 py-2.5 bg-gray-100 border-transparent rounded-xl focus:bg-white focus:ring-2 focus:ring-purple-500 transition-all text-sm font-medium outline-none">
-                        </div>
+                        <!-- Search + Filter grouped together -->
+                        <div class="flex items-center gap-2">
+                            <div class="relative w-72">
+                                <i class="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
+                                <input type="text" x-model="menuSearchQuery" placeholder="Search name or category..." class="w-full pl-11 pr-4 py-2.5 bg-gray-100 border-transparent rounded-xl focus:bg-white focus:ring-2 focus:ring-purple-500 transition-all text-sm font-medium outline-none">
+                            </div>
+
+                            <!-- Menu Filter Button -->
+                            <div class="relative flex-shrink-0">
+                                <button type="button" @click.stop="showMenuFilter = !showMenuFilter"
+                                        :class="menuCategoryFilter ? 'bg-purple-50 text-purple-600 border border-purple-200' : 'bg-gray-100 text-gray-500 border border-transparent hover:bg-gray-200'"
+                                        class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all">
+                                    <i class="fas fa-filter text-xs"></i>
+                                    <span x-text="menuCategoryFilter || 'Filter'"></span>
+                                    <i class="fas fa-chevron-down text-[10px] transition-transform duration-200" :class="showMenuFilter ? 'rotate-180' : ''"></i>
+                                </button>
+
+                                <div x-show="showMenuFilter"
+                                     @click.away="showMenuFilter = false"
+                                     x-transition:enter="transition ease-out duration-150"
+                                     x-transition:enter-start="opacity-0 scale-95"
+                                     x-transition:enter-end="opacity-100 scale-100"
+                                     style="display:none;"
+                                     class="absolute right-0 top-full mt-1 bg-white rounded-2xl shadow-xl border border-gray-100 py-1.5 w-40 z-50">
+
+                                    <!-- All (clear filter) -->
+                                    <button type="button" @click.stop="menuCategoryFilter = ''; showMenuFilter = false"
+                                            :class="!menuCategoryFilter ? 'bg-gray-50 font-black text-gray-700' : 'text-gray-500 hover:bg-gray-50'"
+                                            class="w-full text-left px-4 py-2 text-xs font-bold flex items-center gap-2.5 transition-colors">
+                                        <span class="w-2 h-2 rounded-full bg-gray-300 flex-shrink-0"></span>
+                                        All
+                                    </button>
+                                    <div class="border-t border-gray-50 mx-3 my-0.5"></div>
+
+                                    <!-- Foods -->
+                                    <button type="button" @click.stop="menuCategoryFilter = 'Foods'; showMenuFilter = false"
+                                            :class="menuCategoryFilter === 'Foods' ? 'bg-purple-50 font-black text-purple-600' : 'text-gray-500 hover:bg-purple-50 hover:text-purple-600'"
+                                            class="w-full text-left px-4 py-2 text-xs font-bold flex items-center gap-2.5 transition-colors">
+                                        <span class="w-2 h-2 rounded-full bg-purple-500 flex-shrink-0"></span>
+                                        Foods
+                                    </button>
+
+                                    <!-- Drinks -->
+                                    <button type="button" @click.stop="menuCategoryFilter = 'Drinks'; showMenuFilter = false"
+                                            :class="menuCategoryFilter === 'Drinks' ? 'bg-blue-50 font-black text-blue-600' : 'text-gray-500 hover:bg-blue-50 hover:text-blue-600'"
+                                            class="w-full text-left px-4 py-2 text-xs font-bold flex items-center gap-2.5 transition-colors">
+                                        <span class="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0"></span>
+                                        Drinks
+                                    </button>
+
+                                    <!-- Desserts -->
+                                    <button type="button" @click.stop="menuCategoryFilter = 'Desserts'; showMenuFilter = false"
+                                            :class="menuCategoryFilter === 'Desserts' ? 'bg-pink-50 font-black text-pink-600' : 'text-gray-500 hover:bg-pink-50 hover:text-pink-600'"
+                                            class="w-full text-left px-4 py-2 text-xs font-bold flex items-center gap-2.5 transition-colors">
+                                        <span class="w-2 h-2 rounded-full bg-pink-500 flex-shrink-0"></span>
+                                        Desserts
+                                    </button>
+                                </div>
+                            </div>
+                        </div><!-- end search+filter group -->
+
                         <button @click="showMenuCreateForm = true; resetMenuForm()" class="inline-flex items-center px-5 py-2.5 bg-slate-900 hover:bg-purple-600 text-white text-sm font-bold rounded-xl shadow-md transition-all active:scale-95 group">
                             <i class="fas fa-plus mr-2.5 text-[10px] group-hover:rotate-90 transition-transform"></i>
                             Add New Menu
@@ -773,14 +1049,15 @@
                     <!-- Scrollable Table -->
                     <div class="flex-1 overflow-y-auto px-8 pb-8" x-ref="menuDirectoryScroll">
                         <div class="overflow-clip border border-gray-100 rounded-2xl">
-                            <table class="w-full">
+                            <table class="w-full table-fixed">
                                 <thead class="sticky top-0 z-10">
                                     <tr class="bg-gray-50 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] border-b border-gray-100">
                                         <th class="py-4 text-left px-6">Menu Name</th>
-                                        <th class="py-4 text-left px-6">Category</th>
-                                        <th class="py-4 text-left px-6">Price</th>
-                                        <th class="py-4 text-left px-6">Qty</th>
-                                        <th class="py-4 text-center px-6">Action</th>
+                                        <th class="py-4 text-left px-6 w-32">Category</th>
+                                        <th class="py-4 text-left px-6 w-32">Price</th>
+                                        <th class="py-4 text-left px-6 w-32">Qty</th>
+                                        <th class="py-4 text-left px-6 w-36">Status</th>
+                                        <th class="py-4 text-center px-6 w-20">Action</th>
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-gray-50">
@@ -804,12 +1081,19 @@
                                                 <span class="text-sm font-bold text-gray-800" x-text="'RM ' + parseFloat(item.base_price).toFixed(2)"></span>
                                             </td>
                                             <td class="py-5 px-6">
-                                                <span class="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black uppercase"
-                                                      :class="item.quantity > 0 ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-red-50 text-red-500 border border-red-100'"
+                                                <span class="text-sm font-medium text-gray-600"
                                                       x-text="item.quantity > 0 ? item.quantity + ' left' : 'Out of Stock'">
                                                 </span>
                                             </td>
-                                            <td class="py-5 px-6 text-center" @click.stop>
+                                            <td class="py-5 px-6 w-36 whitespace-nowrap">
+                                                <span class="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black uppercase"
+                                                      :class="item.status === 'unavailable'
+                                                          ? 'bg-orange-50 text-orange-500 border border-orange-100'
+                                                          : 'bg-emerald-50 text-emerald-600 border border-emerald-100'"
+                                                      x-text="item.status === 'unavailable' ? 'Unavailable' : 'Available'">
+                                                </span>
+                                            </td>
+                                            <td class="py-5 px-6 w-20 text-center" @click.stop>
                                                 <button type="button"
                                                         @click.stop="
                                                             if (openActionMenu === item.id && actionMenuType === 'menu') { openActionMenu = null; return; }
@@ -825,8 +1109,9 @@
                                             </td>
                                         </tr>
                                     </template>
+                                    <!-- Empty: no items at all -->
                                     <tr x-show="menuItems.length === 0">
-                                        <td colspan="5" class="py-16 text-center">
+                                        <td colspan="6" class="py-16 text-center">
                                             <div class="flex flex-col items-center">
                                                 <div class="w-16 h-16 bg-purple-50 rounded-full flex items-center justify-center mb-4">
                                                     <i class="fas fa-utensils text-2xl text-purple-300"></i>
@@ -836,8 +1121,35 @@
                                             </div>
                                         </td>
                                     </tr>
-                                    <tr x-show="menuSearchQuery !== '' && menuFilteredCount === 0 && menuItems.length > 0">
-                                        <td colspan="5" class="py-16 text-center">
+
+                                    <!-- Empty: category filter active, no matches -->
+                                    <tr x-show="menuCategoryFilter !== '' && menuFilteredCount === 0 && menuItems.length > 0">
+                                        <td colspan="6" class="py-16 text-center">
+                                            <div class="flex flex-col items-center">
+                                                <div class="w-16 h-16 rounded-full flex items-center justify-center mb-4"
+                                                     :class="menuCategoryFilter === 'Foods'    ? 'bg-purple-50' :
+                                                             menuCategoryFilter === 'Drinks'   ? 'bg-blue-50'   : 'bg-pink-50'">
+                                                    <i class="text-2xl"
+                                                       :class="menuCategoryFilter === 'Foods'    ? 'fas fa-utensils text-purple-300' :
+                                                               menuCategoryFilter === 'Drinks'   ? 'fas fa-mug-hot text-blue-300'    :
+                                                                                                   'fas fa-birthday-cake text-pink-300'"></i>
+                                                </div>
+                                                <h3 class="text-base font-black text-gray-800">
+                                                    No Menu Items For
+                                                    <span :class="menuCategoryFilter === 'Foods'  ? 'text-purple-600' :
+                                                                   menuCategoryFilter === 'Drinks' ? 'text-blue-600'   : 'text-pink-600'"
+                                                          x-text="menuCategoryFilter"></span>
+                                                    Category
+                                                </h3>
+                                                <p class="text-xs text-gray-400 font-bold mt-1 uppercase tracking-wider">Add your first menu item to get started</p>
+                                                <button @click="menuCategoryFilter = ''" class="mt-4 text-[11px] font-black text-purple-600 hover:text-purple-800 uppercase tracking-widest">Clear Filter</button>
+                                            </div>
+                                        </td>
+                                    </tr>
+
+                                    <!-- Empty: search query active (no category filter), no matches -->
+                                    <tr x-show="menuCategoryFilter === '' && menuSearchQuery !== '' && menuFilteredCount === 0 && menuItems.length > 0">
+                                        <td colspan="6" class="py-16 text-center">
                                             <div class="flex flex-col items-center">
                                                 <div class="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mb-4">
                                                     <i class="fas fa-search text-2xl text-red-300"></i>
@@ -862,7 +1174,7 @@
                      class="flex-1 overflow-y-auto px-8 py-10"
                      x-ref="menuCreateFormScroll">
                     <div class="max-w-2xl mx-auto">
-                        <form action="{{ route('ftadmin.menu.store') }}" method="POST" enctype="multipart/form-data" class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+                        <form x-ref="addMenuForm" action="{{ route('ftadmin.menu.store') }}" method="POST" enctype="multipart/form-data" @submit.prevent="submitAddMenuForm()" class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
                             @csrf
                             <input type="hidden" name="foodtruck_id" value="{{ $adminFoodTruckId }}">
                             <input type="hidden" name="image_data" :value="croppedDataUrl">
@@ -1259,22 +1571,38 @@
          @click.away="openActionMenu = null"
          :style="{ position: 'fixed', left: actionMenuX + 'px', top: actionMenuY + 'px', zIndex: 300 }"
          style="display:none;"
-         class="bg-white rounded-xl shadow-xl border border-gray-100 py-1 w-36">
+         class="bg-white rounded-xl shadow-xl border border-gray-100 py-1 w-44">
 
         <!-- ── MENU item actions ── -->
         <template x-if="actionMenuType === 'menu'">
             <div>
-                <button type="button" @click.stop="openActionMenu = null"
-                        class="w-full text-left px-4 py-2.5 text-xs font-bold text-gray-400 flex items-center gap-2.5 opacity-50 cursor-not-allowed">
-                    <i class="fas fa-ban text-orange-400 w-3 text-center"></i>
-                    Unavailable
+                <button type="button"
+                        @click.stop="toggleMenuStatus(openActionMenu)"
+                        :class="menuItems.find(i => i.id === openActionMenu)?.status === 'unavailable'
+                            ? 'text-emerald-600 hover:bg-emerald-50'
+                            : 'text-orange-500 hover:bg-orange-50'"
+                        class="w-full text-left px-4 py-2.5 text-xs font-bold flex items-center gap-2.5 transition-colors">
+                    <i class="fas w-3 text-center"
+                       :class="menuItems.find(i => i.id === openActionMenu)?.status === 'unavailable' ? 'fa-check' : 'fa-ban'"></i>
+                    <span x-text="menuItems.find(i => i.id === openActionMenu)?.status === 'unavailable' ? 'Set Available' : 'Unavailable'"></span>
                 </button>
                 <div class="border-t border-gray-100 mx-3 my-0.5"></div>
                 <button type="button"
                         @click.stop="
                             if (confirm('Delete this menu item? This cannot be undone.')) {
-                                $refs.deleteMenuForm.action = '/ftadmin/menu/' + openActionMenu;
-                                $refs.deleteMenuForm.submit();
+                                const id = openActionMenu;
+                                openActionMenu = null;
+                                fetch('/ftadmin/menu/' + id, {
+                                    method: 'DELETE',
+                                    headers: {
+                                        'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').getAttribute('content'),
+                                        'Accept': 'application/json'
+                                    }
+                                }).then(r => r.json()).then(data => {
+                                    if (data.success) {
+                                        menuItems = menuItems.filter(i => i.id !== id);
+                                    }
+                                });
                             } else {
                                 openActionMenu = null;
                             }
@@ -1289,31 +1617,60 @@
         <!-- ── STAFF actions ── -->
         <template x-if="actionMenuType === 'staff'">
             <div>
-                <button type="button"
-                        @click.stop="deactivateStaff(openActionMenu)"
-                        :class="workers.find(w => w.id === openActionMenu)?.status === 'deactivated'
-                            ? 'text-emerald-600 hover:bg-emerald-50'
-                            : 'text-orange-500 hover:bg-orange-50'"
-                        class="w-full text-left px-4 py-2.5 text-xs font-bold flex items-center gap-2.5 transition-colors">
-                    <i class="fas fa-user-slash w-3 text-center"></i>
-                    <span x-text="workers.find(w => w.id === openActionMenu)?.status === 'deactivated' ? 'Reactivate' : 'Deactivate'"></span>
-                </button>
-                <div class="border-t border-gray-100 mx-3 my-0.5"></div>
-                <button type="button" @click.stop="openActionMenu = null"
-                        class="w-full text-left px-4 py-2.5 text-xs font-bold text-red-500 hover:bg-red-50 flex items-center gap-2.5 transition-colors">
-                    <i class="fas fa-user-times w-3 text-center"></i>
-                    Fired
-                </button>
+                <!-- Deactivate / Reactivate — hidden when fired -->
+                <template x-if="workers.find(w => w.id === openActionMenu)?.status !== 'fired'">
+                    <div>
+                        <button type="button"
+                                @click.stop="deactivateStaff(openActionMenu)"
+                                :class="workers.find(w => w.id === openActionMenu)?.status === 'deactivated'
+                                    ? 'text-emerald-600 hover:bg-emerald-50'
+                                    : 'text-orange-500 hover:bg-orange-50'"
+                                class="w-full text-left px-4 py-2.5 text-xs font-bold flex items-center gap-2.5 transition-colors">
+                            <i class="fas w-3 text-center"
+                               :class="workers.find(w => w.id === openActionMenu)?.status === 'deactivated' ? 'fa-user-check' : 'fa-user-slash'"></i>
+                            <span x-text="workers.find(w => w.id === openActionMenu)?.status === 'deactivated' ? 'Reactivate' : 'Deactivate'"></span>
+                        </button>
+                        <div class="border-t border-gray-100 mx-3 my-0.5"></div>
+                    </div>
+                </template>
+
+                <!-- Fired row: when NOT fired show full-width Fired button -->
+                <template x-if="workers.find(w => w.id === openActionMenu)?.status !== 'fired'">
+                    <button type="button" @click.stop="fireStaff(openActionMenu)"
+                            class="w-full text-left px-4 py-2.5 text-xs font-bold text-red-500 hover:bg-red-50 flex items-center gap-2.5 transition-colors">
+                        <i class="fas fa-user-times w-3 text-center"></i>
+                        Fired
+                    </button>
+                </template>
+
+                <!-- When fired: Fired + Delete side by side -->
+                <template x-if="workers.find(w => w.id === openActionMenu)?.status === 'fired'">
+                    <div class="flex items-center">
+                        <button type="button" @click.stop="fireStaff(openActionMenu)"
+                                class="flex-1 px-4 py-2.5 text-xs font-bold text-red-500 hover:bg-red-50 flex items-center gap-2 transition-colors">
+                            <i class="fas fa-user-times w-3 text-center"></i>
+                            Fired
+                        </button>
+                        <div class="w-px h-5 bg-gray-100 flex-shrink-0"></div>
+                        <button type="button"
+                                @click.stop="
+                                    if (confirm('Permanently delete this staff member? This cannot be undone.')) {
+                                        deleteStaff(openActionMenu);
+                                    } else {
+                                        openActionMenu = null;
+                                    }
+                                "
+                                class="flex-1 px-4 py-2.5 text-xs font-bold text-red-500 hover:bg-red-50 flex items-center gap-2 transition-colors">
+                            <i class="fas fa-trash-alt w-3 text-center"></i>
+                            Delete
+                        </button>
+                    </div>
+                </template>
             </div>
         </template>
 
     </div>
 
-    <!-- Hidden delete form -->
-    <form x-ref="deleteMenuForm" method="POST" style="display:none;">
-        @csrf
-        @method('DELETE')
-    </form>
 
 </div>
 
