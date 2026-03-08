@@ -15,6 +15,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'truck.approved' => \App\Http\Middleware\CheckTruckStatus::class,
             'admin'          => \App\Http\Middleware\Admin::class,
+            'ftadmin.status' => \App\Http\Middleware\CheckFtadminStatus::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

@@ -59,7 +59,7 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
 /**
  * Food Truck Admin Routes (ftadmin)
  */
-Route::middleware(['auth'])->prefix('ftadmin')->name('ftadmin.')->group(function () {
+Route::middleware(['auth', 'ftadmin.status'])->prefix('ftadmin')->name('ftadmin.')->group(function () {
     
     // FT Admin Dashboard
     Route::get('/dashboard', function () {

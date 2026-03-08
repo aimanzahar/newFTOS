@@ -44,6 +44,22 @@
     </div>
   </div>
 
+  @if(Auth::check() && Auth::user()->status == 'pending')
+  <!-- Pending Registration Overlay -->
+  <div class="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm z-50 flex items-center justify-center">
+    <div class="bg-white p-8 rounded-lg shadow-lg text-center max-w-md mx-4">
+      <h2 class="text-2xl font-bold mb-4 text-gray-800">Registration Pending</h2>
+      <p class="mb-6 text-gray-600">Your food truck profile is currently under review. You will gain full access once approved.</p>
+      <form method="POST" action="{{ route('logout') }}">
+        @csrf
+        <button type="submit" class="bg-red-500 hover:bg-red-600 text-white px-6 py-2 rounded-lg font-semibold transition duration-200">
+          Logout
+        </button>
+      </form>
+    </div>
+  </div>
+  @endif
+
   <script>
     document.addEventListener('DOMContentLoaded', function () {
       const sidebar = document.getElementById('sidebar');

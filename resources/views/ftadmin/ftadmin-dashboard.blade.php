@@ -666,22 +666,6 @@
     </header>
 
     <div class="relative flex-1">
-        @if($user->foodTruck && $user->foodTruck->status !== 'approved')
-            <div class="absolute inset-0 z-40 flex items-center justify-center bg-gray-50/60 backdrop-blur-md">
-                <div class="bg-white p-8 rounded-2xl shadow-2xl max-w-md text-center border border-gray-100 relative overflow-hidden mx-4">
-                    <div class="absolute top-0 left-0 w-full h-1.5 bg-yellow-400"></div>
-                    <div class="mb-4 flex justify-center">
-                        <div class="p-4 bg-yellow-50 rounded-full">
-                            <i class="fas fa-hourglass-half text-3xl text-yellow-600 animate-pulse"></i>
-                        </div>
-                    </div>
-                    <h2 class="text-2xl font-bold text-gray-800 mb-2">Registration Pending</h2>
-                    <p class="text-gray-600 mb-6 text-sm leading-relaxed">
-                        Your food truck profile is currently under review. You will gain full access once approved.
-                    </p>
-                </div>
-            </div>
-        @endif
 
         <div class="p-6 lg:p-8 overflow-y-auto h-full">
             <div class="w-full max-w-[1400px] mx-auto space-y-6">

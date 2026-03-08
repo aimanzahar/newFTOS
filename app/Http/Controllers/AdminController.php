@@ -53,8 +53,11 @@ class AdminController extends Controller
         $truck->save();
 
         $user = User::find($truck->user_id);
-        if ($user && !$user->email_verified_at) {
-            $user->email_verified_at = now();
+        if ($user) {
+            $user->status = 'active';
+            if (!$user->email_verified_at) {
+                $user->email_verified_at = now();
+            }
             $user->save();
         }
         

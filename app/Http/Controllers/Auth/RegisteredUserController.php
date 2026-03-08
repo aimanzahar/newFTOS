@@ -75,7 +75,12 @@ class RegisteredUserController extends Controller
             event(new Registered($user));
             Auth::login($user);
 
-            return redirect(route('dashboard', absolute: false));
+            // Redirect based on role
+            if ($user->role == 2) {
+                return redirect(route('ftadmin.dashboard', absolute: false));
+            } else {
+                return redirect(route('dashboard', absolute: false));
+            }
         });
     }
 }
