@@ -44,6 +44,7 @@
                 'menu_name'       => $item['name'] ?? 'Menu Item',
                 'base_price'      => (float) ($item['base_price'] ?? 0),
                 'quantity'        => (int) ($item['quantity'] ?? 1),
+                'item_total'      => (float) ($item['item_total'] ?? 0),
                 'selected_choices'=> $choiceText !== '' ? $choiceText : '-',
                 'status_label'    => str($status)->replace('_', ' ')->title(),
                 'status_class'    => $statusClass,
@@ -52,10 +53,15 @@
 
         if (!empty($menuRows)) {
             $activeOrderGroups[] = [
-                'order_id'   => $order->id,
-                'truck_name' => $order->foodTruck?->foodtruck_name ?? 'Food Truck',
-                'items_count'=> count($menuRows),
-                'items'      => $menuRows,
+                'order_id'       => $order->id,
+                'truck_name'     => $order->foodTruck?->foodtruck_name ?? 'Food Truck',
+                'items_count'    => count($menuRows),
+                'total'          => (float) ($order->total ?? 0),
+                'payment_method' => $order->payment_method ?? null,
+                'order_type'     => $order->order_type ?? 'self_pickup',
+                'table_number'   => $order->table_number ?? null,
+                'created_at'     => $order->created_at?->toIso8601String(),
+                'items'          => $menuRows,
             ];
         }
     }
@@ -65,6 +71,47 @@
 function customerDashboardPage() {
     return {
         showActiveOrdersModal: false,
+        showOrderReceiptModal: false,
+        selectedReceipt: null,
+
+        viewOrderReceipt(group) {
+            this.selectedReceipt = group;
+            this.showOrderReceiptModal = true;
+        },
+
+        formatCurrency(amount) {
+            return 'RM ' + parseFloat(amount || 0).toFixed(2);
+        },
+
+        formatDateTime(value) {
+            if (!value) return '-';
+            const dt = new Date(value);
+            if (Number.isNaN(dt.getTime())) return value;
+            return dt.toLocaleString();
+        },
+
+        paymentMethodLabel(method) {
+            if (!method) return '-';
+            return method === 'cash' ? 'Cash' : method;
+        },
+
+        statusLabel(status) {
+            if (!status) return 'Pending';
+            return status.replace(/_/g, ' ').replace(/\b\w/g, s => s.toUpperCase());
+        },
+
+        statusClass(status) {
+            const map = {
+                pending: 'bg-amber-100 text-amber-700',
+                accepted: 'bg-blue-100 text-blue-700',
+                preparing: 'bg-indigo-100 text-indigo-700',
+                prepared: 'bg-purple-100 text-purple-700',
+                ready_for_pickup: 'bg-emerald-100 text-emerald-700',
+                delivery: 'bg-cyan-100 text-cyan-700',
+                done: 'bg-gray-100 text-gray-700',
+            };
+            return map[status] || 'bg-gray-100 text-gray-700';
+        },
     };
 }
 </script>
@@ -195,14 +242,15 @@ function customerDashboardPage() {
                                 </div>
 
                                 <div class="overflow-x-auto">
-                                    <table class="min-w-[880px] w-full text-xs">
+                                    <table class="w-full text-xs">
                                         <thead class="bg-white text-gray-500 uppercase tracking-wide border-b border-gray-100">
                                             <tr>
                                                 <th class="px-3 py-2.5 text-left font-black">Menu</th>
                                                 <th class="px-3 py-2.5 text-left font-black">Base Price</th>
                                                 <th class="px-3 py-2.5 text-left font-black">Qty</th>
-                                                <th class="px-3 py-2.5 text-left font-black">Selected Options</th>
-                                                <th class="px-3 py-2.5 text-left font-black">Menu Status</th>
+                                                <th class="px-3 py-2.5 text-left font-black">Selected Choices</th>
+                                                <th class="px-3 py-2.5 text-left font-black">Status</th>
+                                                <th class="px-3 py-2.5 text-left font-black">Receipt</th>
                                             </tr>
                                         </thead>
                                         <tbody class="divide-y divide-gray-100">
@@ -211,11 +259,17 @@ function customerDashboardPage() {
                                                     <td class="px-3 py-3 text-gray-800 font-bold">{{ $item['menu_name'] }}</td>
                                                     <td class="px-3 py-3 text-gray-700 whitespace-nowrap">RM {{ number_format($item['base_price'], 2) }}</td>
                                                     <td class="px-3 py-3 text-gray-700">{{ $item['quantity'] }}</td>
-                                                    <td class="px-3 py-3 text-gray-600 min-w-[260px]">{{ $item['selected_choices'] }}</td>
+                                                    <td class="px-3 py-3 text-gray-600">{{ $item['selected_choices'] }}</td>
                                                     <td class="px-3 py-3">
                                                         <span class="text-[10px] font-black uppercase tracking-wide px-2.5 py-1 rounded-full whitespace-nowrap {{ $item['status_class'] }}">
                                                             {{ $item['status_label'] }}
                                                         </span>
+                                                    </td>
+                                                    <td class="px-3 py-3">
+                                                        <button @click="viewOrderReceipt(@json($group))"
+                                                                class="px-3 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-700 font-black text-[10px] rounded-lg transition-all whitespace-nowrap">
+                                                            <i class="fas fa-receipt mr-1"></i>Show Receipt
+                                                        </button>
                                                     </td>
                                                 </tr>
                                             @endforeach
@@ -226,6 +280,13 @@ function customerDashboardPage() {
                         @endforeach
                     </div>
                 @endif
+            </div>
+
+            <div class="flex justify-end px-6 py-4 border-t border-gray-100">
+                <button @click="showActiveOrdersModal = false"
+                        class="px-5 py-2.5 bg-slate-900 hover:bg-amber-500 text-white font-black text-xs rounded-xl transition-all">
+                    Close
+                </button>
             </div>
 
         </div>

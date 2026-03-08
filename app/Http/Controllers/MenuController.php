@@ -23,7 +23,8 @@ class MenuController extends Controller
         $user = Auth::user();
 
         // Fetch menu items belonging only to this admin's food truck
-        $menuItems = Menu::where('foodtruck_id', $user->foodtruck_id)
+        $menuItems = Menu::with(['optionGroups.choices'])
+            ->where('foodtruck_id', $user->foodtruck_id)
             ->orderBy('category', 'asc')
             ->orderBy('name', 'asc')
             ->get();

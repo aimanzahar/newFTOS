@@ -228,7 +228,7 @@
             this.lastOrder   = data.order || null;
             this.lastOrderId = data.order ? data.order.id : null;
             this.showReceiptModal = false;
-            store.clearCart();
+            checkedItems.forEach(i => store.removeItem(i.cartId));
             this.orderType   = 'self_pickup';
             this.tableNumber = '';
             this.selectedPayment = null;
@@ -358,21 +358,37 @@
             <p class="text-xs text-gray-400 mb-1">Your order has been sent to the kitchen.</p>
             <p class="text-[10px] font-black text-gray-500 bg-gray-100 px-3 py-1 rounded-xl mb-5"
                x-text="'Order #' + String(lastOrderId).padStart(4, '0')"></p>
-            <button @click="showReceiptModal = true"
-                    class="px-5 py-2.5 bg-amber-100 hover:bg-amber-200 text-amber-700 font-black text-xs rounded-xl transition-all mb-2">
-              <i class="fas fa-receipt mr-1.5"></i>Show Receipt
-            </button>
-            <button @click="orderSuccess = false; showReceiptModal = false"
-                    class="px-5 py-2.5 bg-slate-900 hover:bg-amber-500 text-white font-black text-xs rounded-xl transition-all">
-              Order More
+            <div class="grid grid-cols-2 gap-2 w-full mb-2">
+              <button @click="showReceiptModal = true"
+                      class="py-2.5 bg-amber-100 hover:bg-amber-200 text-amber-700 font-black text-xs rounded-xl transition-all">
+                <i class="fas fa-receipt mr-1.5"></i>Show Receipt
+              </button>
+              <button @click="orderSuccess = false; showReceiptModal = false"
+                      class="py-2.5 bg-slate-900 hover:bg-amber-500 text-white font-black text-xs rounded-xl transition-all">
+                Order More
+              </button>
+            </div>
+            <button @click="orderSuccess = false"
+                    class="w-full py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-600 font-black text-xs rounded-xl transition-all">
+              Close This Message
             </button>
           </div>
 
           <!-- Cart Content -->
           <div x-show="!orderSuccess" class="flex-1 flex flex-col min-h-0 overflow-hidden">
 
+            <!-- Empty state -->
+            <div x-show="$store.cart.items.length === 0"
+                 class="flex-1 flex flex-col items-center justify-center text-center px-4">
+              <div class="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center mb-3">
+                <i class="fas fa-shopping-cart text-2xl text-gray-300"></i>
+              </div>
+              <p class="text-sm font-black text-gray-400">Your cart is empty</p>
+              <p class="text-[11px] text-gray-300 mt-1">Add some items to get started!</p>
+            </div>
+
             <!-- Scrollable items list -->
-            <div class="flex-1 overflow-y-auto px-4 py-3 space-y-2">
+            <div x-show="$store.cart.items.length > 0" class="flex-1 overflow-y-auto px-4 py-3 space-y-2">
 
               <!-- Select All -->
               <label class="flex items-center gap-2 px-1 py-1.5 cursor-pointer select-none">
@@ -720,7 +736,7 @@
                  x-transition:enter="transition ease-out duration-200"
                  x-transition:enter-start="opacity-0 scale-95 translate-y-4"
                  x-transition:enter-end="opacity-100 scale-100 translate-y-0"
-                 class="bg-white w-full max-w-3xl rounded-3xl shadow-2xl overflow-hidden">
+                 class="bg-white w-full max-w-5xl rounded-3xl shadow-2xl overflow-hidden">
 
               <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
                 <div>
@@ -762,14 +778,14 @@
                     </div>
 
                     <div class="overflow-x-auto rounded-2xl border border-gray-100">
-                      <table class="min-w-[980px] w-full text-xs">
+                      <table class="w-full text-xs">
                         <thead class="bg-gray-50 text-gray-500 uppercase tracking-wide">
                           <tr>
                             <th class="px-3 py-3 text-left font-black">Menu Name</th>
                             <th class="px-3 py-3 text-left font-black">Base Price</th>
-                            <th class="px-3 py-3 text-left font-black">Quantity</th>
+                            <th class="px-3 py-3 text-left font-black">Qty</th>
                             <th class="px-3 py-3 text-left font-black">Selected Choices</th>
-                            <th class="px-3 py-3 text-left font-black">Item Total</th>
+                            <th class="px-3 py-3 text-left font-black">Final Price</th>
                             <th class="px-3 py-3 text-left font-black">Status</th>
                           </tr>
                         </thead>
@@ -779,7 +795,7 @@
                               <td class="px-3 py-3 text-gray-800 font-bold" x-text="item.name || 'Menu Item'"></td>
                               <td class="px-3 py-3 text-gray-700 whitespace-nowrap" x-text="formatCurrency(item.base_price)"></td>
                               <td class="px-3 py-3 text-gray-700" x-text="item.quantity || 1"></td>
-                              <td class="px-3 py-3 text-gray-600 min-w-[280px]">
+                              <td class="px-3 py-3 text-gray-600">
                                 <template x-if="item.selected_choices && item.selected_choices.length > 0">
                                   <div class="space-y-0.5">
                                     <template x-for="(choice, cIdx) in item.selected_choices" :key="cIdx">

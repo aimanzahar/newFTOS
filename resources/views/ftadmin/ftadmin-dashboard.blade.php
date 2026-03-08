@@ -124,6 +124,8 @@
         editOptionGroups: [],
         _editGroupIdCounter: 0,
         _editChoiceIdCounter: 0,
+        _dragGi: null,
+        _dragArrayKey: null,
         openActionMenu: null,
         actionMenuX: 0,
         actionMenuY: 0,
@@ -138,6 +140,13 @@
                 name: '',
                 selectionType: 'single',
                 choices: [this._newChoice(++this._choiceIdCounter)]
+            });
+            this.$nextTick(() => {
+                const container = document.getElementById('new-option-groups-list');
+                if (container) {
+                    const last = container.lastElementChild;
+                    if (last) last.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
             });
         },
         removeOptionGroup(gi) {
@@ -176,6 +185,23 @@
         },
         removeEditChoice(gi, ci) {
             this.editOptionGroups[gi].choices.splice(ci, 1);
+        },
+        onGroupDragStart(event, gi, arrayKey) {
+            this._dragGi = gi;
+            this._dragArrayKey = arrayKey;
+            event.dataTransfer.effectAllowed = 'move';
+        },
+        onGroupDragEnter(event, gi, arrayKey) {
+            if (this._dragArrayKey !== arrayKey || this._dragGi === null || this._dragGi === gi) return;
+            const arr = this[arrayKey];
+            const dragged = arr.splice(this._dragGi, 1)[0];
+            arr.splice(gi, 0, dragged);
+            this._dragGi = gi;
+        },
+        onGroupDrop(event, gi, arrayKey) {
+            event.preventDefault();
+            this._dragGi = null;
+            this._dragArrayKey = null;
         },
         async submitStaffForm() {
             const form = this.$refs.staffForm;
@@ -1519,11 +1545,20 @@
                                     </button>
                                 </div>
 
-                                <div class="space-y-4">
+                                <div id="new-option-groups-list" class="space-y-4">
                                     <template x-for="(group, gi) in optionGroups" :key="group._id">
-                                        <div class="border border-gray-200 rounded-2xl p-5 bg-gray-50/30">
+                                        <div class="border border-gray-200 rounded-2xl p-5 bg-gray-50/30 transition-opacity"
+                                             draggable="true"
+                                             @dragstart="onGroupDragStart($event, gi, 'optionGroups')"
+                                             @dragover.prevent
+                                             @dragenter.prevent="onGroupDragEnter($event, gi, 'optionGroups')"
+                                             @drop="onGroupDrop($event, gi, 'optionGroups')"
+                                             :class="{'opacity-40': _dragGi === gi && _dragArrayKey === 'optionGroups'}">
                                             <!-- Group header: name + selection type + remove -->
                                             <div class="flex items-end gap-3 mb-4">
+                                                <div class="flex items-center self-end mb-1 cursor-grab active:cursor-grabbing flex-shrink-0" title="Drag to reorder">
+                                                    <i class="fas fa-grip-lines text-gray-300 hover:text-purple-400 text-base transition-colors"></i>
+                                                </div>
                                                 <div class="flex-1">
                                                     <label class="text-[10px] font-black uppercase tracking-widest text-purple-500 mb-1.5 block">Group Name</label>
                                                     <input type="text" x-model="group.name" placeholder="e.g. Sugar Level"
@@ -1815,8 +1850,17 @@
 
                             <div class="space-y-4">
                                 <template x-for="(group, gi) in editOptionGroups" :key="group._id">
-                                    <div class="border border-gray-200 rounded-2xl p-5 bg-gray-50/30">
+                                    <div class="border border-gray-200 rounded-2xl p-5 bg-gray-50/30 transition-opacity"
+                                         draggable="true"
+                                         @dragstart="onGroupDragStart($event, gi, 'editOptionGroups')"
+                                         @dragover.prevent
+                                         @dragenter.prevent="onGroupDragEnter($event, gi, 'editOptionGroups')"
+                                         @drop="onGroupDrop($event, gi, 'editOptionGroups')"
+                                         :class="{'opacity-40': _dragGi === gi && _dragArrayKey === 'editOptionGroups'}">
                                         <div class="flex items-end gap-3 mb-4">
+                                            <div class="flex items-center self-end mb-1 cursor-grab active:cursor-grabbing flex-shrink-0" title="Drag to reorder">
+                                                <i class="fas fa-grip-lines text-gray-300 hover:text-purple-400 text-base transition-colors"></i>
+                                            </div>
                                             <div class="flex-1">
                                                 <label class="text-[10px] font-black uppercase tracking-widest text-purple-500 mb-1.5 block">Group Name</label>
                                                 <input type="text" x-model="group.name" placeholder="e.g. Sugar Level"
