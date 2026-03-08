@@ -33,17 +33,16 @@ class="sidebar-hidden fixed md:static inset-y-0 left-0 z-50 w-64 bg-[#0f172a] sh
             Operations
         </div>
 
-        <a href="#" class="flex items-center py-2.5 px-4 rounded-xl transition duration-200 text-slate-400 hover:bg-slate-800 hover:text-white">
+        <a href="{{ route('ftadmin.menus') }}"
+           class="flex items-center py-2.5 px-4 rounded-xl transition duration-200 {{ request()->routeIs('ftadmin.menus') ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-800 hover:text-white' }}">
             <i class="fas fa-utensils w-6 text-sm"></i>
             <span class="text-sm font-medium">Manage Menus</span>
         </a>
 
-        <a href="#" class="flex items-center py-2.5 px-4 rounded-xl transition duration-200 text-slate-400 hover:bg-slate-800 hover:text-white">
-            <i class="fas fa-boxes-stacked w-6 text-sm"></i>
-            <span class="text-sm font-medium">Stock Availability</span>
-        </a>
+        
 
-        <a href="#" class="flex items-center py-2.5 px-4 rounded-xl transition duration-200 text-slate-400 hover:bg-slate-800 hover:text-white">
+        <a href="{{ route('ftadmin.orders') }}"
+           class="flex items-center py-2.5 px-4 rounded-xl transition duration-200 {{ request()->routeIs('ftadmin.orders') ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-800 hover:text-white' }}">
             <i class="fas fa-receipt w-6 text-sm"></i>
             <span class="text-sm font-medium">Orders Tracking</span>
         </a>
@@ -53,7 +52,8 @@ class="sidebar-hidden fixed md:static inset-y-0 left-0 z-50 w-64 bg-[#0f172a] sh
             Feedback
         </div>
 
-        <a href="#" class="flex items-center py-2.5 px-4 rounded-xl transition duration-200 text-slate-400 hover:bg-slate-800 hover:text-white">
+        <a href="{{ route('ftadmin.reviews') }}"
+           class="flex items-center py-2.5 px-4 rounded-xl transition duration-200 {{ request()->routeIs('ftadmin.reviews') ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-800 hover:text-white' }}">
             <i class="fas fa-star w-6 text-sm"></i>
             <span class="text-sm font-medium">Reviews & Ratings</span>
         </a>

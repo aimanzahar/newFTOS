@@ -198,6 +198,87 @@ class MenuController extends Controller
     }
 
     /**
+     * Quick-update name, category, price and description of a menu item.
+     */
+    public function updateDetails(Request $request, $id)
+    {
+        $user = Auth::user();
+        $item = Menu::where('id', $id)
+            ->where('foodtruck_id', $user->foodtruck_id)
+            ->firstOrFail();
+
+        $request->validate([
+            'name'        => ['required', 'string', 'max:255'],
+            'category'    => ['required', 'string', 'max:100'],
+            'base_price'  => ['required', 'numeric', 'min:0'],
+            'description' => ['nullable', 'string'],
+        ]);
+
+        $item->update($request->only(['name', 'category', 'base_price', 'description']));
+
+        return response()->json(['success' => true, 'item' => $item->fresh()]);
+    }
+
+    /**
+     * Quick-update only the quantity of a menu item.
+     */
+    public function updateQuantity(Request $request, $id)
+    {
+        $user = Auth::user();
+        $item = Menu::where('id', $id)
+            ->where('foodtruck_id', $user->foodtruck_id)
+            ->firstOrFail();
+
+        $request->validate(['quantity' => ['required', 'integer', 'min:0']]);
+        $item->update(['quantity' => $request->quantity]);
+
+        return response()->json(['success' => true, 'quantity' => $item->fresh()->quantity]);
+    }
+
+    /**
+     * Replace the option groups (and choices) for a menu item.
+     */
+    public function updateOptions(Request $request, $id)
+    {
+        $user = Auth::user();
+        $item = Menu::where('id', $id)
+            ->where('foodtruck_id', $user->foodtruck_id)
+            ->firstOrFail();
+
+        $item->optionGroups()->delete();
+
+        $optionGroups = $request->input('option_groups', []);
+        if (!is_array($optionGroups)) {
+            $optionGroups = json_decode($optionGroups, true) ?? [];
+        }
+
+        foreach ($optionGroups as $i => $groupData) {
+            if (empty($groupData['name'])) continue;
+            $selType = in_array($groupData['selectionType'] ?? 'single', ['single', 'multiple'])
+                ? $groupData['selectionType']
+                : 'single';
+            $group = $item->optionGroups()->create([
+                'name'           => $groupData['name'],
+                'selection_type' => $selType,
+                'sort_order'     => $i,
+            ]);
+            foreach (($groupData['choices'] ?? []) as $j => $choiceData) {
+                if (empty($choiceData['name'])) continue;
+                $group->choices()->create([
+                    'name'       => $choiceData['name'],
+                    'price'      => is_numeric($choiceData['price'] ?? '') ? (float) $choiceData['price'] : 0,
+                    'quantity'   => is_numeric($choiceData['quantity'] ?? '') ? (int) $choiceData['quantity'] : 0,
+                    'sort_order' => $j,
+                    'status'     => in_array($choiceData['status'] ?? 'available', ['available', 'unavailable']) ? $choiceData['status'] : 'available',
+                ]);
+            }
+        }
+
+        $item->load('optionGroups.choices');
+        return response()->json(['success' => true, 'option_groups' => $item->optionGroups]);
+    }
+
+    /**
      * Toggle a menu item's status between available and unavailable.
      */
     public function toggleStatus($id)

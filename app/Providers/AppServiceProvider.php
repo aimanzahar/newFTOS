@@ -22,5 +22,6 @@ class AppServiceProvider extends ServiceProvider
     {
         // Register the alias for your custom layout
         Blade::component('layouts.ftadmin.ftadmin-layout', 'ftadmin-layout');
+        Blade::component('layouts.ftworker.ftworker-layout', 'ftworker-layout');
     }
 }

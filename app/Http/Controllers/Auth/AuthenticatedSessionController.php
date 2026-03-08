@@ -52,7 +52,10 @@ class AuthenticatedSessionController extends Controller
             // Food Truck Worker (Route name is ftworker.dashboard)
             self::ROLE_FOOD_TRUCK_WORKER => redirect()->intended(route('ftworker.dashboard')),
 
-            // Default / Customer
+            // Customer
+            self::ROLE_CUSTOMER => redirect()->intended(route('customer.dashboard')),
+
+            // Default fallback
             default => redirect()->intended(route('dashboard')),
         };
     }

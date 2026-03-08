@@ -22,6 +22,11 @@ class FoodTruck extends Model
         'foodtruck_desc',
         'user_id',
         'status',
+        'is_operational',
+    ];
+
+    protected $casts = [
+        'is_operational' => 'boolean',
     ];
 
     /**
@@ -46,5 +51,13 @@ class FoodTruck extends Model
     public function staff()
     {
         return $this->hasMany(User::class, 'foodtruck_id');
+    }
+
+    /**
+     * Get the menu items for this truck.
+     */
+    public function menus()
+    {
+        return $this->hasMany(\App\Models\Menu::class, 'foodtruck_id');
     }
 }

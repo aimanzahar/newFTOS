@@ -12,6 +12,25 @@
 <div x-data="{
         showStaffModal: false,
         showMenuModal: false,
+        showOperationalModal: false,
+        isOperational: {{ json_encode($isOperational) }},
+        operationalSaving: false,
+        async toggleOperational() {
+            if (this.operationalSaving) return;
+            this.operationalSaving = true;
+            try {
+                const res = await fetch('/ftadmin/toggle-operational', {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content
+                    }
+                });
+                const data = await res.json();
+                if (data.success) this.isOperational = data.is_operational;
+            } catch(e) { console.error(e); }
+            this.operationalSaving = false;
+        },
         showCreateForm: false,
         showMenuCreateForm: false,
         searchQuery: '',
@@ -586,7 +605,7 @@
                 <i class="fas fa-bars text-xl"></i>
             </button>
             <div class="hidden md:flex items-center text-gray-400 space-x-2">
-                <i class="fas fa-home text-sm"></i>
+                <span class="w-5 flex justify-center"><i class="fas fa-home text-sm"></i></span>
                 <span class="text-gray-300">/</span>
                 <span class="text-sm font-bold text-gray-700">Dashboard</span>
             </div>
@@ -638,50 +657,171 @@
             </div>
         @endif
 
-        <div class="p-6 lg:p-10 overflow-y-auto h-full">
-            <div class="w-full max-w-[1400px] mx-auto space-y-8">
-                <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div class="p-6 lg:p-8 overflow-y-auto h-full">
+            <div class="w-full max-w-[1400px] mx-auto space-y-6">
+
+                <!-- Page heading -->
+                <div>
+                    <h1 class="text-2xl font-black text-gray-900 tracking-tight">Overview</h1>
+                    <p class="text-gray-500 mt-1 font-medium">Welcome back, {{ $user->full_name }}</p>
+                </div>
+
+                <!-- 2×2 Tab Grid -->
+                <div class="grid grid-cols-[3fr_2fr] gap-5 h-[calc(100vh-14rem)]">
+
+                    <!-- Row 1 Col 1 — Total Revenue -->
+                    <div class="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 flex flex-col justify-between">
+                        <div>
+                            <div class="flex items-center justify-between mb-6">
+                                <div class="p-4 w-fit bg-blue-50 text-blue-600 rounded-2xl">
+                                    <i class="fas fa-dollar-sign text-2xl"></i>
+                                </div>
+                            </div>
+                            <h3 class="text-sm font-bold text-gray-400 uppercase tracking-widest mb-2">Total Revenue</h3>
+                            <p class="text-5xl font-black text-gray-900">RM 0.00</p>
+                        </div>
+                        <p class="text-xs text-gray-400 font-medium mt-4">Revenue data will appear once orders are completed.</p>
+                    </div>
+
+                    <!-- Row 1 Col 2 — Menu Items -->
+                    <button @click="showMenuModal = true; showMenuCreateForm = false; resetMenuForm()"
+                            class="text-left bg-white p-8 rounded-3xl border border-gray-100 shadow-sm hover:border-purple-300 hover:shadow-md transition-all group outline-none flex flex-col justify-between">
+                        <div>
+                            <div class="flex items-center justify-between mb-6">
+                                <div class="p-4 bg-purple-50 text-purple-600 rounded-2xl group-hover:bg-purple-600 group-hover:text-white transition-all duration-300">
+                                    <i class="fas fa-utensils text-2xl"></i>
+                                </div>
+                                <i class="fas fa-expand-alt text-gray-300 text-sm group-hover:text-purple-500 transition-colors"></i>
+                            </div>
+                            <h3 class="text-sm font-bold text-gray-400 uppercase tracking-widest mb-2">Menu Items</h3>
+                            <p class="text-5xl font-black text-gray-900">{{ count($menus) }}</p>
+                        </div>
+                        <span class="text-xs font-bold text-purple-500 uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity">Manage Menu</span>
+                    </button>
+
+                    <!-- Row 2 Col 1 — Truck Operational Status -->
+                    <button @click="showOperationalModal = true"
+                            class="text-left bg-white p-8 rounded-3xl border shadow-sm hover:shadow-md transition-all group outline-none flex flex-col justify-between"
+                            :class="isOperational ? 'border-gray-100 hover:border-emerald-300' : 'border-red-100 hover:border-red-300'">
+                        <div>
+                            <div class="flex items-center justify-between mb-6">
+                                <div class="p-4 rounded-2xl transition-all duration-300"
+                                     :class="isOperational ? 'bg-emerald-50 text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white' : 'bg-red-50 text-red-500 group-hover:bg-red-500 group-hover:text-white'">
+                                    <i class="fas fa-power-off text-2xl"></i>
+                                </div>
+                                <i class="fas fa-expand-alt text-gray-300 text-sm transition-colors"
+                                   :class="isOperational ? 'group-hover:text-emerald-500' : 'group-hover:text-red-400'"></i>
+                            </div>
+                            <h3 class="text-sm font-bold text-gray-400 uppercase tracking-widest mb-2">Truck Operational</h3>
+                            <div class="flex items-center gap-3">
+                                <span class="w-3 h-3 rounded-full flex-shrink-0"
+                                      :class="isOperational ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'"></span>
+                                <span class="text-4xl font-black"
+                                      :class="isOperational ? 'text-emerald-600' : 'text-red-500'"
+                                      x-text="isOperational ? 'Online' : 'Offline'"></span>
+                            </div>
+                        </div>
+                        <span class="text-xs font-bold uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity"
+                              :class="isOperational ? 'text-emerald-500' : 'text-red-400'">Manage Status</span>
+                    </button>
+
+                    <!-- Row 2 Col 2 — Active Staff -->
+                    <button @click="showStaffModal = true; showCreateForm = false; resetForm()"
+                            class="text-left bg-white p-8 rounded-3xl border border-gray-100 shadow-sm hover:border-orange-300 hover:shadow-md transition-all group outline-none flex flex-col justify-between">
+                        <div>
+                            <div class="flex items-center justify-between mb-6">
+                                <div class="p-4 bg-orange-50 text-orange-600 rounded-2xl group-hover:bg-orange-600 group-hover:text-white transition-colors">
+                                    <i class="fas fa-users text-2xl"></i>
+                                </div>
+                                <i class="fas fa-expand-alt text-gray-300 text-sm group-hover:text-orange-500 transition-colors"></i>
+                            </div>
+                            <h3 class="text-sm font-bold text-gray-400 uppercase tracking-widest mb-2">Active Staff</h3>
+                            <p class="text-5xl font-black text-gray-900">{{ count($workers) }}</p>
+                        </div>
+                        <span class="text-xs font-bold text-orange-500 uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity">Manage Staff</span>
+                    </button>
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- OPERATIONAL STATUS MODAL -->
+    <div x-show="showOperationalModal"
+         style="display:none;"
+         x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
+         class="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+
+        <div @click.away="showOperationalModal = false"
+             x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 scale-95 translate-y-2" x-transition:enter-end="opacity-100 scale-100 translate-y-0"
+             class="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden border border-white/20">
+
+            <!-- Header -->
+            <div class="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
+                <div>
+                    <h2 class="text-base font-black text-gray-900">Truck Operational Status</h2>
+                    <p class="text-xs text-gray-400 font-medium mt-0.5">Control who can see and access your food truck.</p>
+                </div>
+                <button @click="showOperationalModal = false"
+                        class="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-all">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <!-- Current Status -->
+            <div class="px-6 py-5">
+                <div class="flex items-center gap-4 p-4 rounded-2xl border"
+                     :class="isOperational ? 'bg-emerald-50 border-emerald-100' : 'bg-red-50 border-red-100'">
+                    <div class="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
+                         :class="isOperational ? 'bg-emerald-100' : 'bg-red-100'">
+                        <i class="fas fa-power-off text-lg" :class="isOperational ? 'text-emerald-600' : 'text-red-500'"></i>
+                    </div>
                     <div>
-                        <h1 class="text-2xl font-black text-gray-900 tracking-tight">Overview</h1>
-                        <p class="text-gray-500 mt-1 font-medium">Welcome back, {{ $user->full_name }}</p>
+                        <div class="flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                                  :class="isOperational ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'"></span>
+                            <span class="text-sm font-black" :class="isOperational ? 'text-emerald-700' : 'text-red-600'"
+                                  x-text="isOperational ? 'Operational Online' : 'Operational Offline'"></span>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-0.5"
+                           x-text="isOperational ? 'Truck is visible to customers. Staff can log in.' : 'Truck is hidden from customers. Staff are blocked.'"></p>
                     </div>
                 </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                        <div class="p-3 w-fit bg-blue-50 text-blue-600 rounded-xl mb-4">
-                            <i class="fas fa-dollar-sign text-xl"></i>
-                        </div>
-                        <h3 class="text-sm font-bold text-gray-500 uppercase tracking-wider">Total Revenue</h3>
-                        <p class="text-3xl font-black text-gray-900 mt-1">RM 0.00</p>
+                <!-- Info bullets -->
+                <div class="mt-4 space-y-2">
+                    <div class="flex items-start gap-3 text-xs text-gray-500">
+                        <i class="fas fa-eye mt-0.5 w-4 text-center flex-shrink-0" :class="isOperational ? 'text-emerald-400' : 'text-gray-300'"></i>
+                        <span>Customer browse page — <span class="font-bold" :class="isOperational ? 'text-emerald-600' : 'text-red-500'" x-text="isOperational ? 'Truck visible' : 'Truck hidden'"></span></span>
                     </div>
-
-                    <!-- Menu Items Tab -->
-                    <button @click="showMenuModal = true; showMenuCreateForm = false; resetMenuForm()" class="text-left bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hover:border-purple-300 hover:shadow-md transition-all group outline-none">
-                        <div class="flex items-center justify-between mb-4">
-                            <div class="p-3 bg-purple-50 text-purple-600 rounded-xl group-hover:bg-purple-600 group-hover:text-white transition-all duration-300">
-                                <i class="fas fa-utensils text-xl"></i>
-                            </div>
-                            <i class="fas fa-expand-alt text-gray-300 group-hover:text-purple-500 transition-colors"></i>
-                        </div>
-                        <h3 class="text-sm font-bold text-gray-500 uppercase tracking-wider">Menu Items</h3>
-                        <p class="text-3xl font-black text-gray-900 mt-1">{{ count($menus) }}</p>
-                        <span class="text-[10px] font-bold text-purple-500 mt-2 block opacity-0 group-hover:opacity-100 transition-opacity uppercase tracking-widest">Manage Menu</span>
-                    </button>
-
-                    <!-- Active Staff Tab (Modified hover border from blue to orange) -->
-                    <button @click="showStaffModal = true; showCreateForm = false; resetForm()" class="text-left bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hover:border-orange-300 hover:shadow-md transition-all group outline-none">
-                        <div class="flex items-center justify-between mb-4">
-                            <div class="p-3 bg-orange-50 text-orange-600 rounded-xl group-hover:bg-orange-600 group-hover:text-white transition-colors">
-                                <i class="fas fa-users text-xl"></i>
-                            </div>
-                            <i class="fas fa-expand-alt text-gray-300 group-hover:text-orange-500"></i>
-                        </div>
-                        <h3 class="text-sm font-bold text-gray-500 uppercase tracking-wider">Active Staff</h3>
-                        <p class="text-3xl font-black text-gray-900 mt-1">{{ count($workers) }}</p>
-                        <span class="text-[10px] font-bold text-orange-500 mt-2 block opacity-0 group-hover:opacity-100 transition-opacity uppercase tracking-widest">Manage Staff</span>
-                    </button>
+                    <div class="flex items-start gap-3 text-xs text-gray-500">
+                        <i class="fas fa-users mt-0.5 w-4 text-center flex-shrink-0" :class="isOperational ? 'text-emerald-400' : 'text-gray-300'"></i>
+                        <span>Food Truck Workers — <span class="font-bold" :class="isOperational ? 'text-emerald-600' : 'text-red-500'" x-text="isOperational ? 'Can log in normally' : 'See offline message on login'"></span></span>
+                    </div>
+                    <div class="flex items-start gap-3 text-xs text-gray-500">
+                        <i class="fas fa-user-shield mt-0.5 w-4 text-center flex-shrink-0 text-blue-400"></i>
+                        <span>Food Truck Admin — <span class="font-bold text-blue-600">Always has full access</span></span>
+                    </div>
                 </div>
+            </div>
+
+            <!-- Toggle Buttons -->
+            <div class="px-6 pb-6 flex gap-3">
+                <button @click="if(!isOperational) toggleOperational()"
+                        :disabled="isOperational || operationalSaving"
+                        :class="isOperational ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-100 cursor-default' : 'bg-gray-100 text-gray-500 hover:bg-emerald-50 hover:text-emerald-600'"
+                        class="flex-1 flex flex-col items-center justify-center py-4 px-3 rounded-2xl transition-all disabled:opacity-80 font-black text-sm gap-1">
+                    <i class="fas fa-check-circle text-lg"></i>
+                    <span>Turn ON</span>
+                </button>
+                <button @click="if(isOperational) toggleOperational()"
+                        :disabled="!isOperational || operationalSaving"
+                        :class="!isOperational ? 'bg-red-500 text-white shadow-lg shadow-red-100 cursor-default' : 'bg-gray-100 text-gray-500 hover:bg-red-50 hover:text-red-500'"
+                        class="flex-1 flex flex-col items-center justify-center py-4 px-3 rounded-2xl transition-all disabled:opacity-80 font-black text-sm gap-1">
+                    <i class="fas fa-times-circle text-lg"></i>
+                    <span>Turn OFF</span>
+                </button>
             </div>
         </div>
     </div>

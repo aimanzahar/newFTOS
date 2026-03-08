@@ -26,7 +26,7 @@ class ProfileController extends Controller
          * Default: Customer
          */
         $layout = match ($user->role) {
-            1 => 'layouts.admin.admin-layout',
+            6 => 'layouts.admin.admin-layout',
             2 => 'layouts.ftadmin.ftadmin-layout',
             3 => 'layouts.ftworker.ftworker-layout',
             default => 'layouts.customer.customer-layout',

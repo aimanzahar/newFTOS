@@ -33,7 +33,7 @@
                     <i class="fas fa-bars text-xl"></i>
                 </button>
                 <div class="hidden md:flex items-center text-gray-400 space-x-2">
-                    <i class="fas fa-home text-sm"></i>
+                    <span class="w-5 flex justify-center"><i class="fas fa-user-gear text-sm"></i></span>
                     <span class="text-gray-300">/</span>
                     <span class="text-sm font-bold text-gray-700">Profile</span>
                 </div>
