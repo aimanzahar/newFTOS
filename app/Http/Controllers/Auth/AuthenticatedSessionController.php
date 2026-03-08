@@ -44,10 +44,10 @@ class AuthenticatedSessionController extends Controller
          */
         return match ($role) {
             // System Admin (Route name is admin.dashboard)
-            self::ROLE_SYSTEM_ADMIN => redirect()->intended(route('admin.dashboard')),
+            self::ROLE_SYSTEM_ADMIN => redirect(route('admin.dashboard')),
             
             // Food Truck Admin (Route name is ftadmin.dashboard)
-            self::ROLE_FOOD_TRUCK_ADMIN => redirect()->intended(route('ftadmin.dashboard')),
+            self::ROLE_FOOD_TRUCK_ADMIN => redirect(route('ftadmin.dashboard')),
 
             // Food Truck Worker (Route name is ftworker.dashboard)
             self::ROLE_FOOD_TRUCK_WORKER => redirect()->intended(route('ftworker.dashboard')),
