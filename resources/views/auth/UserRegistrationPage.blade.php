@@ -30,7 +30,7 @@
             <p class="mt-2 opacity-80">Join our marketplace as a shopper or a business partner</p>
         </div>
 
-        <form action="{{ route('register') }}" method="POST" class="p-8 space-y-6">
+        <form action="{{ route('register') }}" method="POST" class="p-8 space-y-6" onsubmit="return validateForm()">
             @csrf
             
             <!-- Role Selection -->
@@ -65,12 +65,14 @@
                     <input type="text" name="full_name" value="{{ old('full_name') }}" 
                            class="w-full px-4 py-2 border {{ $errors->has('full_name') ? 'border-red-500' : 'border-gray-300' }} rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
                     @error('full_name') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+                    <span class="error-message text-red-500 text-xs" id="error-full_name"></span>
                 </div>
                 <div class="space-y-1">
                     <label class="text-sm font-medium text-gray-700">Email Address</label>
                     <input type="email" name="email" value="{{ old('email') }}" 
                            class="w-full px-4 py-2 border {{ $errors->has('email') ? 'border-red-500' : 'border-gray-300' }} rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
                     @error('email') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+                    <span class="error-message text-red-500 text-xs" id="error-email"></span>
                 </div>
             </div>
 
@@ -83,12 +85,14 @@
                         <input type="text" name="foodtruck_name" value="{{ old('foodtruck_name') }}" 
                                class="w-full px-4 py-2 border {{ $errors->has('foodtruck_name') ? 'border-red-500' : 'border-gray-300' }} rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
                         @error('foodtruck_name') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+                        <span class="error-message text-red-500 text-xs" id="error-foodtruck_name"></span>
                     </div>
                     <div class="space-y-1">
                         <label class="text-sm font-medium text-gray-700">Business License No.</label>
                         <input type="text" name="business_license_no" value="{{ old('business_license_no') }}" 
                                class="w-full px-4 py-2 border {{ $errors->has('business_license_no') ? 'border-red-500' : 'border-gray-300' }} rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
                         @error('business_license_no') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+                        <span class="error-message text-red-500 text-xs" id="error-business_license_no"></span>
                     </div>
                 </div>
                 <div class="space-y-1">
@@ -106,6 +110,7 @@
                        oninput="this.value = this.value.replace(/[^0-9]/g, '')" placeholder="e.g. 0123456789" 
                        class="w-full px-4 py-2 border {{ $errors->has('phone_no') ? 'border-red-500' : 'border-gray-300' }} rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
                 @error('phone_no') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+                <span class="error-message text-red-500 text-xs" id="error-phone_no"></span>
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -114,11 +119,13 @@
                     <input type="password" id="password" name="password" 
                            class="w-full px-4 py-2 border {{ $errors->has('password') ? 'border-red-500' : 'border-gray-300' }} rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
                     @error('password') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
+                    <span class="error-message text-red-500 text-xs" id="error-password"></span>
                 </div>
                 <div class="space-y-1">
                     <label class="text-sm font-medium text-gray-700">Confirm Password</label>
                     <input type="password" id="password_confirmation" name="password_confirmation" 
                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
+                    <span class="error-message text-red-500 text-xs" id="error-password_confirmation"></span>
                 </div>
             </div>
 
@@ -148,6 +155,57 @@
             const selectedRole = document.querySelector('input[name="role"]:checked');
             if (selectedRole) updateFormFields(selectedRole.value);
         });
+
+        function validateForm() {
+            let isValid = true;
+            // Clear previous error messages
+            document.querySelectorAll('.error-message').forEach(el => el.textContent = '');
+
+            // Check full_name
+            if (!document.querySelector('[name="full_name"]').value.trim()) {
+                document.getElementById('error-full_name').textContent = 'Please insert your full name';
+                isValid = false;
+            }
+
+            // Check email
+            if (!document.querySelector('[name="email"]').value.trim()) {
+                document.getElementById('error-email').textContent = 'Please insert your email address';
+                isValid = false;
+            }
+
+            // Check phone_no
+            if (!document.querySelector('[name="phone_no"]').value.trim()) {
+                document.getElementById('error-phone_no').textContent = 'Please insert your phone number';
+                isValid = false;
+            }
+
+            // Check password
+            if (!document.querySelector('[name="password"]').value.trim()) {
+                document.getElementById('error-password').textContent = 'Please insert your password';
+                isValid = false;
+            }
+
+            // Check password_confirmation
+            if (!document.querySelector('[name="password_confirmation"]').value.trim()) {
+                document.getElementById('error-password_confirmation').textContent = 'Please confirm your password';
+                isValid = false;
+            }
+
+            // Check role-specific fields
+            const role = document.querySelector('input[name="role"]:checked').value;
+            if (role == '2') {
+                if (!document.querySelector('[name="foodtruck_name"]').value.trim()) {
+                    document.getElementById('error-foodtruck_name').textContent = 'Please insert food truck name';
+                    isValid = false;
+                }
+                if (!document.querySelector('[name="business_license_no"]').value.trim()) {
+                    document.getElementById('error-business_license_no').textContent = 'Please insert business license number';
+                    isValid = false;
+                }
+            }
+
+            return isValid;
+        }
 
         const password = document.getElementById("password");
         const confirm_password = document.getElementById("password_confirmation");
