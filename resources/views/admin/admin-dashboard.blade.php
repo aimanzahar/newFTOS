@@ -71,7 +71,7 @@
             </header>
 
             <!-- Scrollable Content Section -->
-            <main class="flex-1 overflow-y-auto p-6 lg:p-10 scroll-smooth">
+            <main class="flex-1 overflow-y-auto p-6 lg:p-10 scroll-smooth" x-data="{ showSystemModal: false, isSystemOperational: true }">
                 <div class="max-w-7xl mx-auto">
 
                     <!-- Page Header -->
@@ -128,19 +128,22 @@
                         </div>
 
                         <!-- Pending Approvals -->
-                        <div
-                            class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition">
+                        <a href="{{ route('admin.pending.trucks') }}"
+                            class="text-left bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:border-orange-300 hover:shadow-md transition-all group outline-none block">
                             <div class="flex justify-between items-start">
-                                <div class="p-3 bg-orange-50 rounded-xl text-orange-600">
+                                <div class="p-3 bg-orange-50 text-orange-600 rounded-xl group-hover:bg-orange-600 group-hover:text-white transition-all duration-300">
                                     <i class="fas fa-clock text-2xl"></i>
                                 </div>
 
-                                @if(($pendingApprovals ?? 0) > 0)
-                                    <span
-                                        class="animate-pulse text-xs font-bold text-red-500 bg-red-50 px-2 py-1 rounded-lg">
-                                        Action Needed
-                                    </span>
-                                @endif
+                                <div class="flex items-center gap-2">
+                                    @if(($pendingApprovals ?? 0) > 0)
+                                        <span
+                                            class="animate-pulse text-xs font-bold text-red-500 bg-red-50 px-2 py-1 rounded-lg">
+                                            Action Needed
+                                        </span>
+                                    @endif
+                                    <i class="fas fa-expand-alt text-gray-300 text-sm group-hover:text-orange-500 transition-colors"></i>
+                                </div>
                             </div>
 
                             <div class="mt-4">
@@ -153,22 +156,22 @@
                                 </p>
                             </div>
 
-                            <div class="mt-4 border-t border-gray-50 pt-4">
-                                <a href="{{ route('admin.pending.trucks') }}"
-                                    class="text-sm text-blue-600 hover:text-blue-800 font-bold flex items-center">
-                                    Review registrations
-                                    <i class="fas fa-arrow-right ml-2 text-xs"></i>
-                                </a>
+                            <div class="mt-4 border-t border-gray-50 pt-4 flex justify-between items-center">
+                                <p class="text-xs text-gray-400">
+                                    Review pending registrations
+                                </p>
+                                <span class="text-xs font-bold text-orange-500 uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity">Manage Approvals</span>
                             </div>
-                        </div>
+                        </a>
 
                         <!-- System Status -->
-                        <div
-                            class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition">
+                        <button @click="showSystemModal = true"
+                            class="text-left bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:border-blue-300 hover:shadow-md transition-all group outline-none w-full">
                             <div class="flex justify-between items-start">
-                                <div class="p-3 bg-blue-50 rounded-xl text-blue-600">
+                                <div class="p-3 bg-blue-50 text-blue-600 rounded-xl group-hover:bg-blue-600 group-hover:text-white transition-all duration-300">
                                     <i class="fas fa-server text-2xl"></i>
                                 </div>
+                                <i class="fas fa-expand-alt text-gray-300 text-sm group-hover:text-blue-500 transition-colors"></i>
                             </div>
 
                             <div class="mt-4">
@@ -177,13 +180,19 @@
                                     System Status
                                 </p>
                                 <div class="flex items-center mt-2">
-                                    <div class="w-2.5 h-2.5 bg-green-500 rounded-full mr-2"></div>
-                                    <p class="text-xl font-bold text-gray-800">
-                                        Operational
+                                    <div class="w-2.5 h-2.5 rounded-full mr-2" :class="isSystemOperational ? 'bg-green-500' : 'bg-red-500'"></div>
+                                    <p class="text-xl font-bold text-gray-800" x-text="isSystemOperational ? 'Operational' : 'Maintenance'">
                                     </p>
                                 </div>
                             </div>
-                        </div>
+
+                            <div class="mt-4 border-t border-gray-50 pt-4">
+                                <p class="text-xs text-gray-400">
+                                    Overall platform health and status
+                                </p>
+                                <span class="text-xs font-bold text-blue-500 uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity">Manage Status</span>
+                            </div>
+                        </button>
 
                     </div>
 
@@ -291,6 +300,84 @@
             }
         </style>
     @endpush
+
+    <!-- SYSTEM STATUS MODAL -->
+    <div x-show="showSystemModal"
+         style="display:none;"
+         x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
+         class="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+
+        <div @click.away="showSystemModal = false"
+             x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 scale-95 translate-y-2" x-transition:enter-end="opacity-100 scale-100 translate-y-0"
+             class="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden border border-white/20">
+
+            <!-- Header -->
+            <div class="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
+                <div>
+                    <h2 class="text-base font-black text-gray-900">System Maintenance Mode</h2>
+                    <p class="text-xs text-gray-400 font-medium mt-0.5">Control overall platform availability for users.</p>
+                </div>
+                <button @click="showSystemModal = false"
+                        class="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-all">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <!-- Current Status -->
+            <div class="px-6 py-5">
+                <div class="flex items-center gap-4 p-4 rounded-2xl border"
+                     :class="isSystemOperational ? 'bg-emerald-50 border-emerald-100' : 'bg-red-50 border-red-100'">
+                    <div class="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
+                         :class="isSystemOperational ? 'bg-emerald-100' : 'bg-red-100'">
+                        <i class="fas fa-server text-lg" :class="isSystemOperational ? 'text-emerald-600' : 'text-red-500'"></i>
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                                  :class="isSystemOperational ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'"></span>
+                            <span class="text-sm font-black" :class="isSystemOperational ? 'text-emerald-700' : 'text-red-600'"
+                                  x-text="isSystemOperational ? 'System Operational' : 'Maintenance Mode'"></span>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-0.5"
+                           x-text="isSystemOperational ? 'Platform is fully operational for all users.' : 'Platform is in maintenance mode. Users see maintenance page.'"></p>
+                    </div>
+                </div>
+
+                <!-- Info bullets -->
+                <div class="mt-4 space-y-2">
+                    <div class="flex items-start gap-3 text-xs text-gray-500">
+                        <i class="fas fa-users mt-0.5 w-4 text-center flex-shrink-0" :class="isSystemOperational ? 'text-emerald-400' : 'text-gray-300'"></i>
+                        <span>Customer Access — <span class="font-bold" :class="isSystemOperational ? 'text-emerald-600' : 'text-red-500'" x-text="isSystemOperational ? 'Full access' : 'Maintenance page'"></span></span>
+                    </div>
+                    <div class="flex items-start gap-3 text-xs text-gray-500">
+                        <i class="fas fa-truck mt-0.5 w-4 text-center flex-shrink-0" :class="isSystemOperational ? 'text-emerald-400' : 'text-gray-300'"></i>
+                        <span>Food Truck Admins — <span class="font-bold" :class="isSystemOperational ? 'text-emerald-600' : 'text-red-500'" x-text="isSystemOperational ? 'Normal operation' : 'Limited access'"></span></span>
+                    </div>
+                    <div class="flex items-start gap-3 text-xs text-gray-500">
+                        <i class="fas fa-user-shield mt-0.5 w-4 text-center flex-shrink-0 text-blue-400"></i>
+                        <span>System Admin — <span class="font-bold text-blue-600">Always has full access</span></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Toggle Buttons -->
+            <div class="px-6 pb-6 flex gap-3">
+                <button @click="isSystemOperational = true; showSystemModal = false"
+                        :class="isSystemOperational ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-100 cursor-default' : 'bg-gray-100 text-gray-500 hover:bg-emerald-50 hover:text-emerald-600'"
+                        class="flex-1 flex flex-col items-center justify-center py-4 px-3 rounded-2xl transition-all font-black text-sm gap-1">
+                    <i class="fas fa-check-circle text-lg"></i>
+                    <span>Turn ON</span>
+                </button>
+                <button @click="isSystemOperational = false; showSystemModal = false"
+                        :class="!isSystemOperational ? 'bg-red-500 text-white shadow-lg shadow-red-100 cursor-default' : 'bg-gray-100 text-gray-500 hover:bg-red-50 hover:text-red-500'"
+                        class="flex-1 flex flex-col items-center justify-center py-4 px-3 rounded-2xl transition-all font-black text-sm gap-1">
+                    <i class="fas fa-times-circle text-lg"></i>
+                    <span>Turn OFF</span>
+                </button>
+            </div>
+        </div>
+    </div>
 
     @push('scripts')
         <script>

@@ -21,6 +21,14 @@ class TruckApprovalController extends Controller
             'status' => 'approved'
         ]);
 
+        // Also update the associated user's status to 'active'
+        $user = $truck->user;
+        if ($user) {
+            $user->update([
+                'status' => 'active'
+            ]);
+        }
+
         return redirect()->back()->with('success', "Food truck '{$truck->foodtruck_name}' has been approved successfully.");
     }
 
