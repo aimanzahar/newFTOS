@@ -101,17 +101,21 @@ class AdminController extends Controller
     }
 
     /**
-     * Reject and delete a food truck registration.
+     * Reject a food truck registration.
      */
     public function rejectTruck($id)
     {
         $truck = FoodTruck::findOrFail($id);
+        $user = $truck->user;
         $name = $truck->foodtruck_name;
         
-        // Delete the record from food_trucks table
-        $truck->delete();
+        // Set user status to rejected
+        $user->update(['status' => 'rejected']);
+        
+        // Optionally set truck status to rejected as well
+        $truck->update(['status' => 'rejected']);
 
-        return back()->with('rejected', "The registration for '{$name}' has been rejected and removed.");
+        return back()->with('rejected', "The registration for '{$name}' has been rejected.");
     }
 
     /**
