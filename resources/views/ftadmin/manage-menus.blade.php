@@ -43,6 +43,12 @@ function manageMenusPage() {
         closeDetailsModal() { this.showDetailsModal = false; this.detailsItem = null; },
         async saveDetails() {
             if (this.detailsSaving || !this.detailsItem) return;
+            // Validate pricing: either edit price (base_price) OR existing choices must have prices
+            const hasValidPricing = this.hasValidPricing(this.editPrice, this.detailsItem.option_groups || []);
+            if (!hasValidPricing) {
+                alert('Please provide pricing:\n- Fill the Base Price in Section 1, OR\n- Ensure all choices in Section 2 have prices filled');
+                return;
+            }
             this.detailsSaving = true;
             try {
                 const res = await fetch('/ftadmin/menu/' + this.detailsItem.id + '/details', {
@@ -55,8 +61,13 @@ function manageMenusPage() {
                     const item = this.menuItems.find(i => i.id === this.detailsItem.id);
                     if (item) { item.name = data.item.name; item.category = data.item.category; item.base_price = data.item.base_price; item.description = data.item.description; }
                     this.closeDetailsModal();
+                } else {
+                    alert('Error: ' + (data.message || 'Failed to save menu details.'));
                 }
-            } catch(e) { console.error(e); }
+            } catch(e) { 
+                console.error(e);
+                alert('Error: Failed to save menu details. Please try again.');
+            }
             this.detailsSaving = false;
         },
         hasMissingChoiceQuantities(groups) {
@@ -66,6 +77,23 @@ function manageMenusPage() {
                     return choice.quantity === '' || choice.quantity === null || choice.quantity === undefined || isNaN(Number(choice.quantity));
                 })
             );
+        },
+        hasValidPricing(basePrice, optionGroups) {
+            // Check if base_price is filled
+            const hasBasePrice = basePrice && basePrice !== '' && !isNaN(Number(basePrice));
+            
+            // Check if all named choices have prices filled
+            const hasPricesInChoices = (optionGroups || []).every(group => {
+                return (group.choices || []).every(choice => {
+                    // If choice has no name, it's not required
+                    if (!choice.name || choice.name.trim() === '') return true;
+                    // If choice has a name, it must have a price
+                    return choice.price && choice.price !== '' && !isNaN(Number(choice.price));
+                });
+            });
+            
+            // Valid if either base_price is filled OR all choice prices are filled
+            return hasBasePrice || hasPricesInChoices;
         },
 
         /* ── Quantity inline edit ── */
@@ -91,8 +119,16 @@ function manageMenusPage() {
                     body: JSON.stringify({ quantity: parseInt(this.editQtyValue) || 0 })
                 });
                 const data = await res.json();
-                if (data.success) { item.quantity = data.quantity; this.editingQtyId = null; }
-            } catch(e) { console.error(e); }
+                if (data.success) { 
+                    item.quantity = data.quantity; 
+                    this.editingQtyId = null; 
+                } else {
+                    alert('Error: ' + (data.message || 'Failed to update quantity.'));
+                }
+            } catch(e) { 
+                console.error(e);
+                alert('Error: Failed to update quantity. Please try again.');
+            }
             this.qtySaving = false;
         },
 
@@ -135,8 +171,12 @@ function manageMenusPage() {
         removeEditChoice(gi, ci) { this.editOptionGroups[gi].choices.splice(ci, 1); },
         async saveOptions() {
             if (this.optionsSaving || !this.optionsItem) return;
-            if (this.hasMissingChoiceQuantities(this.editOptionGroups)) {
-                alert('Please fill the quantity for every option choice.');
+            // Validate pricing: either base_price OR all choice prices must be filled
+            const basePrice = this.optionsItem.base_price;
+            const allChoices = this.editOptionGroups.flatMap(g => g.choices);
+            const hasValidPricing = this.hasValidPricing(basePrice, this.editOptionGroups);
+            if (!hasValidPricing) {
+                alert('Please provide pricing:\n- Fill the Base Price in Section 1, OR\n- Fill the Price for all choices in Section 2');
                 return;
             }
             this.optionsSaving = true;
@@ -151,8 +191,13 @@ function manageMenusPage() {
                     const item = this.menuItems.find(i => i.id === this.optionsItem.id);
                     if (item) item.option_groups = data.option_groups;
                     this.closeOptionsModal();
+                } else {
+                    alert('Error: ' + (data.message || 'Failed to save menu options.'));
                 }
-            } catch(e) { console.error(e); }
+            } catch(e) { 
+                console.error(e);
+                alert('Error: Failed to save menu options. Please try again.');
+            }
             this.optionsSaving = false;
         },
 
@@ -349,7 +394,7 @@ function manageMenusPage() {
                                         <i class="fas fa-box text-sm"
                                            :class="editingQtyId === item.id ? 'text-blue-200' : 'text-gray-400 group-hover:text-blue-400'"></i>
                                         <span class="text-sm font-bold"
-                                              x-text="item.quantity > 0 ? item.quantity + ' Left' : 'Out of Stock'"></span>
+                                              x-text="item.quantity === null || item.quantity === '' || item.quantity === undefined ? '-' : (item.quantity > 0 ? item.quantity + ' Left' : 'Out of Stock')"></span>
                                     </div>
                                     <i class="fas fa-pen text-xs opacity-40"></i>
                                 </button>

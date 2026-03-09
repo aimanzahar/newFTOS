@@ -45,8 +45,9 @@
         showMenuSuccess: false,
         _menuSuccessTimer: null,
         async submitAddMenuForm() {
-            if (this.hasMissingChoiceQuantities(this.optionGroups)) {
-                alert('Please fill the quantity for every option choice.');
+            // Validate pricing: either base_price OR all choice prices must be filled
+            if (!this.hasValidPricing(this.formData.base_price, this.optionGroups)) {
+                alert('Please provide pricing:\n- Fill the Base Price in Section 1, OR\n- Fill the Price for all choices in Section 2');
                 return;
             }
             const form = this.$refs.addMenuForm;
@@ -66,15 +67,38 @@
                     this.resetMenuForm();
                     if (this._menuSuccessTimer) clearTimeout(this._menuSuccessTimer);
                     this._menuSuccessTimer = setTimeout(() => { this.showMenuSuccess = false; }, 5000);
+                } else {
+                    alert('Error: ' + (data.message || 'Failed to add menu item. Please check your input.'));
                 }
-            } catch(e) { console.error(e); }
+            } catch(e) { 
+                console.error(e);
+                alert('Error: Failed to add menu item. Please try again.');
+            }
         },
         submitEditMenuForm() {
-            if (this.hasMissingChoiceQuantities(this.editOptionGroups)) {
-                alert('Please fill the quantity for every option choice.');
+            // Validate pricing: either base_price OR all choice prices must be filled
+            if (!this.hasValidPricing(this.editPrice, this.editOptionGroups)) {
+                alert('Please provide pricing:\n- Fill the Base Price in Section 1, OR\n- Fill the Price for all choices in Section 2');
                 return;
             }
             if (this.$refs.editMenuForm) this.$refs.editMenuForm.submit();
+        },
+        hasValidPricing(basePrice, optionGroups) {
+            // Check if base_price is filled
+            const hasBasePrice = basePrice && basePrice !== '' && !isNaN(Number(basePrice));
+            
+            // Check if all named choices have prices filled
+            const hasPricesInChoices = (optionGroups || []).every(group => {
+                return (group.choices || []).every(choice => {
+                    // If choice has no name, it's not required
+                    if (!choice.name || choice.name.trim() === '') return true;
+                    // If choice has a name, it must have a price
+                    return choice.price && choice.price !== '' && !isNaN(Number(choice.price));
+                });
+            });
+            
+            // Valid if either base_price is filled OR all choice prices are filled
+            return hasBasePrice || hasPricesInChoices;
         },
         hasMissingChoiceQuantities(groups) {
             return (groups || []).some(group =>
@@ -1332,7 +1356,7 @@
                                             </td>
                                             <td class="py-5 px-6">
                                                 <span class="text-sm font-medium text-gray-600"
-                                                      x-text="item.quantity > 0 ? item.quantity + ' left' : 'Out of Stock'">
+                                                      x-text="item.quantity === null || item.quantity === '' || item.quantity === undefined ? '-' : (item.quantity > 0 ? item.quantity + ' left' : 'Out of Stock')">
                                                 </span>
                                             </td>
                                             <td class="py-5 px-6 w-36 whitespace-nowrap">

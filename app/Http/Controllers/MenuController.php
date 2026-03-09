@@ -69,6 +69,16 @@ class MenuController extends Controller
             return redirect()->back()->withErrors(['option_groups' => $optionError])->withInput();
         }
 
+        // Validate pricing: either base_price or choice prices must be filled
+        $pricingError = $this->validatePricing($request->base_price, $optionGroups);
+        if ($pricingError) {
+            if ($request->wantsJson()) {
+                return response()->json(['success' => false, 'message' => $pricingError], 422);
+            }
+
+            return redirect()->back()->withErrors(['pricing' => $pricingError])->withInput();
+        }
+
         $imagePath = null;
         $originalImagePath = null;
 
@@ -119,8 +129,10 @@ class MenuController extends Controller
                 ]);
                 foreach (($groupData['choices'] ?? []) as $j => $choiceData) {
                     if (empty($choiceData['name'])) continue;
-                    $choiceQty = (int) $choiceData['quantity'];
-                    $choiceStatus = $choiceQty <= 0
+                    $choiceQtyRaw = $choiceData['quantity'] ?? '';
+                    $choiceQty = ($choiceQtyRaw !== '' && $choiceQtyRaw !== null) ? (int) $choiceQtyRaw : null;
+                    // Only set unavailable if quantity is explicitly 0, not if it's empty
+                    $choiceStatus = ($choiceQty !== null && $choiceQty <= 0)
                         ? 'unavailable'
                         : (in_array($choiceData['status'] ?? 'available', ['available', 'unavailable'])
                             ? $choiceData['status']
@@ -174,6 +186,12 @@ class MenuController extends Controller
             return redirect()->back()->withErrors(['option_groups' => $optionError])->withInput();
         }
 
+        // Validate pricing: either base_price or choice prices must be filled
+        $pricingError = $this->validatePricing($request->base_price, $optionGroups);
+        if ($pricingError) {
+            return redirect()->back()->withErrors(['pricing' => $pricingError])->withInput();
+        }
+
         $imageData = $request->input('image_data', '');
         if (str_starts_with($imageData, 'data:')) {
             $base64 = str_contains($imageData, ',')
@@ -213,8 +231,10 @@ class MenuController extends Controller
                 ]);
                 foreach (($groupData['choices'] ?? []) as $j => $choiceData) {
                     if (empty($choiceData['name'])) continue;
-                    $choiceQty = (int) $choiceData['quantity'];
-                    $choiceStatus = $choiceQty <= 0
+                    $choiceQtyRaw = $choiceData['quantity'] ?? '';
+                    $choiceQty = ($choiceQtyRaw !== '' && $choiceQtyRaw !== null) ? (int) $choiceQtyRaw : null;
+                    // Only set unavailable if quantity is explicitly 0, not if it's empty
+                    $choiceStatus = ($choiceQty !== null && $choiceQty <= 0)
                         ? 'unavailable'
                         : (in_array($choiceData['status'] ?? 'available', ['available', 'unavailable'])
                             ? $choiceData['status']
@@ -249,6 +269,20 @@ class MenuController extends Controller
             'base_price'  => ['nullable', 'numeric', 'min:0'],
             'description' => ['nullable', 'string'],
         ]);
+
+        // Validate pricing: either base_price or choice prices must be filled
+        $item->load('optionGroups.choices');
+        $optionGroups = $item->optionGroups->map(fn($g) => [
+            'choices' => $g->choices->map(fn($c) => [
+                'name' => $c->name,
+                'price' => $c->price,
+            ])->toArray()
+        ])->toArray();
+        
+        $pricingError = $this->validatePricing($request->base_price, $optionGroups);
+        if ($pricingError) {
+            return response()->json(['success' => false, 'message' => $pricingError], 422);
+        }
 
         $item->update($request->only(['name', 'category', 'base_price', 'description']));
 
@@ -293,6 +327,12 @@ class MenuController extends Controller
             return response()->json(['success' => false, 'message' => $optionError], 422);
         }
 
+        // Validate pricing: either base_price or choice prices must be filled
+        $pricingError = $this->validatePricing($item->base_price, $optionGroups);
+        if ($pricingError) {
+            return response()->json(['success' => false, 'message' => $pricingError], 422);
+        }
+
         foreach ($optionGroups as $i => $groupData) {
             if (empty($groupData['name'])) continue;
             $selType = in_array($groupData['selectionType'] ?? 'single', ['single', 'multiple'])
@@ -305,8 +345,10 @@ class MenuController extends Controller
             ]);
             foreach (($groupData['choices'] ?? []) as $j => $choiceData) {
                 if (empty($choiceData['name'])) continue;
-                $choiceQty = (int) $choiceData['quantity'];
-                $choiceStatus = $choiceQty <= 0
+                $choiceQtyRaw = $choiceData['quantity'] ?? '';
+                $choiceQty = ($choiceQtyRaw !== '' && $choiceQtyRaw !== null) ? (int) $choiceQtyRaw : null;
+                // Only set unavailable if quantity is explicitly 0, not if it's empty
+                $choiceStatus = ($choiceQty !== null && $choiceQty <= 0)
                     ? 'unavailable'
                     : (in_array($choiceData['status'] ?? 'available', ['available', 'unavailable'])
                         ? $choiceData['status']
@@ -368,16 +410,42 @@ class MenuController extends Controller
             foreach (($groupData['choices'] ?? []) as $choiceData) {
                 if (empty($choiceData['name'])) continue;
 
-                if (!array_key_exists('quantity', $choiceData) || $choiceData['quantity'] === '' || $choiceData['quantity'] === null) {
-                    return 'Please fill the quantity for every option choice.';
-                }
-
-                if (!is_numeric($choiceData['quantity']) || (int) $choiceData['quantity'] < 0) {
-                    return 'Please enter a valid quantity (0 or more) for every option choice.';
+                // Quantity can be empty (will be updated later) or must be numeric if provided
+                if (array_key_exists('quantity', $choiceData) && $choiceData['quantity'] !== '' && $choiceData['quantity'] !== null) {
+                    if (!is_numeric($choiceData['quantity']) || (int) $choiceData['quantity'] < 0) {
+                        return 'Please enter a valid quantity (0 or more) for every option choice.';
+                    }
                 }
             }
         }
 
+        return null;
+    }
+
+    private function validatePricing($basePrice, array $optionGroups): ?string
+    {
+        // Check if base_price is filled
+        $hasBasePrice = !empty($basePrice) && is_numeric($basePrice);
+        
+        // Check if all named choices have prices filled
+        $hasPricesInChoices = true;
+        foreach ($optionGroups as $groupData) {
+            foreach (($groupData['choices'] ?? []) as $choiceData) {
+                // Skip unnamed choices
+                if (empty($choiceData['name'])) continue;
+                // If choice has a name, it must have a price
+                if (empty($choiceData['price']) || !is_numeric($choiceData['price'])) {
+                    $hasPricesInChoices = false;
+                    break 2;
+                }
+            }
+        }
+        
+        // Valid if either base_price is filled OR all choice prices are filled
+        if (!$hasBasePrice && !$hasPricesInChoices) {
+            return 'Please provide pricing: Fill the Base Price in Section 1, OR Fill the Price for all choices in Section 2.';
+        }
+        
         return null;
     }
 }
