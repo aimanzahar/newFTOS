@@ -98,90 +98,100 @@
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-10">
 
                         <!-- Approved Food Trucks -->
-                        <div
-                            class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition">
-                            <div class="flex justify-between items-start">
-                                <div class="p-3 bg-emerald-50 rounded-xl text-emerald-600">
-                                    <i class="fas fa-truck-fast text-2xl"></i>
+                        <button onclick="window.location.href='{{ route('admin.approved.trucks') }}'"
+                            class="text-left bg-white p-8 rounded-3xl shadow-sm border border-gray-100 hover:border-emerald-300 hover:shadow-md transition-all group outline-none w-full cursor-pointer">
+                            <div>
+                                <div class="flex items-center justify-between mb-6">
+                                    <div class="p-4 w-fit bg-emerald-50 text-emerald-600 rounded-2xl group-hover:bg-emerald-600 group-hover:text-white transition-all duration-300">
+                                        <i class="fas fa-truck-fast text-2xl"></i>
+                                    </div>
+                                    <div class="flex items-center gap-3">
+                                        <span
+                                            class="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg uppercase">
+                                            Active
+                                        </span>
+                                        <i class="fas fa-expand-alt text-gray-300 text-sm group-hover:text-emerald-500 transition-colors flex-shrink-0"></i>
+                                    </div>
                                 </div>
-                                <span
-                                    class="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg uppercase">
-                                    Active
-                                </span>
-                            </div>
 
-                            <div class="mt-4">
                                 <p
-                                    class="text-sm text-gray-500 font-semibold uppercase tracking-wider">
+                                    class="text-sm font-bold text-gray-400 uppercase tracking-widest mb-2">
                                     Approved Trucks
                                 </p>
-                                <p class="text-3xl font-black text-gray-900 mt-1">
+                                <p class="text-5xl font-black text-gray-900 mt-1">
                                     {{ $approvedTrucks ?? 0 }}
                                 </p>
                             </div>
 
                             <div class="mt-4 border-t border-gray-50 pt-4">
-                                <p class="text-xs text-gray-400">
-                                    Currently operating on the platform
-                                </p>
+                                <span class="text-xs font-bold text-emerald-500 uppercase tracking-widest">
+                                    View All Trucks
+                                </span>
                             </div>
-                        </div>
+                        </button>
 
                         <!-- Pending Approvals -->
-                        <div
-                            class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition">
-                            <div class="flex justify-between items-start">
-                                <div class="p-3 bg-orange-50 rounded-xl text-orange-600">
-                                    <i class="fas fa-clock text-2xl"></i>
+                        <button onclick="window.location.href='{{ route('admin.pending.trucks') }}'"
+                            class="text-left bg-white p-8 rounded-3xl shadow-sm border border-gray-100 hover:border-orange-300 hover:shadow-md transition-all group outline-none w-full cursor-pointer">
+                            <div>
+                                <div class="flex items-center justify-between mb-6">
+                                    <div class="p-4 w-fit bg-orange-50 text-orange-600 rounded-2xl group-hover:bg-orange-600 group-hover:text-white transition-all duration-300">
+                                        <i class="fas fa-clock text-2xl"></i>
+                                    </div>
+
+                                    <div class="flex items-center gap-3">
+                                        @if(($pendingApprovals ?? 0) > 0)
+                                            <span
+                                                class="animate-pulse text-[10px] font-bold text-red-500 bg-red-50 px-2 py-1 rounded-lg uppercase">
+                                                Action Needed
+                                            </span>
+                                        @endif
+                                        <i class="fas fa-expand-alt text-gray-300 text-sm group-hover:text-orange-500 transition-colors flex-shrink-0"></i>
+                                    </div>
                                 </div>
 
-                                @if(($pendingApprovals ?? 0) > 0)
-                                    <span
-                                        class="animate-pulse text-xs font-bold text-red-500 bg-red-50 px-2 py-1 rounded-lg">
-                                        Action Needed
-                                    </span>
-                                @endif
-                            </div>
-
-                            <div class="mt-4">
                                 <p
-                                    class="text-sm text-gray-500 font-semibold uppercase tracking-wider">
+                                    class="text-sm font-bold text-gray-400 uppercase tracking-widest mb-2">
                                     Pending Approvals
                                 </p>
-                                <p class="text-3xl font-black text-gray-900 mt-1">
+                                <p class="text-5xl font-black text-gray-900 mt-1">
                                     {{ $pendingApprovals ?? 0 }}
                                 </p>
                             </div>
 
                             <div class="mt-4 border-t border-gray-50 pt-4">
-                                <a href="{{ route('admin.pending.trucks') }}"
-                                    class="text-sm text-blue-600 hover:text-blue-800 font-bold flex items-center">
-                                    Review registrations
-                                    <i class="fas fa-arrow-right ml-2 text-xs"></i>
-                                </a>
+                                <span class="text-xs font-bold text-orange-500 uppercase tracking-widest">
+                                    Review Registrations
+                                </span>
                             </div>
-                        </div>
+                        </button>
 
                         <!-- System Status -->
                         <div
-                            class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition">
-                            <div class="flex justify-between items-start">
-                                <div class="p-3 bg-blue-50 rounded-xl text-blue-600">
-                                    <i class="fas fa-server text-2xl"></i>
+                            class="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 hover:shadow-md transition">
+                            <div>
+                                <div class="flex items-center justify-between mb-6">
+                                    <div class="p-4 w-fit bg-blue-50 text-blue-600 rounded-2xl">
+                                        <i class="fas fa-server text-2xl"></i>
+                                    </div>
                                 </div>
-                            </div>
 
-                            <div class="mt-4">
                                 <p
-                                    class="text-sm text-gray-500 font-semibold uppercase tracking-wider">
+                                    class="text-sm font-bold text-gray-400 uppercase tracking-widest mb-2">
                                     System Status
                                 </p>
-                                <div class="flex items-center mt-2">
-                                    <div class="w-2.5 h-2.5 bg-green-500 rounded-full mr-2"></div>
-                                    <p class="text-xl font-bold text-gray-800">
+                                <div class="flex items-center gap-2 mt-1">
+                                    <div class="w-2.5 h-2.5 bg-green-500 rounded-full flex-shrink-0 animate-pulse"></div>
+                                    <p class="text-5xl font-black text-gray-900">
                                         Operational
                                     </p>
                                 </div>
+                            </div>
+
+                            <div class="mt-4 border-t border-gray-50 pt-4">
+                                <p class="text-xs text-gray-400 font-medium">
+                                    All systems running normally
+                                </p>
                             </div>
                         </div>
 

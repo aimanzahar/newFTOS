@@ -40,9 +40,9 @@
         </a>
 
         <!-- Handle Truck Accounts -->
-        <a href="#" class="flex items-center py-2.5 px-4 rounded-xl transition duration-200 text-slate-400 hover:bg-slate-800 hover:text-slate-100">
+        <a href="{{ route('admin.approved.trucks') }}" class="flex items-center py-2.5 px-4 rounded-xl transition duration-200 {{ request()->routeIs('admin.approved.trucks') ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-100' }}">
             <i class="fas fa-truck-loading w-6 text-sm"></i>
-            <span class="text-sm font-medium">Vendor Accounts</span>
+            <span class="text-sm font-medium">Approved Trucks</span>
         </a>
 
         <!-- Directly Handle Truck Menus -->

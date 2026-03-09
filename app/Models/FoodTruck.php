@@ -46,11 +46,27 @@ class FoodTruck extends Model
     }
 
     /**
+     * Alias for owner (for convenient access).
+     */
+    public function user()
+    {
+        return $this->belongsTo(User::class, 'user_id');
+    }
+
+    /**
      * Get the staff members working for this truck.
      */
     public function staff()
     {
         return $this->hasMany(User::class, 'foodtruck_id');
+    }
+
+    /**
+     * Get the workers (staff with role 3) for this truck.
+     */
+    public function workers()
+    {
+        return $this->hasMany(User::class, 'foodtruck_id')->where('role', 3);
     }
 
     /**

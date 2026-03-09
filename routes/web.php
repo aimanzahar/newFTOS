@@ -51,6 +51,7 @@ Route::middleware(['auth', 'ftadmin.status'])->group(function () {
 Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/dashboard', [AdminController::class, 'index'])->name('dashboard');
     Route::get('/pending', [AdminController::class, 'pendingTrucks'])->name('pending.trucks');
+    Route::get('/approved', [AdminController::class, 'approvedTrucks'])->name('approved.trucks');
     Route::post('/approve-user/{id}', [AdminController::class, 'approveUser'])->name('approve.user');
     Route::post('/trucks/{id}/approve', [TruckApprovalController::class, 'approve'])->name('approve-truck');
     Route::delete('/trucks/{id}/reject', [TruckApprovalController::class, 'reject'])->name('reject-truck');

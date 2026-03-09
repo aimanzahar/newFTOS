@@ -44,6 +44,19 @@ class AdminController extends Controller
     }
 
     /**
+     * Show approved food trucks.
+     */
+    public function approvedTrucks()
+    {
+        $approvedRegistrations = FoodTruck::with(['user', 'workers', 'menus.optionGroups.choices'])
+            ->where('status', 'approved')
+            ->latest('food_trucks.created_at')
+            ->paginate(10);
+
+        return view('admin.approved-trucks-list', compact('approvedRegistrations'));
+    }
+
+    /**
      * Approve a food truck.
      */
     public function approveTruck($id)
