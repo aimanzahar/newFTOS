@@ -45,6 +45,10 @@
         showMenuSuccess: false,
         _menuSuccessTimer: null,
         async submitAddMenuForm() {
+            if (this.hasMissingChoiceQuantities(this.optionGroups)) {
+                alert('Please fill the quantity for every option choice.');
+                return;
+            }
             const form = this.$refs.addMenuForm;
             const formData = new FormData(form);
             try {
@@ -64,6 +68,21 @@
                     this._menuSuccessTimer = setTimeout(() => { this.showMenuSuccess = false; }, 5000);
                 }
             } catch(e) { console.error(e); }
+        },
+        submitEditMenuForm() {
+            if (this.hasMissingChoiceQuantities(this.editOptionGroups)) {
+                alert('Please fill the quantity for every option choice.');
+                return;
+            }
+            if (this.$refs.editMenuForm) this.$refs.editMenuForm.submit();
+        },
+        hasMissingChoiceQuantities(groups) {
+            return (groups || []).some(group =>
+                (group.choices || []).some(choice => {
+                    if (!choice.name || choice.name.trim() === '') return false;
+                    return choice.quantity === '' || choice.quantity === null || choice.quantity === undefined || isNaN(Number(choice.quantity));
+                })
+            );
         },
         resetForm() {
             if(this.$refs.staffForm) this.$refs.staffForm.reset();
@@ -290,8 +309,8 @@
             this.selectedMenu = item;
             this.editName = item.name;
             this.editCategory = item.category;
-            this.editBasePrice = item.base_price;
-            this.editQuantity = item.quantity;
+            this.editBasePrice = item.base_price !== null && item.base_price !== '' ? item.base_price : '';
+            this.editQuantity = item.quantity !== null && item.quantity !== '' ? item.quantity : '';
             this.editDescription = item.description || '';
             // Load option groups from saved data
             this._editGroupIdCounter = 0;
@@ -1309,7 +1328,7 @@
                                                 <span class="text-sm font-medium text-gray-600" x-text="item.category"></span>
                                             </td>
                                             <td class="py-5 px-6">
-                                                <span class="text-sm font-bold text-gray-800" x-text="'RM ' + parseFloat(item.base_price).toFixed(2)"></span>
+                                                <span class="text-sm font-bold text-gray-800" x-text="'RM ' + (item.base_price !== null && item.base_price !== '' ? parseFloat(item.base_price).toFixed(2) : '0.00')"></span>
                                             </td>
                                             <td class="py-5 px-6">
                                                 <span class="text-sm font-medium text-gray-600"
@@ -1467,10 +1486,10 @@
                                 </div>
                                 {{-- Base Price --}}
                                 <div class="space-y-2">
-                                    <label class="text-[11px] font-black uppercase tracking-widest text-gray-400 ml-1">Base Price (RM) <span class="text-red-500">*</span></label>
+                                    <label class="text-[11px] font-black uppercase tracking-widest text-gray-400 ml-1">Base Price (RM) <span class="text-gray-400 font-medium normal-case">(optional)</span></label>
                                     <div class="relative group">
                                         <i class="fas fa-dollar-sign absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-purple-500 transition-colors"></i>
-                                        <input type="text" name="base_price" required placeholder="0.00" inputmode="decimal"
+                                        <input type="text" name="base_price" placeholder="Optional" inputmode="decimal"
                                                x-model="formData.base_price"
                                                @input="formData.base_price = $event.target.value.replace(/[^0-9.]/g, '').replace(/(\..*?)\..*/g, '$1'); $event.target.value = formData.base_price"
                                                class="w-full pl-11 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl focus:bg-white focus:ring-4 focus:ring-purple-500/10 focus:border-purple-500 transition-all outline-none text-sm font-bold placeholder:text-gray-300">
@@ -1493,10 +1512,10 @@
                                     </div>
 
                                     <div class="space-y-2 flex-1">
-                                        <label class="text-[11px] font-black uppercase tracking-widest text-gray-400 ml-1">Quantity <span class="text-red-500">*</span></label>
+                                        <label class="text-[11px] font-black uppercase tracking-widest text-gray-400 ml-1">Quantity <span class="text-gray-400 font-medium normal-case">(optional)</span></label>
                                         <div class="relative group">
                                             <i class="fas fa-layer-group absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-purple-500 transition-colors"></i>
-                                            <input type="text" name="quantity" required placeholder="0" inputmode="numeric"
+                                            <input type="text" name="quantity" placeholder="Optional" inputmode="numeric"
                                                    x-model="formData.quantity"
                                                    @input="formData.quantity = $event.target.value.replace(/[^0-9]/g, ''); $event.target.value = formData.quantity"
                                                    class="w-full pl-11 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl focus:bg-white focus:ring-4 focus:ring-purple-500/10 focus:border-purple-500 transition-all outline-none text-sm font-bold placeholder:text-gray-300">
@@ -1590,8 +1609,8 @@
                                                                    class="w-full pl-7 pr-1 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium placeholder:text-gray-300 outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-400 transition-all">
                                                         </div>
                                                         <div class="col-span-2">
-                                                            <input type="text" x-model="choice.quantity" placeholder="Qty" inputmode="numeric"
-                                                                   @input="choice.quantity = $event.target.value.replace(/[^0-9]/g, ''); $event.target.value = choice.quantity"
+                                                                <input type="text" x-model="choice.quantity" placeholder="Qty" inputmode="numeric"
+                                                                    @input="choice.quantity = $event.target.value.replace(/[^0-9]/g, ''); $event.target.value = choice.quantity; if (choice.quantity === '0') choice.status = 'unavailable'"
                                                                    class="w-full px-2 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium placeholder:text-gray-300 outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-400 transition-all text-center">
                                                         </div>
                                                         <div class="col-span-3">
@@ -1702,7 +1721,7 @@
             <!-- Modal Body -->
             <div class="flex-1 overflow-y-auto px-8 py-10" x-ref="editMenuBodyScroll">
                 <div class="max-w-2xl mx-auto" x-show="selectedMenu">
-                    <form :action="'/ftadmin/menu/' + (selectedMenu ? selectedMenu.id : '')" method="POST" enctype="multipart/form-data" class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+                    <form x-ref="editMenuForm" :action="'/ftadmin/menu/' + (selectedMenu ? selectedMenu.id : '')" method="POST" enctype="multipart/form-data" @submit.prevent="submitEditMenuForm()" class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
                         @csrf
                         @method('PUT')
 
@@ -1761,10 +1780,10 @@
                             </div>
                             {{-- Base Price --}}
                             <div class="space-y-2">
-                                <label class="text-[11px] font-black uppercase tracking-widest text-gray-400 ml-1">Base Price (RM) <span class="text-red-500">*</span></label>
+                                <label class="text-[11px] font-black uppercase tracking-widest text-gray-400 ml-1">Base Price (RM) <span class="text-gray-400 font-medium normal-case">(optional)</span></label>
                                 <div class="relative group">
                                     <i class="fas fa-dollar-sign absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-purple-500 transition-colors"></i>
-                                    <input type="text" name="base_price" required placeholder="0.00" inputmode="decimal"
+                                    <input type="text" name="base_price" placeholder="Optional" inputmode="decimal"
                                            x-model="editBasePrice"
                                            @input="editBasePrice = $event.target.value.replace(/[^0-9.]/g, '').replace(/(\..*?)\..*/g, '$1'); $event.target.value = editBasePrice"
                                            class="w-full pl-11 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl focus:bg-white focus:ring-4 focus:ring-purple-500/10 focus:border-purple-500 transition-all outline-none text-sm font-bold placeholder:text-gray-300">
@@ -1788,10 +1807,10 @@
                                 </div>
 
                                 <div class="space-y-2 flex-1">
-                                    <label class="text-[11px] font-black uppercase tracking-widest text-gray-400 ml-1">Quantity <span class="text-red-500">*</span></label>
+                                    <label class="text-[11px] font-black uppercase tracking-widest text-gray-400 ml-1">Quantity <span class="text-gray-400 font-medium normal-case">(optional)</span></label>
                                     <div class="relative group">
                                         <i class="fas fa-layer-group absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-purple-500 transition-colors"></i>
-                                        <input type="text" name="quantity" required placeholder="0" inputmode="numeric"
+                                        <input type="text" name="quantity" placeholder="Optional" inputmode="numeric"
                                                x-model="editQuantity"
                                                @input="editQuantity = $event.target.value.replace(/[^0-9]/g, ''); $event.target.value = editQuantity"
                                                class="w-full pl-11 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl focus:bg-white focus:ring-4 focus:ring-purple-500/10 focus:border-purple-500 transition-all outline-none text-sm font-bold placeholder:text-gray-300">
@@ -1891,7 +1910,7 @@
                                                     </div>
                                                     <div class="col-span-2">
                                                         <input type="text" x-model="choice.quantity" placeholder="Qty" inputmode="numeric"
-                                                               @input="choice.quantity = $event.target.value.replace(/[^0-9]/g, ''); $event.target.value = choice.quantity"
+                                                            @input="choice.quantity = $event.target.value.replace(/[^0-9]/g, ''); $event.target.value = choice.quantity; if (choice.quantity === '0') choice.status = 'unavailable'"
                                                                class="w-full px-2 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium placeholder:text-gray-300 outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-400 transition-all text-center">
                                                     </div>
                                                     <div class="col-span-3">

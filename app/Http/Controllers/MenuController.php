@@ -49,11 +49,25 @@ class MenuController extends Controller
         $request->validate([
             'name'        => ['required', 'string', 'max:255'],
             'category'    => ['required', 'string', 'max:100'],
-            'base_price'  => ['required', 'numeric', 'min:0'],
-            'quantity'    => ['required', 'integer', 'min:0'],
+            'base_price'  => ['nullable', 'numeric', 'min:0'],
+            'quantity'    => ['nullable', 'integer', 'min:0'],
             'description' => ['nullable', 'string'],
             'image'       => ['nullable', 'image', 'mimes:jpg,jpeg,png', 'max:2048'],
         ]);
+
+        $optionGroups = json_decode($request->input('option_groups', '[]'), true);
+        if (!is_array($optionGroups)) {
+            $optionGroups = [];
+        }
+
+        $optionError = $this->validateOptionGroupQuantities($optionGroups);
+        if ($optionError) {
+            if ($request->wantsJson()) {
+                return response()->json(['success' => false, 'message' => $optionError], 422);
+            }
+
+            return redirect()->back()->withErrors(['option_groups' => $optionError])->withInput();
+        }
 
         $imagePath = null;
         $originalImagePath = null;
@@ -85,14 +99,13 @@ class MenuController extends Controller
             'name'           => $request->name,
             'category'       => $request->category,
             'base_price'     => $request->base_price,
-            'quantity'       => $request->quantity,
+            'quantity'       => $request->filled('quantity') ? (int) $request->quantity : null,
             'description'    => $request->description,
             'image'          => $imagePath,
             'original_image' => $originalImagePath,
         ]);
 
         // Save option groups and their choices
-        $optionGroups = json_decode($request->input('option_groups', '[]'), true);
         if (is_array($optionGroups)) {
             foreach ($optionGroups as $i => $groupData) {
                 if (empty($groupData['name'])) continue;
@@ -106,12 +119,18 @@ class MenuController extends Controller
                 ]);
                 foreach (($groupData['choices'] ?? []) as $j => $choiceData) {
                     if (empty($choiceData['name'])) continue;
+                    $choiceQty = (int) $choiceData['quantity'];
+                    $choiceStatus = $choiceQty <= 0
+                        ? 'unavailable'
+                        : (in_array($choiceData['status'] ?? 'available', ['available', 'unavailable'])
+                            ? $choiceData['status']
+                            : 'available');
                     $group->choices()->create([
                         'name'       => $choiceData['name'],
                         'price'      => is_numeric($choiceData['price'] ?? '') ? (float) $choiceData['price'] : 0,
-                        'quantity'   => is_numeric($choiceData['quantity'] ?? '') ? (int) $choiceData['quantity'] : 0,
+                        'quantity'   => $choiceQty,
                         'sort_order' => $j,
-                        'status'     => in_array($choiceData['status'] ?? 'available', ['available', 'unavailable']) ? $choiceData['status'] : 'available',
+                        'status'     => $choiceStatus,
                     ]);
                 }
             }
@@ -137,12 +156,23 @@ class MenuController extends Controller
         $request->validate([
             'name'        => ['required', 'string', 'max:255'],
             'category'    => ['required', 'string', 'max:100'],
-            'base_price'  => ['required', 'numeric', 'min:0'],
-            'quantity'    => ['required', 'integer', 'min:0'],
+            'base_price'  => ['nullable', 'numeric', 'min:0'],
+            'quantity'    => ['nullable', 'integer', 'min:0'],
             'description' => ['nullable', 'string'],
         ]);
 
         $data = $request->only(['name', 'category', 'base_price', 'quantity', 'description']);
+        $data['quantity'] = $request->filled('quantity') ? (int) $request->quantity : null;
+
+        $optionGroups = json_decode($request->input('option_groups', '[]'), true);
+        if (!is_array($optionGroups)) {
+            $optionGroups = [];
+        }
+
+        $optionError = $this->validateOptionGroupQuantities($optionGroups);
+        if ($optionError) {
+            return redirect()->back()->withErrors(['option_groups' => $optionError])->withInput();
+        }
 
         $imageData = $request->input('image_data', '');
         if (str_starts_with($imageData, 'data:')) {
@@ -170,7 +200,6 @@ class MenuController extends Controller
 
         // Replace option groups
         $item->optionGroups()->delete();
-        $optionGroups = json_decode($request->input('option_groups', '[]'), true);
         if (is_array($optionGroups)) {
             foreach ($optionGroups as $i => $groupData) {
                 if (empty($groupData['name'])) continue;
@@ -184,12 +213,18 @@ class MenuController extends Controller
                 ]);
                 foreach (($groupData['choices'] ?? []) as $j => $choiceData) {
                     if (empty($choiceData['name'])) continue;
+                    $choiceQty = (int) $choiceData['quantity'];
+                    $choiceStatus = $choiceQty <= 0
+                        ? 'unavailable'
+                        : (in_array($choiceData['status'] ?? 'available', ['available', 'unavailable'])
+                            ? $choiceData['status']
+                            : 'available');
                     $group->choices()->create([
                         'name'       => $choiceData['name'],
                         'price'      => is_numeric($choiceData['price'] ?? '') ? (float) $choiceData['price'] : 0,
-                        'quantity'   => is_numeric($choiceData['quantity'] ?? '') ? (int) $choiceData['quantity'] : 0,
+                        'quantity'   => $choiceQty,
                         'sort_order' => $j,
-                        'status'     => in_array($choiceData['status'] ?? 'available', ['available', 'unavailable']) ? $choiceData['status'] : 'available',
+                        'status'     => $choiceStatus,
                     ]);
                 }
             }
@@ -211,7 +246,7 @@ class MenuController extends Controller
         $request->validate([
             'name'        => ['required', 'string', 'max:255'],
             'category'    => ['required', 'string', 'max:100'],
-            'base_price'  => ['required', 'numeric', 'min:0'],
+            'base_price'  => ['nullable', 'numeric', 'min:0'],
             'description' => ['nullable', 'string'],
         ]);
 
@@ -253,6 +288,11 @@ class MenuController extends Controller
             $optionGroups = json_decode($optionGroups, true) ?? [];
         }
 
+        $optionError = $this->validateOptionGroupQuantities($optionGroups);
+        if ($optionError) {
+            return response()->json(['success' => false, 'message' => $optionError], 422);
+        }
+
         foreach ($optionGroups as $i => $groupData) {
             if (empty($groupData['name'])) continue;
             $selType = in_array($groupData['selectionType'] ?? 'single', ['single', 'multiple'])
@@ -265,12 +305,18 @@ class MenuController extends Controller
             ]);
             foreach (($groupData['choices'] ?? []) as $j => $choiceData) {
                 if (empty($choiceData['name'])) continue;
+                $choiceQty = (int) $choiceData['quantity'];
+                $choiceStatus = $choiceQty <= 0
+                    ? 'unavailable'
+                    : (in_array($choiceData['status'] ?? 'available', ['available', 'unavailable'])
+                        ? $choiceData['status']
+                        : 'available');
                 $group->choices()->create([
                     'name'       => $choiceData['name'],
                     'price'      => is_numeric($choiceData['price'] ?? '') ? (float) $choiceData['price'] : 0,
-                    'quantity'   => is_numeric($choiceData['quantity'] ?? '') ? (int) $choiceData['quantity'] : 0,
+                    'quantity'   => $choiceQty,
                     'sort_order' => $j,
-                    'status'     => in_array($choiceData['status'] ?? 'available', ['available', 'unavailable']) ? $choiceData['status'] : 'available',
+                    'status'     => $choiceStatus,
                 ]);
             }
         }
@@ -314,5 +360,24 @@ class MenuController extends Controller
         }
 
         return redirect()->back()->with('success', 'Menu item deleted.');
+    }
+
+    private function validateOptionGroupQuantities(array $optionGroups): ?string
+    {
+        foreach ($optionGroups as $groupData) {
+            foreach (($groupData['choices'] ?? []) as $choiceData) {
+                if (empty($choiceData['name'])) continue;
+
+                if (!array_key_exists('quantity', $choiceData) || $choiceData['quantity'] === '' || $choiceData['quantity'] === null) {
+                    return 'Please fill the quantity for every option choice.';
+                }
+
+                if (!is_numeric($choiceData['quantity']) || (int) $choiceData['quantity'] < 0) {
+                    return 'Please enter a valid quantity (0 or more) for every option choice.';
+                }
+            }
+        }
+
+        return null;
     }
 }

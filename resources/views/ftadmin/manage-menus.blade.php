@@ -33,7 +33,9 @@ function manageMenusPage() {
             this.detailsItem = item;
             this.editName        = item.name;
             this.editCategory    = item.category;
-            this.editPrice       = parseFloat(item.base_price).toFixed(2);
+            this.editPrice       = item.base_price !== null && item.base_price !== ''
+                ? parseFloat(item.base_price).toFixed(2)
+                : '';
             this.editDescription = item.description || '';
             this.showDetailsModal = true;
             this.$nextTick(() => { if (this.$refs.detailsNameInput) this.$refs.detailsNameInput.focus(); });
@@ -46,7 +48,7 @@ function manageMenusPage() {
                 const res = await fetch('/ftadmin/menu/' + this.detailsItem.id + '/details', {
                     method: 'PATCH',
                     headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content },
-                    body: JSON.stringify({ name: this.editName, category: this.editCategory, base_price: this.editPrice, description: this.editDescription })
+                    body: JSON.stringify({ name: this.editName, category: this.editCategory, base_price: this.editPrice === '' ? null : this.editPrice, description: this.editDescription })
                 });
                 const data = await res.json();
                 if (data.success) {
@@ -56,6 +58,14 @@ function manageMenusPage() {
                 }
             } catch(e) { console.error(e); }
             this.detailsSaving = false;
+        },
+        hasMissingChoiceQuantities(groups) {
+            return (groups || []).some(group =>
+                (group.choices || []).some(choice => {
+                    if (!choice.name || choice.name.trim() === '') return false;
+                    return choice.quantity === '' || choice.quantity === null || choice.quantity === undefined || isNaN(Number(choice.quantity));
+                })
+            );
         },
 
         /* ── Quantity inline edit ── */
@@ -125,6 +135,10 @@ function manageMenusPage() {
         removeEditChoice(gi, ci) { this.editOptionGroups[gi].choices.splice(ci, 1); },
         async saveOptions() {
             if (this.optionsSaving || !this.optionsItem) return;
+            if (this.hasMissingChoiceQuantities(this.editOptionGroups)) {
+                alert('Please fill the quantity for every option choice.');
+                return;
+            }
             this.optionsSaving = true;
             try {
                 const res = await fetch('/ftadmin/menu/' + this.optionsItem.id + '/options', {
@@ -318,7 +332,7 @@ function manageMenusPage() {
                                 </div>
                                 <div class="flex items-baseline space-x-1 mt-2">
                                     <span class="text-xs text-gray-400 font-medium">RM</span>
-                                    <span class="text-lg font-black text-gray-900" x-text="parseFloat(item.base_price).toFixed(2)"></span>
+                                    <span class="text-lg font-black text-gray-900" x-text="item.base_price !== null && item.base_price !== '' ? parseFloat(item.base_price).toFixed(2) : '0.00'"></span>
                                 </div>
                                 <p x-show="item.description" x-text="item.description"
                                    class="text-[11px] text-gray-400 leading-relaxed line-clamp-2 mt-1"></p>
@@ -587,8 +601,8 @@ function manageMenusPage() {
                                                class="w-full pl-7 pr-1 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium placeholder:text-gray-300 outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-400 transition-all">
                                     </div>
                                     <div class="col-span-2">
-                                        <input type="text" x-model="choice.quantity" placeholder="Qty" inputmode="numeric"
-                                               @input="choice.quantity = $event.target.value.replace(/[^0-9]/g,''); $event.target.value = choice.quantity"
+                                             <input type="text" x-model="choice.quantity" placeholder="Qty" inputmode="numeric"
+                                                 @input="choice.quantity = $event.target.value.replace(/[^0-9]/g,''); $event.target.value = choice.quantity; if (choice.quantity === '0') choice.status = 'unavailable'"
                                                class="w-full px-2 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium placeholder:text-gray-300 outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-400 transition-all text-center">
                                     </div>
                                     <div class="col-span-3">
