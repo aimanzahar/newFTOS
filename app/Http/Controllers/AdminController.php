@@ -58,6 +58,14 @@ class AdminController extends Controller
     }
 
     /**
+     * Show global menus page.
+     */
+    public function globalMenus()
+    {
+        return view('admin.global-menus');
+    }
+
+    /**
      * Update truck details (name, description).
      */
     public function updateTruckDetails(Request $request, $truckId)

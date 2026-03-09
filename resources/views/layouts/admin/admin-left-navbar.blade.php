@@ -46,7 +46,7 @@
         </a>
 
         <!-- Directly Handle Truck Menus -->
-        <a href="#" class="flex items-center py-2.5 px-4 rounded-xl transition duration-200 text-slate-400 hover:bg-slate-800 hover:text-slate-100">
+        <a href="{{ route('admin.global-menus') }}" class="flex items-center py-2.5 px-4 rounded-xl transition duration-200 {{ request()->routeIs('admin.global-menus') ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-100' }}">
             <i class="fas fa-utensils w-6 text-sm"></i>
             <span class="text-sm font-medium">Global Menus</span>
         </a>
