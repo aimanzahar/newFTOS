@@ -406,7 +406,7 @@
                     <button id="modal-cancel-btn" onclick="cancelEditMode()" class="hidden px-6 py-2.5 border-2 border-gray-200 rounded-xl text-sm font-bold text-gray-600 hover:bg-gray-100 hover:border-gray-300 transition-all">
                         Cancel
                     </button>
-                    <button id="modal-update-btn" onclick="updateTruckDetails()" class="hidden px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold shadow-md transition-all flex items-center gap-2">
+                    <button id="modal-update-btn" onclick="updateTruckDetails()" class="hidden px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold shadow-md transition-all items-center gap-2">
                         <i class="fas fa-save text-sm"></i>
                         <span>Update</span>
                     </button>
@@ -586,10 +586,12 @@
                 closeBtn.classList.add('hidden');
                 cancelBtn.classList.remove('hidden');
                 updateBtn.classList.remove('hidden');
+                updateBtn.classList.add('inline-flex');
             } else {
                 closeBtn.classList.remove('hidden');
                 cancelBtn.classList.add('hidden');
                 updateBtn.classList.add('hidden');
+                updateBtn.classList.remove('inline-flex');
             }
         }
 
@@ -603,6 +605,7 @@
             document.getElementById('modal-close-btn').classList.remove('hidden');
             document.getElementById('modal-cancel-btn').classList.add('hidden');
             document.getElementById('modal-update-btn').classList.add('hidden');
+            document.getElementById('modal-update-btn').classList.remove('inline-flex');
         }
 
         function updateTruckDetails() {
