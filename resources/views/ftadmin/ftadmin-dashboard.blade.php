@@ -150,6 +150,10 @@ function ftadminDashboard() {
                 alert('Please provide pricing:\n- Fill the Base Price in Section 1, OR\n- Fill the Price for all choices in Section 2');
                 return;
             }
+            // Set category to "Uncategorized" if not selected
+            if (!this.formData.category || this.formData.category.trim() === '') {
+                this.formData.category = 'Uncategorized';
+            }
             const form = this.$refs.addMenuForm;
             const formData = new FormData(form);
             try {
@@ -180,6 +184,10 @@ function ftadminDashboard() {
             if (!this.hasValidPricing(this.editPrice, this.editOptionGroups)) {
                 alert('Please provide pricing:\n- Fill the Base Price in Section 1, OR\n- Fill the Price for all choices in Section 2');
                 return;
+            }
+            // Set category to "Uncategorized" if not selected
+            if (!this.editCategory || this.editCategory.trim() === '') {
+                this.editCategory = 'Uncategorized';
             }
             if (this.$refs.editMenuForm) this.$refs.editMenuForm.submit();
         },
@@ -1952,12 +1960,17 @@ function ftadminDashboard() {
                                         <label class="text-[11px] font-black uppercase tracking-widest text-gray-400 ml-1">Category <span class="text-red-500">*</span></label>
                                         <div class="relative group">
                                             <i class="fas fa-tag absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 pointer-events-none"></i>
-                                            <select name="category" required x-model="formData.category"
+                                            <select name="category" x-model="formData.category"
                                                     class="w-full pl-11 pr-8 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl focus:bg-white focus:ring-4 focus:ring-purple-500/10 focus:border-purple-500 transition-all outline-none text-sm font-bold text-gray-700 appearance-none cursor-pointer">
-                                                <option value="" disabled>Select</option>
+                                                <option value="">Select Category</option>
+                                                <!-- Default categories first -->
                                                 <option value="Foods">Foods</option>
                                                 <option value="Drinks">Drinks</option>
                                                 <option value="Desserts">Desserts</option>
+                                                <!-- Custom categories -->
+                                                <template x-for="cat in dashboardCategories.filter(c => !['Foods', 'Drinks', 'Desserts', 'Uncategorized'].includes(c.name))" :key="cat.id">
+                                                    <option :value="cat.name" x-text="cat.name"></option>
+                                                </template>
                                             </select>
                                             <i class="fas fa-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-gray-300 pointer-events-none text-xs"></i>
                                         </div>
@@ -2247,12 +2260,17 @@ function ftadminDashboard() {
                                     <label class="text-[11px] font-black uppercase tracking-widest text-gray-400 ml-1">Category <span class="text-red-500">*</span></label>
                                     <div class="relative group">
                                         <i class="fas fa-tag absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 pointer-events-none"></i>
-                                        <select name="category" required x-model="editCategory"
+                                        <select name="category" x-model="editCategory"
                                                 class="w-full pl-11 pr-8 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl focus:bg-white focus:ring-4 focus:ring-purple-500/10 focus:border-purple-500 transition-all outline-none text-sm font-bold text-gray-700 appearance-none cursor-pointer">
-                                            <option value="" disabled>Select</option>
+                                            <option value="">Select Category</option>
+                                            <!-- Default categories first -->
                                             <option value="Foods">Foods</option>
                                             <option value="Drinks">Drinks</option>
                                             <option value="Desserts">Desserts</option>
+                                            <!-- Custom categories -->
+                                            <template x-for="cat in dashboardCategories.filter(c => !['Foods', 'Drinks', 'Desserts', 'Uncategorized'].includes(c.name))" :key="cat.id">
+                                                <option :value="cat.name" x-text="cat.name"></option>
+                                            </template>
                                         </select>
                                         <i class="fas fa-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-gray-300 pointer-events-none text-xs"></i>
                                     </div>

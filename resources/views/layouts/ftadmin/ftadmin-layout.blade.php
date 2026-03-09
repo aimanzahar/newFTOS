@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" class="h-full overflow-hidden">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -26,7 +26,7 @@
     }
   </style>
 </head>
-<body class="font-sans antialiased text-slate-900 bg-gray-50">
+<body class="font-sans antialiased text-slate-900 bg-gray-50 h-full overflow-hidden">
   <div class="flex h-screen overflow-hidden">
 
     <!-- Sidebar -->
@@ -38,7 +38,7 @@
       
 
       <!-- Page Content -->
-      <main class="flex-1 overflow-y-auto bg-gray-50 relative">
+      <main class="flex-1 overflow-hidden bg-gray-50 relative">
         {{ $slot }}
       </main>
     </div>
