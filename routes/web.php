@@ -55,6 +55,8 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::post('/approve-user/{id}', [AdminController::class, 'approveUser'])->name('approve.user');
     Route::post('/trucks/{id}/approve', [TruckApprovalController::class, 'approve'])->name('approve-truck');
     Route::delete('/trucks/{id}/reject', [TruckApprovalController::class, 'reject'])->name('reject-truck');
+    Route::get('/trucks/{truckId}/orders', [AdminController::class, 'truckOrders'])->name('truck.orders');
+    Route::patch('/orders/{orderId}/status', [AdminController::class, 'updateOrderStatus'])->name('order.update-status');
 });
 
 /**

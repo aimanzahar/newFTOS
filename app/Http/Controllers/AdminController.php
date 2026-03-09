@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\User;
 use App\Models\FoodTruck;
+use App\Models\Order;
 
 class AdminController extends Controller
 {
@@ -89,5 +90,34 @@ class AdminController extends Controller
         $truck->delete();
 
         return back()->with('rejected', "The registration for '{$name}' has been rejected and removed.");
+    }
+
+    /**
+     * Return orders for a specific food truck (JSON).
+     */
+    public function truckOrders($truckId)
+    {
+        $orders = Order::where('foodtruck_id', $truckId)
+            ->latest()
+            ->limit(100)
+            ->get();
+
+        return response()->json($orders);
+    }
+
+    /**
+     * Update status of a specific order (JSON).
+     */
+    public function updateOrderStatus(Request $request, $orderId)
+    {
+        $request->validate([
+            'status' => 'required|in:pending,accepted,preparing,prepared,ready_for_pickup,delivery,done',
+        ]);
+
+        $order = Order::findOrFail($orderId);
+        $order->status = $request->status;
+        $order->save();
+
+        return response()->json(['success' => true, 'status' => $order->status]);
     }
 }
