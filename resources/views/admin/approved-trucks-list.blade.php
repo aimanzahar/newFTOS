@@ -270,7 +270,7 @@
                 </div>
 
                 <!-- â”€â”€ Tab Panels â”€â”€ -->
-                <div class="flex-1 overflow-y-auto">
+                <div id="modal-tab-content-wrap" class="flex-1 min-h-0 overflow-y-auto">
 
                     <!-- â”€ Tab 1: Truck Details â”€ -->
                     <div id="tab-truck" class="p-6 space-y-4 w-full">
@@ -319,37 +319,72 @@
                     </div>
 
                     <!-- â”€ Tab 2: Owner & Staff â”€ -->
-                    <div id="tab-owner" class="p-6 space-y-5 w-full" style="display:none;">
+                    <div id="tab-owner" class="p-6 w-full h-full min-h-0 overflow-hidden" style="display:none;">
 
-                        <div>
-                            <p class="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-3 flex items-center gap-2">
-                                <i class="fas fa-user-tie text-blue-500"></i> Truck Owner / Admin
-                            </p>
-                            <div class="bg-gray-50 border border-gray-200 rounded-2xl p-4 space-y-3">
-                                <div>
-                                    <label class="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1 block">Full Name</label>
-                                    <p id="detail-owner-name" class="text-sm font-bold text-gray-800"></p>
-                                </div>
-                                <div>
-                                    <label class="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1 block">Email Address</label>
-                                    <p id="detail-owner-email" class="text-sm font-medium font-mono text-gray-700"></p>
-                                </div>
-                                <div>
-                                    <label class="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1 block">Phone Number</label>
-                                    <p id="detail-owner-phone" class="text-sm font-medium text-gray-700"></p>
+                        <div class="h-full min-h-0 grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+                            <div class="w-full max-w-md lg:max-w-sm mx-auto lg:self-start">
+                                <p class="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-3 flex items-center gap-2">
+                                    <i class="fas fa-user-tie text-blue-500"></i> Truck Owner / Admin
+                                </p>
+                                <div class="bg-gray-50 border border-gray-200 rounded-2xl p-4">
+                                    <div class="flex items-start justify-between mb-3">
+                                        <div class="flex items-center gap-3">
+                                            <div id="detail-owner-initial" class="w-9 h-9 rounded-xl bg-slate-800 text-white flex items-center justify-center font-black text-sm flex-shrink-0">A</div>
+                                            <div>
+                                                <p id="detail-owner-name" class="text-sm font-bold text-gray-800"></p>
+                                                <span id="detail-owner-status-badge" class="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded uppercase">
+                                                    <span id="detail-owner-status-dot" class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                                    <span id="detail-owner-status">Active</span>
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <button type="button"
+                                                onclick="openOwnerStaffActionMenu(event, 'owner')"
+                                                class="owner-staff-action-trigger w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 hover:bg-blue-100 text-gray-400 hover:text-blue-600 transition-all flex-shrink-0">
+                                            <i class="fas fa-ellipsis-v text-xs"></i>
+                                        </button>
+                                    </div>
+                                    <div class="space-y-1 text-xs">
+                                        <p class="text-gray-500"><span class="font-bold text-gray-600">Email: </span><span id="detail-owner-email"></span></p>
+                                        <p class="text-gray-500"><span class="font-bold text-gray-600">Phone: </span><span id="detail-owner-phone"></span></p>
+                                    </div>
                                 </div>
                             </div>
+
+                            <div class="w-full flex flex-col h-full min-h-0 overflow-hidden">
+                                <p class="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-3 flex items-center gap-2">
+                                    <i class="fas fa-users text-emerald-500"></i> Workers / Staff
+                                </p>
+
+                                <div id="detail-staff-list" class="space-y-3 flex-1 min-h-0 overflow-y-auto pr-1"></div>
+
+                                <div id="detail-staff-empty" class="text-center py-10 bg-gray-50 border border-gray-200 rounded-2xl" style="display:none;">
+                                    <i class="fas fa-users text-2xl text-gray-300 mb-2 block"></i>
+                                    <p class="text-xs font-bold text-gray-400">No staff members assigned</p>
+                                </div>
+                            </div>
+
                         </div>
 
-                        <div>
-                            <p class="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-3 flex items-center gap-2">
-                                <i class="fas fa-users text-emerald-500"></i> Workers / Staff
-                            </p>
-                            <div id="detail-staff-list" class="space-y-3"></div>
-                            <div id="detail-staff-empty" class="text-center py-10 bg-gray-50 border border-gray-200 rounded-2xl" style="display:none;">
-                                <i class="fas fa-users text-2xl text-gray-300 mb-2 block"></i>
-                                <p class="text-xs font-bold text-gray-400">No staff members assigned</p>
-                            </div>
+                        <div id="owner-staff-action-menu"
+                             style="display:none; position:fixed; z-index:300;"
+                             class="bg-white rounded-xl shadow-xl border border-gray-100 py-1 w-44">
+                            <button id="owner-staff-toggle-action"
+                                    type="button"
+                                    onclick="applyOwnerStaffAction('toggle')"
+                                    class="w-full text-left px-4 py-2.5 text-xs font-bold flex items-center gap-2.5 transition-colors text-orange-500 hover:bg-orange-50">
+                                <i id="owner-staff-toggle-icon" class="fas fa-user-slash w-3 text-center"></i>
+                                <span id="owner-staff-toggle-label">Deactivate</span>
+                            </button>
+                            <div class="border-t border-gray-100 mx-3 my-0.5"></div>
+                            <button id="owner-staff-fire-action"
+                                    type="button"
+                                    onclick="applyOwnerStaffAction('fired')"
+                                    class="w-full text-left px-4 py-2.5 text-xs font-bold text-red-500 hover:bg-red-50 flex items-center gap-2.5 transition-colors">
+                                <i class="fas fa-user-times w-3 text-center"></i>
+                                Fired
+                            </button>
                         </div>
 
                     </div>
@@ -490,7 +525,6 @@
             #truckModalPanel > div:nth-child(3) {
                 flex: 1 1 auto;
                 min-height: 0;
-                overflow-y: auto;
                 overflow-x: hidden;
             }
 
@@ -515,12 +549,15 @@
 
         var _currentTruck  = null;
         var _ordersLoaded  = false;   // whether orders have been fetched for active truck
+        var _ownerStaffActionTarget = null;
+        var _ownerStaffActionSaving = false;
 
         // â”€â”€â”€ Open / Close â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         function openTruckModal(id) {
             _currentTruck = _trucksById[id] || null;
             if (!_currentTruck) { alert('Truck data not found.'); return; }
             _ordersLoaded = false;
+            closeOwnerStaffActionMenu();
             populateTruckTab();
             populateOwnerTab();
             populateMenuTab('');
@@ -529,6 +566,8 @@
         }
 
         function closeModal() {
+            closeOwnerStaffActionMenu();
+            resetOwnerStaffScroll();
             document.getElementById('truckDetailModal').style.display = 'none';
         }
 
@@ -538,11 +577,223 @@
 
         // â”€â”€â”€ Tab Switching â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         function switchTab(tab) {
+            var contentWrap = document.getElementById('modal-tab-content-wrap');
+
             ['truck','owner','menu','orders'].forEach(function(t) {
                 document.getElementById('tab-' + t).style.display      = (t === tab) ? 'block' : 'none';
                 document.getElementById('tab-btn-' + t).classList.toggle('active-tab', t === tab);
             });
+
+            if (tab === 'owner') {
+                if (contentWrap) {
+                    contentWrap.classList.remove('overflow-y-auto');
+                    contentWrap.classList.add('overflow-hidden');
+                }
+                resetOwnerStaffScroll();
+            } else {
+                if (contentWrap) {
+                    contentWrap.classList.add('overflow-y-auto');
+                    contentWrap.classList.remove('overflow-hidden');
+                }
+                closeOwnerStaffActionMenu();
+            }
+
             if (tab === 'orders' && !_ordersLoaded) loadOrders();
+        }
+
+        function normalizeOwnerStaffStatus(status) {
+            var s = String(status || '').toLowerCase();
+            if (s === 'fired') return 'fired';
+            if (s === 'deactivated') return 'deactivated';
+            return 'active';
+        }
+
+        function ownerStaffStatusView(status) {
+            if (status === 'fired') {
+                return {
+                    label: 'Fired',
+                    badgeClass: 'text-red-500 bg-red-50',
+                    dotClass: 'bg-red-500'
+                };
+            }
+
+            if (status === 'deactivated') {
+                return {
+                    label: 'Deactivated',
+                    badgeClass: 'text-orange-500 bg-orange-50',
+                    dotClass: 'bg-orange-500'
+                };
+            }
+
+            return {
+                label: 'Active',
+                badgeClass: 'text-emerald-600 bg-emerald-50',
+                dotClass: 'bg-emerald-500'
+            };
+        }
+
+        function resetOwnerStaffScroll() {
+            var staffList = document.getElementById('detail-staff-list');
+            if (staffList) {
+                staffList.scrollTop = 0;
+            }
+        }
+
+        function getOwnerStaffActionEntity() {
+            if (!_currentTruck || !_ownerStaffActionTarget) return null;
+
+            if (_ownerStaffActionTarget.type === 'owner') {
+                return _currentTruck.owner || null;
+            }
+
+            var workers = (_currentTruck.staff || []).filter(function(w) { return w.role == 3; });
+            for (var i = 0; i < workers.length; i++) {
+                if (String(workers[i].id) === String(_ownerStaffActionTarget.id)) {
+                    return workers[i];
+                }
+            }
+
+            return null;
+        }
+
+        function updateOwnerStaffActionMenu() {
+            var target = getOwnerStaffActionEntity();
+            if (!target) {
+                closeOwnerStaffActionMenu();
+                return;
+            }
+
+            var status = normalizeOwnerStaffStatus(target.status);
+            var toggleAction = document.getElementById('owner-staff-toggle-action');
+            var toggleIcon = document.getElementById('owner-staff-toggle-icon');
+            var toggleLabel = document.getElementById('owner-staff-toggle-label');
+
+            if (status === 'active') {
+                toggleAction.className = 'w-full text-left px-4 py-2.5 text-xs font-bold flex items-center gap-2.5 transition-colors text-orange-500 hover:bg-orange-50';
+                toggleIcon.className = 'fas fa-user-slash w-3 text-center';
+                toggleLabel.textContent = 'Deactivate';
+            } else {
+                toggleAction.className = 'w-full text-left px-4 py-2.5 text-xs font-bold flex items-center gap-2.5 transition-colors text-emerald-600 hover:bg-emerald-50';
+                toggleIcon.className = 'fas fa-user-check w-3 text-center';
+                toggleLabel.textContent = 'Activate';
+            }
+        }
+
+        function openOwnerStaffActionMenu(event, type, id) {
+            if (!_currentTruck) return;
+
+            event.stopPropagation();
+
+            var nextTarget = { type: type, id: (typeof id === 'undefined' ? null : id) };
+            var menu = document.getElementById('owner-staff-action-menu');
+
+            var isSameTarget = _ownerStaffActionTarget
+                && _ownerStaffActionTarget.type === nextTarget.type
+                && String(_ownerStaffActionTarget.id) === String(nextTarget.id)
+                && menu.style.display !== 'none';
+
+            if (isSameTarget) {
+                closeOwnerStaffActionMenu();
+                return;
+            }
+
+            _ownerStaffActionTarget = nextTarget;
+
+            var rect = event.currentTarget.getBoundingClientRect();
+            menu.style.display = 'block';
+            menu.style.visibility = 'hidden';
+
+            var viewportWidth = window.innerWidth || document.documentElement.clientWidth;
+            var viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+            var menuWidth = menu.offsetWidth || 176;
+            var menuHeight = menu.offsetHeight || 96;
+            var edgeGap = 8;
+            var triggerGap = 8;
+
+            var left = rect.right + triggerGap;
+            if (left + menuWidth > viewportWidth - edgeGap) {
+                left = rect.left - menuWidth - triggerGap;
+            }
+            if (left < edgeGap) {
+                left = Math.max(edgeGap, viewportWidth - menuWidth - edgeGap);
+            }
+
+            var top = rect.top;
+            if (top + menuHeight > viewportHeight - edgeGap) {
+                top = viewportHeight - menuHeight - edgeGap;
+            }
+            if (top < edgeGap) {
+                top = edgeGap;
+            }
+
+            menu.style.left = left + 'px';
+            menu.style.top = top + 'px';
+            menu.style.visibility = 'visible';
+
+            updateOwnerStaffActionMenu();
+        }
+
+        function closeOwnerStaffActionMenu() {
+            var menu = document.getElementById('owner-staff-action-menu');
+            if (menu) {
+                menu.style.display = 'none';
+                menu.style.visibility = 'hidden';
+            }
+            _ownerStaffActionTarget = null;
+        }
+
+        async function applyOwnerStaffAction(action) {
+            if (_ownerStaffActionSaving) return;
+
+            var target = getOwnerStaffActionEntity();
+            if (!target || !_currentTruck || !_ownerStaffActionTarget) return;
+
+            var status = normalizeOwnerStaffStatus(target.status);
+            var nextStatus = status;
+
+            if (action === 'toggle') {
+                nextStatus = (status === 'active') ? 'deactivated' : 'active';
+            } else if (action === 'fired') {
+                nextStatus = 'fired';
+            }
+
+            var toggleAction = document.getElementById('owner-staff-toggle-action');
+            var fireAction = document.getElementById('owner-staff-fire-action');
+            _ownerStaffActionSaving = true;
+
+            if (toggleAction) toggleAction.disabled = true;
+            if (fireAction) fireAction.disabled = true;
+
+            try {
+                var response = await fetch('/admin/trucks/' + _currentTruck.id + '/users/' + target.id + '/status', {
+                    method: 'PATCH',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                    },
+                    body: JSON.stringify({
+                        status: nextStatus,
+                        target_type: _ownerStaffActionTarget.type === 'owner' ? 'owner' : 'staff'
+                    })
+                });
+
+                var data = await response.json();
+                if (!response.ok || !data.success) {
+                    throw new Error(data.message || 'Failed to update status.');
+                }
+
+                target.status = data.status;
+                closeOwnerStaffActionMenu();
+                populateOwnerTab();
+            } catch (error) {
+                console.error('Owner/staff status update failed:', error);
+                alert(error.message || 'Failed to update status. Please try again.');
+            } finally {
+                _ownerStaffActionSaving = false;
+                if (toggleAction) toggleAction.disabled = false;
+                if (fireAction) fireAction.disabled = false;
+            }
         }
         // â"€â"€â"€ Edit Mode Functions â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
         var _editMode = { truckName: false, description: false };
@@ -675,13 +926,22 @@
         function populateOwnerTab() {
             var t   = _currentTruck;
             var own = t.owner || {};
+            var ownerName = own.full_name || 'N/A';
+            var ownerStatus = normalizeOwnerStaffStatus(own.status);
+            var ownerStatusData = ownerStaffStatusView(ownerStatus);
+
+            document.getElementById('detail-owner-initial').textContent = ownerName.charAt(0).toUpperCase() || 'A';
             document.getElementById('detail-owner-name').textContent  = own.full_name || 'N/A';
             document.getElementById('detail-owner-email').textContent = own.email     || 'N/A';
             document.getElementById('detail-owner-phone').textContent = own.phone_no  || 'Not provided';
+            document.getElementById('detail-owner-status').textContent = ownerStatusData.label;
+            document.getElementById('detail-owner-status-badge').className = 'inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded uppercase ' + ownerStatusData.badgeClass;
+            document.getElementById('detail-owner-status-dot').className = 'w-1.5 h-1.5 rounded-full ' + ownerStatusData.dotClass;
 
             var staffList  = document.getElementById('detail-staff-list');
             var staffEmpty = document.getElementById('detail-staff-empty');
             staffList.innerHTML = '';
+            resetOwnerStaffScroll();
 
             var workers = (t.staff || []).filter(function(w) { return w.role == 3; });
             if (workers.length === 0) {
@@ -692,14 +952,20 @@
                 staffEmpty.style.display = 'none';
                 workers.forEach(function(w) {
                     var initial = (w.full_name || '?').charAt(0).toUpperCase();
-                    var badge   = w.status === 'active' ? 'Active' : (w.status || '');
+                    var workerStatus = normalizeOwnerStaffStatus(w.status);
+                    var statusView = ownerStaffStatusView(workerStatus);
                     staffList.innerHTML +=
                         '<div class="bg-gray-50 border border-gray-200 rounded-2xl p-4">'
-                        + '<div class="flex items-center gap-3 mb-3">'
+                        + '<div class="flex items-start justify-between mb-3">'
+                        + '<div class="flex items-center gap-3">'
                         + '<div class="w-9 h-9 rounded-xl bg-slate-800 text-white flex items-center justify-center font-black text-sm flex-shrink-0">' + escHtml(initial) + '</div>'
                         + '<div><p class="text-sm font-bold text-gray-800">' + escHtml(w.full_name || '') + '</p>'
-                        + '<span class="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded uppercase">'
-                        + '<span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>' + escHtml(badge) + '</span></div></div>'
+                        + '<span class="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded uppercase ' + escHtml(statusView.badgeClass) + '">'
+                        + '<span class="w-1.5 h-1.5 rounded-full ' + escHtml(statusView.dotClass) + '"></span>' + escHtml(statusView.label) + '</span></div>'
+                        + '</div>'
+                        + '<button type="button" onclick="openOwnerStaffActionMenu(event, \'staff\', ' + w.id + ')" class="owner-staff-action-trigger w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 hover:bg-blue-100 text-gray-400 hover:text-blue-600 transition-all flex-shrink-0">'
+                        + '<i class="fas fa-ellipsis-v text-xs"></i></button>'
+                        + '</div>'
                         + '<div class="space-y-1 text-xs">'
                         + '<p class="text-gray-500"><span class="font-bold text-gray-600">Email: </span>' + escHtml(w.email || 'N/A') + '</p>'
                         + '<p class="text-gray-500"><span class="font-bold text-gray-600">Phone: </span>' + escHtml(w.phone_no || 'Not provided') + '</p>'
@@ -952,6 +1218,24 @@
             var closeBtn = document.getElementById('closeSidebar');
             if (openBtn)  openBtn.addEventListener('click',  function() { sidebar.classList.remove('sidebar-hidden'); });
             if (closeBtn) closeBtn.addEventListener('click', function() { sidebar.classList.add('sidebar-hidden'); });
+
+            document.addEventListener('click', function(e) {
+                var menu = document.getElementById('owner-staff-action-menu');
+                if (!menu || menu.style.display === 'none') return;
+                if (menu.contains(e.target)) return;
+                if (e.target.closest('.owner-staff-action-trigger')) return;
+                closeOwnerStaffActionMenu();
+            });
+
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape') {
+                    closeOwnerStaffActionMenu();
+                }
+            });
+
+            window.addEventListener('pageshow', function() {
+                resetOwnerStaffScroll();
+            });
         });
     </script>
 </x-app-layout>

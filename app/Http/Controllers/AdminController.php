@@ -127,6 +127,59 @@ class AdminController extends Controller
     }
 
     /**
+     * Update owner/staff status for a specific truck (JSON).
+     */
+    public function updateTruckUserStatus(Request $request, $truckId, $userId)
+    {
+        $request->validate([
+            'status' => 'required|in:active,deactivated,fired',
+            'target_type' => 'nullable|in:owner,staff',
+        ]);
+
+        $truck = FoodTruck::findOrFail($truckId);
+        $user = User::findOrFail($userId);
+
+        $isOwner = (int) $user->id === (int) $truck->user_id
+            && (int) $user->role === User::ROLE_FOOD_TRUCK_ADMIN;
+
+        $isStaff = (int) $user->role === User::ROLE_FOOD_TRUCK_WORKER
+            && (int) $user->foodtruck_id === (int) $truck->id;
+
+        if (!$isOwner && !$isStaff) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Selected user does not belong to this food truck.',
+            ], 422);
+        }
+
+        $targetType = $request->input('target_type');
+        if ($targetType === 'owner' && !$isOwner) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Selected owner does not match this food truck.',
+            ], 422);
+        }
+
+        if ($targetType === 'staff' && !$isStaff) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Selected staff member does not match this food truck.',
+            ], 422);
+        }
+
+        $user->update(['status' => $request->input('status')]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'User status updated successfully.',
+            'status' => $user->status,
+            'user_id' => $user->id,
+            'foodtruck_id' => $truck->id,
+            'target_type' => $isOwner ? 'owner' : 'staff',
+        ]);
+    }
+
+    /**
      * Approve a food truck.
      */
     public function approveTruck($id)

@@ -6,6 +6,7 @@
     $role = $user->role;
     $adminFoodTruckId = $user->foodtruck_id;
     $workers = $ftworkers ?? [];
+    $activeWorkersCount = collect($workers)->where('status', 'active')->count();
     $menus = $menuItems ?? [];
 @endphp
 
@@ -1063,7 +1064,7 @@ function ftadminDashboard() {
                                 <i class="fas fa-expand-alt text-gray-300 text-sm group-hover:text-orange-500 transition-colors"></i>
                             </div>
                             <h3 class="text-sm font-bold text-gray-400 uppercase tracking-widest mb-2">Active Staff</h3>
-                            <p class="text-5xl font-black text-gray-900">{{ count($workers) }}</p>
+                            <p class="text-5xl font-black text-gray-900">{{ $activeWorkersCount }}</p>
                         </div>
                         <span class="text-xs font-bold text-orange-500 uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity">Manage Staff</span>
                     </button>

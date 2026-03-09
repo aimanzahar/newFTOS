@@ -55,6 +55,7 @@ Route::middleware(['auth', 'role:6'])->prefix('admin')->name('admin.')->group(fu
     Route::get('/trucks/{truckId}/orders', [AdminController::class, 'truckOrders'])->name('truck.orders');
     Route::patch('/orders/{orderId}/status', [AdminController::class, 'updateOrderStatus'])->name('order.update-status');
     Route::patch('/trucks/{truckId}/update-details', [AdminController::class, 'updateTruckDetails'])->name('truck.update-details');
+    Route::patch('/trucks/{truckId}/users/{userId}/status', [AdminController::class, 'updateTruckUserStatus'])->name('truck-user.update-status');
 });
 
 /**
