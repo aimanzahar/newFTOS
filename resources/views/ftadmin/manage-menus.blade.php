@@ -11,6 +11,25 @@ function manageMenusPage() {
         menuItems: @json($menuItems),
         searchQuery: '',
         categoryFilter: '',
+        showCategoryFilter: false,
+        
+        // Category management
+        categories: [],
+        showCreateCategoryModal: false,
+        newCategoryName: '',
+        newCategoryColor: 'purple',
+        createCategoryLoading: false,
+        
+        colorOptions: [
+            { name: 'Purple', value: 'purple', class: 'bg-purple-500' },
+            { name: 'Blue', value: 'blue', class: 'bg-blue-500' },
+            { name: 'Green', value: 'green', class: 'bg-green-500' },
+            { name: 'Red', value: 'red', class: 'bg-red-500' },
+            { name: 'Pink', value: 'pink', class: 'bg-pink-500' },
+            { name: 'Amber', value: 'amber', class: 'bg-amber-500' },
+            { name: 'Cyan', value: 'cyan', class: 'bg-cyan-500' },
+            { name: 'Indigo', value: 'indigo', class: 'bg-indigo-500' },
+        ],
 
         get filteredItems() {
             return this.menuItems.filter(item => {
@@ -225,6 +244,106 @@ function manageMenusPage() {
                 const data = await res.json();
                 if (data.success) this.menuItems = this.menuItems.filter(i => i.id !== item.id);
             } catch(e) { console.error(e); }
+        },
+
+        /* ── Category Management ── */
+        async loadCategories() {
+            try {
+                const res = await fetch('/ftadmin/menu-category/list', {
+                    method: 'GET',
+                    headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content }
+                });
+                const data = await res.json();
+                if (data.success) this.categories = data.categories;
+            } catch(e) { console.error(e); }
+        },
+
+        openCreateCategoryModal() {
+            this.showCreateCategoryModal = true;
+            this.newCategoryName = '';
+            this.newCategoryColor = 'purple';
+        },
+
+        closeCreateCategoryModal() {
+            this.showCreateCategoryModal = false;
+            this.newCategoryName = '';
+            this.newCategoryColor = 'purple';
+        },
+
+        async createCategory() {
+            if (!this.newCategoryName.trim()) {
+                alert('Please enter a category name');
+                return;
+            }
+            if (this.categories.some(c => c.name.toLowerCase() === this.newCategoryName.toLowerCase())) {
+                alert('This category already exists');
+                return;
+            }
+            this.createCategoryLoading = true;
+            try {
+                const res = await fetch('/ftadmin/menu-category/create', {
+                    method: 'POST',
+                    headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content },
+                    body: JSON.stringify({ name: this.newCategoryName, color: this.newCategoryColor })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    this.categories.push(data.category);
+                    this.closeCreateCategoryModal();
+                } else {
+                    alert('Error: ' + (data.message || 'Failed to create category'));
+                }
+            } catch(e) { 
+                console.error(e);
+                alert('Error: Failed to create category. Please try again.');
+            }
+            this.createCategoryLoading = false;
+        },
+
+        getColorClass(color) {
+            const colors = {
+                'purple': 'bg-purple-500',
+                'blue': 'bg-blue-500',
+                'green': 'bg-green-500',
+                'red': 'bg-red-500',
+                'pink': 'bg-pink-500',
+                'amber': 'bg-amber-500',
+                'cyan': 'bg-cyan-500',
+                'indigo': 'bg-indigo-500',
+            };
+            return colors[color] || 'bg-gray-500';
+        },
+
+        getBgColorClass(color) {
+            const colors = {
+                'purple': 'rgb(243, 232, 255)',
+                'blue': 'rgb(239, 246, 255)',
+                'green': 'rgb(240, 253, 250)',
+                'red': 'rgb(254, 242, 242)',
+                'pink': 'rgb(252, 240, 247)',
+                'amber': 'rgb(255, 251, 235)',
+                'cyan': 'rgb(236, 254, 255)',
+                'indigo': 'rgb(238, 242, 255)',
+            };
+            return colors[color] || 'rgb(245, 245, 245)';
+        },
+
+        getTextColorClass(color) {
+            const colors = {
+                'purple': 'rgb(147, 51, 234)',
+                'blue': 'rgb(37, 99, 235)',
+                'green': 'rgb(16, 185, 129)',
+                'red': 'rgb(239, 68, 68)',
+                'pink': 'rgb(236, 72, 153)',
+                'amber': 'rgb(217, 119, 6)',
+                'cyan': 'rgb(34, 211, 238)',
+                'indigo': 'rgb(79, 70, 229)',
+            };
+            return colors[color] || 'rgb(107, 114, 128)';
+        },
+
+        init() {
+            this.loadCategories();
         }
     };
 }
@@ -287,28 +406,87 @@ function manageMenusPage() {
             </div>
 
             <!-- Search + Filter Bar -->
-            <div class="flex flex-col sm:flex-row gap-3">
+            <div class="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
                 <!-- Search -->
-                <div class="relative flex-1">
+                <div class="relative flex-1 w-full">
                     <i class="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 text-sm pointer-events-none"></i>
                     <input type="text" x-model="searchQuery" placeholder="Search menu name or category…"
                            class="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700 placeholder:text-gray-300 outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all shadow-sm">
                 </div>
-                <!-- Category Filters -->
-                <div class="flex items-center gap-2 flex-shrink-0">
-                    <button @click="categoryFilter = ''"
-                            :class="categoryFilter === '' ? 'bg-slate-800 text-white shadow-sm' : 'bg-white text-gray-500 hover:bg-gray-50 border border-gray-200'"
-                            class="px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all">All</button>
-                    <button @click="categoryFilter = categoryFilter === 'food' ? '' : 'food'"
-                            :class="categoryFilter === 'food' ? 'bg-amber-500 text-white shadow-sm' : 'bg-white text-gray-500 hover:bg-amber-50 border border-gray-200'"
-                            class="px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all">Foods</button>
-                    <button @click="categoryFilter = categoryFilter === 'drink' ? '' : 'drink'"
-                            :class="categoryFilter === 'drink' ? 'bg-blue-500 text-white shadow-sm' : 'bg-white text-gray-500 hover:bg-blue-50 border border-gray-200'"
-                            class="px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all">Drinks</button>
-                    <button @click="categoryFilter = categoryFilter === 'dessert' ? '' : 'dessert'"
-                            :class="categoryFilter === 'dessert' ? 'bg-pink-500 text-white shadow-sm' : 'bg-white text-gray-500 hover:bg-pink-50 border border-gray-200'"
-                            class="px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all">Desserts</button>
+
+                <!-- Category Filter Dropdown -->
+                <div class="relative flex-shrink-0">
+                    <button type="button" @click.stop="showCategoryFilter = !showCategoryFilter"
+                            :class="categoryFilter ? 'bg-purple-50 text-purple-600 border border-purple-200' : 'bg-gray-100 text-gray-500 border border-transparent hover:bg-gray-200'"
+                            class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap">
+                        <i class="fas fa-filter text-xs"></i>
+                        <span x-text="categoryFilter ? (categoryFilter === 'food' ? 'Foods' : categoryFilter === 'drink' ? 'Drinks' : categoryFilter === 'dessert' ? 'Desserts' : categoryFilter) : 'Filter'"></span>
+                        <i class="fas fa-chevron-down text-[10px] transition-transform duration-200" :class="showCategoryFilter ? 'rotate-180' : ''"></i>
+                    </button>
+
+                    <div x-show="showCategoryFilter"
+                         @click.away="showCategoryFilter = false"
+                         x-transition:enter="transition ease-out duration-150"
+                         x-transition:enter-start="opacity-0 scale-95"
+                         x-transition:enter-end="opacity-100 scale-100"
+                         style="display:none;"
+                         class="absolute right-0 top-full mt-1 bg-white rounded-2xl shadow-xl border border-gray-100 py-1.5 w-40 z-50">
+
+                        <!-- All (clear filter) -->
+                        <button type="button" @click.stop="categoryFilter = ''; showCategoryFilter = false"
+                                :class="!categoryFilter ? 'bg-gray-50 font-black text-gray-700' : 'text-gray-500 hover:bg-gray-50'"
+                                class="w-full text-left px-4 py-2 text-xs font-bold flex items-center gap-2.5 transition-colors">
+                            <span class="w-2 h-2 rounded-full bg-gray-300 flex-shrink-0"></span>
+                            All
+                        </button>
+                        <div class="border-t border-gray-50 mx-3 my-0.5"></div>
+
+                        <!-- Foods -->
+                        <button type="button" @click.stop="categoryFilter = 'food'; showCategoryFilter = false"
+                                :class="categoryFilter === 'food' ? 'bg-purple-50 font-black text-purple-600' : 'text-gray-500 hover:bg-purple-50 hover:text-purple-600'"
+                                class="w-full text-left px-4 py-2 text-xs font-bold flex items-center gap-2.5 transition-colors">
+                            <span class="w-2 h-2 rounded-full bg-purple-500 flex-shrink-0"></span>
+                            Foods
+                        </button>
+
+                        <!-- Drinks -->
+                        <button type="button" @click.stop="categoryFilter = 'drink'; showCategoryFilter = false"
+                                :class="categoryFilter === 'drink' ? 'bg-blue-50 font-black text-blue-600' : 'text-gray-500 hover:bg-blue-50 hover:text-blue-600'"
+                                class="w-full text-left px-4 py-2 text-xs font-bold flex items-center gap-2.5 transition-colors">
+                            <span class="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0"></span>
+                            Drinks
+                        </button>
+
+                        <!-- Desserts -->
+                        <button type="button" @click.stop="categoryFilter = 'dessert'; showCategoryFilter = false"
+                                :class="categoryFilter === 'dessert' ? 'bg-pink-50 font-black text-pink-600' : 'text-gray-500 hover:bg-pink-50 hover:text-pink-600'"
+                                class="w-full text-left px-4 py-2 text-xs font-bold flex items-center gap-2.5 transition-colors">
+                            <span class="w-2 h-2 rounded-full bg-pink-500 flex-shrink-0"></span>
+                            Desserts
+                        </button>
+
+                        <!-- Divider (show only if custom categories exist) -->
+                        <div x-show="categories.length > 0" class="border-t border-gray-50 mx-3 my-0.5"></div>
+
+                        <!-- Custom Categories -->
+                        <template x-for="cat in categories" :key="cat.id">
+                            <button type="button" @click.stop="categoryFilter = cat.name; showCategoryFilter = false"
+                                    :class="categoryFilter === cat.name ? 'font-black text-gray-700' : 'text-gray-500 hover:bg-gray-50'"
+                                    class="w-full text-left px-4 py-2 text-xs font-bold flex items-center gap-2.5 transition-colors"
+                                    :style="categoryFilter === cat.name ? `background-color: ${getBgColorClass(cat.color)}; color: ${getTextColorClass(cat.color)};` : ''">
+                                <span class="w-2 h-2 rounded-full flex-shrink-0" :class="getColorClass(cat.color)"></span>
+                                <span x-text="cat.name"></span>
+                            </button>
+                        </template>
+                    </div>
                 </div>
+
+                <!-- Create Category Button -->
+                <button type="button" @click="openCreateCategoryModal()"
+                        class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold bg-blue-600 text-white hover:bg-blue-700 transition-all whitespace-nowrap shadow-sm">
+                    <i class="fas fa-plus text-xs"></i>
+                    <span>New Category</span>
+                </button>
             </div>
 
             <!-- Empty State — no items at all -->
@@ -702,6 +880,76 @@ function manageMenusPage() {
                         class="flex-[2] px-6 py-3 bg-slate-900 hover:bg-purple-600 text-white rounded-2xl text-sm font-black shadow-lg transition-all disabled:opacity-60 flex items-center justify-center gap-2">
                     <i class="fas" :class="optionsSaving ? 'fa-spinner fa-spin' : 'fa-save'"></i>
                     <span x-text="optionsSaving ? 'Saving...' : 'Save Options'"></span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Create Category Modal ── -->
+    <div x-show="showCreateCategoryModal"
+         @click.away="closeCreateCategoryModal()"
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-150"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         style="display:none;"
+         class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+
+        <div x-transition:enter="transition ease-out duration-200"
+             x-transition:enter-start="opacity-0 scale-95 translate-y-2"
+             x-transition:enter-end="opacity-100 scale-100 translate-y-0"
+             class="bg-white rounded-3xl shadow-2xl w-full max-w-md flex flex-col">
+
+            <!-- Header -->
+            <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+                <div>
+                    <h2 class="text-base font-black text-gray-900">Create New Category</h2>
+                    <p class="text-xs text-gray-400 font-medium mt-0.5">Add a custom category for your menu</p>
+                </div>
+                <button @click="closeCreateCategoryModal()" class="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-all">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <!-- Body -->
+            <div class="p-6 space-y-6">
+                <!-- Category Name -->
+                <div>
+                    <label class="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2 block">Category Name</label>
+                    <input type="text" x-model="newCategoryName" placeholder="e.g. Alacarte, Set, Promotions"
+                           @keydown.enter="createCategory()"
+                           class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold placeholder:text-gray-300 outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all">
+                </div>
+
+                <!-- Color Picker -->
+                <div>
+                    <label class="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-3 block">Category Color</label>
+                    <div class="flex flex-wrap gap-3">
+                        <template x-for="color in colorOptions" :key="color.value">
+                            <button type="button"
+                                    @click="newCategoryColor = color.value"
+                                    :class="newCategoryColor === color.value ? 'ring-2 ring-offset-2 ring-blue-600 scale-110' : 'hover:scale-105'"
+                                    class="flex flex-col items-center gap-1.5 transition-all">
+                                <div :class="color.class + ' w-10 h-10 rounded-full border-2 border-white shadow-md transition-all'"></div>
+                                <span class="text-[10px] font-bold text-gray-600 text-center" x-text="color.name"></span>
+                            </button>
+                        </template>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="px-6 py-4 border-t border-gray-100 flex items-center gap-3">
+                <button @click="closeCreateCategoryModal()"
+                        class="flex-1 px-6 py-3 border-2 border-gray-100 rounded-2xl text-sm font-black text-gray-400 hover:bg-gray-50 hover:text-gray-600 transition-all">
+                    Cancel
+                </button>
+                <button @click="createCategory()" :disabled="createCategoryLoading"
+                        class="flex-[2] px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl text-sm font-black shadow-lg transition-all disabled:opacity-60 flex items-center justify-center gap-2">
+                    <i class="fas" :class="createCategoryLoading ? 'fa-spinner fa-spin' : 'fa-check'"></i>
+                    <span x-text="createCategoryLoading ? 'Creating...' : 'Create Category'"></span>
                 </button>
             </div>
         </div>

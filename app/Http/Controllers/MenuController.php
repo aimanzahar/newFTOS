@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Menu;
 use App\Models\MenuOptionGroup;
 use App\Models\MenuChoice;
+use App\Models\MenuCategory;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -447,5 +448,41 @@ class MenuController extends Controller
         }
         
         return null;
+    }
+
+    /**
+     * Create a new custom category for a food truck.
+     */
+    public function createCategory(Request $request)
+    {
+        $user = Auth::user();
+        
+        $request->validate([
+            'name'  => ['required', 'string', 'max:50'],
+            'color' => ['required', 'string', 'max:50'],
+        ]);
+
+        $category = MenuCategory::create([
+            'foodtruck_id' => $user->foodtruck_id,
+            'name'         => $request->name,
+            'color'        => $request->color,
+            'sort_order'   => MenuCategory::where('foodtruck_id', $user->foodtruck_id)->count(),
+        ]);
+
+        return response()->json(['success' => true, 'category' => $category]);
+    }
+
+    /**
+     * Get all categories for the current user's food truck.
+     */
+    public function getCategories()
+    {
+        $user = Auth::user();
+        
+        $categories = MenuCategory::where('foodtruck_id', $user->foodtruck_id)
+            ->orderBy('sort_order')
+            ->get();
+
+        return response()->json(['success' => true, 'categories' => $categories]);
     }
 }

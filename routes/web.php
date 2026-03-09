@@ -125,6 +125,10 @@ Route::middleware(['auth', 'ftadmin.status'])->prefix('ftadmin')->name('ftadmin.
         Route::patch('/{id}/options', [MenuController::class, 'updateOptions'])->name('update-options');
         Route::delete('/{id}', [MenuController::class, 'destroy'])->name('destroy');
     });
+
+    // Category Management
+    Route::post('/menu-category/create', [MenuController::class, 'createCategory'])->name('menu-category.create');
+    Route::get('/menu-category/list', [MenuController::class, 'getCategories'])->name('menu-category.list');
 });
 
 /**
