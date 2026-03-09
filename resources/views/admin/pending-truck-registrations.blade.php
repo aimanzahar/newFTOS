@@ -108,7 +108,15 @@
                     <!-- Table Content -->
                     <div class="bg-white shadow-sm rounded-2xl overflow-hidden border border-gray-100">
                         <div class="overflow-x-auto">
-                            <table class="min-w-full leading-normal">
+                            <table class="min-w-full leading-normal table-fixed">
+                                <colgroup>
+                                    <col class="w-[8%]">
+                                    <col class="w-[20%]">
+                                    <col class="w-[18%]">
+                                    <col class="w-[26%]">
+                                    <col class="w-[14%]">
+                                    <col class="w-[14%]">
+                                </colgroup>
                                 <thead>
                                     <tr class="bg-gray-50 border-b border-gray-100 text-left text-xs font-bold text-gray-400 uppercase tracking-widest">
                                         <th class="px-6 py-4">ID</th>
@@ -158,18 +166,20 @@
                                             </td>
 
                                             <td class="px-6 py-4 text-right">
-                                                <div class="flex justify-end space-x-2">
+                                                <div class="flex items-center justify-end gap-2">
 
                                                     <!-- Approve Button -->
                                                     <form
                                                         action="{{ route('admin.approve-truck', $truck->id) }}"
                                                         method="POST"
-                                                        class="inline-block"
-                                                        onsubmit="return confirm('Approve this registration?');"
+                                                        class="inline-flex"
+                                                        data-action-type="approve"
+                                                        data-truck-name="{{ $truck->foodtruck_name }}"
                                                     >
                                                         @csrf
                                                         <button
-                                                            type="submit"
+                                                            type="button"
+                                                            onclick="openActionConfirmModal(this.closest('form'))"
                                                             class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-1.5 px-4 rounded-lg transition duration-200 shadow-sm text-[11px]"
                                                         >
                                                             Approve
@@ -180,13 +190,15 @@
                                                     <form
                                                         action="{{ route('admin.reject-truck', $truck->id) }}"
                                                         method="POST"
-                                                        class="inline-block"
-                                                        onsubmit="return confirm('Are you sure you want to reject and delete this registration? This action cannot be undone.');"
+                                                        class="inline-flex"
+                                                        data-action-type="reject"
+                                                        data-truck-name="{{ $truck->foodtruck_name }}"
                                                     >
                                                         @csrf
                                                         @method('DELETE')
                                                         <button
-                                                            type="submit"
+                                                            type="button"
+                                                            onclick="openActionConfirmModal(this.closest('form'))"
                                                             class="bg-red-600 hover:bg-red-700 text-white font-bold py-1.5 px-4 rounded-lg transition duration-200 shadow-sm text-[11px]"
                                                         >
                                                             Reject
@@ -229,6 +241,56 @@
         </div>
     </div>
 
+    <div
+        id="actionConfirmModal"
+        style="display:none;"
+        class="fixed inset-0 bg-black/40 backdrop-blur-sm z-[80] flex items-center justify-center p-4"
+        onclick="handleActionModalBackdropClick(event)"
+    >
+        <div id="actionConfirmPanel" class="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div class="flex items-start justify-between px-6 py-4 border-b border-gray-100">
+                <div>
+                    <h3 id="actionConfirmTitle" class="text-base font-black text-gray-900">Confirm Action</h3>
+                    <p id="actionConfirmSubtitle" class="text-xs text-gray-400 font-medium mt-0.5">Please review before proceeding.</p>
+                </div>
+                <button
+                    type="button"
+                    onclick="closeActionConfirmModal()"
+                    class="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-all"
+                >
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <div class="px-6 py-6">
+                <div id="actionConfirmIconWrap" class="w-12 h-12 rounded-2xl flex items-center justify-center mb-4 bg-indigo-100 text-indigo-600">
+                    <i id="actionConfirmIcon" class="fas fa-check-circle text-lg"></i>
+                </div>
+                <p id="actionConfirmMessage" class="text-sm text-gray-600 leading-relaxed"></p>
+            </div>
+
+            <div class="px-6 py-4 border-t border-gray-100 bg-gray-50/50 flex items-center justify-end gap-2">
+                <button
+                    type="button"
+                    onclick="closeActionConfirmModal()"
+                    class="px-5 py-2.5 border-2 border-gray-200 rounded-xl text-sm font-bold text-gray-600 hover:bg-gray-100 hover:border-gray-300 transition-all"
+                >
+                    Cancel
+                </button>
+
+                <button
+                    id="actionConfirmSubmitBtn"
+                    type="button"
+                    onclick="submitActionConfirmForm()"
+                    class="px-5 py-2.5 rounded-xl text-sm font-bold text-white shadow-md transition-all flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700"
+                >
+                    <i id="actionConfirmSubmitIcon" class="fas fa-check"></i>
+                    <span id="actionConfirmSubmitText">Yes, Approve</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- GLOBAL LOGOUT FORM -->
     <form id="logout-form" action="{{ route('logout') }}" method="POST" class="hidden">
         @csrf
@@ -237,7 +299,7 @@
     @push('css')
         <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
         <style>
-            nav,
+            nav[x-data],
             .min-h-screen > header {
                 display: none !important;
             }
@@ -260,6 +322,73 @@
 
     @push('scripts')
         <script>
+            let actionConfirmTargetForm = null;
+
+            function openActionConfirmModal(formElement) {
+                if (!formElement) {
+                    return false;
+                }
+
+                actionConfirmTargetForm = formElement;
+
+                const actionType = formElement.dataset.actionType || 'approve';
+                const truckName = formElement.dataset.truckName || 'this registration';
+                const isReject = actionType === 'reject';
+
+                const modal = document.getElementById('actionConfirmModal');
+                const title = document.getElementById('actionConfirmTitle');
+                const subtitle = document.getElementById('actionConfirmSubtitle');
+                const message = document.getElementById('actionConfirmMessage');
+                const iconWrap = document.getElementById('actionConfirmIconWrap');
+                const icon = document.getElementById('actionConfirmIcon');
+                const submitBtn = document.getElementById('actionConfirmSubmitBtn');
+                const submitIcon = document.getElementById('actionConfirmSubmitIcon');
+                const submitText = document.getElementById('actionConfirmSubmitText');
+
+                if (isReject) {
+                    title.textContent = 'Reject Registration?';
+                    subtitle.textContent = 'This action cannot be undone.';
+                    message.textContent = `You are about to reject "${truckName}". The truck record will be removed and the owner account status will be set to rejected.`;
+                    iconWrap.className = 'w-12 h-12 rounded-2xl flex items-center justify-center mb-4 bg-red-100 text-red-600';
+                    icon.className = 'fas fa-trash-alt text-lg';
+                    submitBtn.className = 'px-5 py-2.5 rounded-xl text-sm font-bold text-white shadow-md transition-all flex items-center gap-2 bg-red-600 hover:bg-red-700';
+                    submitIcon.className = 'fas fa-trash-alt';
+                    submitText.textContent = 'Yes, Reject';
+                } else {
+                    title.textContent = 'Approve Registration?';
+                    subtitle.textContent = 'This will activate the food truck account.';
+                    message.textContent = `Approve "${truckName}" now? The registration will move to Approved Trucks and the owner can access full features.`;
+                    iconWrap.className = 'w-12 h-12 rounded-2xl flex items-center justify-center mb-4 bg-indigo-100 text-indigo-600';
+                    icon.className = 'fas fa-check-circle text-lg';
+                    submitBtn.className = 'px-5 py-2.5 rounded-xl text-sm font-bold text-white shadow-md transition-all flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700';
+                    submitIcon.className = 'fas fa-check';
+                    submitText.textContent = 'Yes, Approve';
+                }
+
+                modal.style.display = 'flex';
+                document.body.classList.add('overflow-hidden');
+                return false;
+            }
+
+            function closeActionConfirmModal() {
+                const modal = document.getElementById('actionConfirmModal');
+                modal.style.display = 'none';
+                actionConfirmTargetForm = null;
+                document.body.classList.remove('overflow-hidden');
+            }
+
+            function submitActionConfirmForm() {
+                if (actionConfirmTargetForm) {
+                    actionConfirmTargetForm.submit();
+                }
+            }
+
+            function handleActionModalBackdropClick(event) {
+                if (event.target.id === 'actionConfirmModal') {
+                    closeActionConfirmModal();
+                }
+            }
+
             document.addEventListener('DOMContentLoaded', function () {
                 const sidebar  = document.getElementById('sidebar');
                 const openBtn  = document.getElementById('openSidebar');
@@ -274,6 +403,15 @@
                     closeBtn.addEventListener('click', () =>
                         sidebar.classList.add('sidebar-hidden')
                     );
+
+                document.addEventListener('keydown', function (event) {
+                    if (event.key === 'Escape') {
+                        const modal = document.getElementById('actionConfirmModal');
+                        if (modal && modal.style.display === 'flex') {
+                            closeActionConfirmModal();
+                        }
+                    }
+                });
             });
         </script>
     @endpush

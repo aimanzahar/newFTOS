@@ -108,7 +108,15 @@
                     <!-- Table Content -->
                     <div class="bg-white shadow-sm rounded-2xl overflow-hidden border border-gray-100">
                         <div class="overflow-x-auto">
-                            <table class="min-w-full leading-normal">
+                            <table class="min-w-full leading-normal table-fixed">
+                                <colgroup>
+                                    <col class="w-[8%]">
+                                    <col class="w-[20%]">
+                                    <col class="w-[18%]">
+                                    <col class="w-[26%]">
+                                    <col class="w-[14%]">
+                                    <col class="w-[14%]">
+                                </colgroup>
                                 <thead>
                                     <tr class="bg-gray-50 border-b border-gray-100 text-left text-xs font-bold text-gray-400 uppercase tracking-widest">
                                         <th class="px-6 py-4">ID</th>
@@ -158,7 +166,7 @@
                                             </td>
 
                                             <td class="px-6 py-4 text-right">
-                                                <div class="flex justify-end space-x-2">
+                                                <div class="flex items-center justify-end gap-2">
 
                                                     <!-- See More Details Button -->
                                                     <button
@@ -417,7 +425,7 @@
     @push('css')
         <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
         <style>
-            nav, .min-h-screen > header { display: none !important; }
+            nav[x-data], .min-h-screen > header { display: none !important; }
             .py-12 { padding-top: 0 !important; padding-bottom: 0 !important; }
             ::-webkit-scrollbar { width: 5px; }
             ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }

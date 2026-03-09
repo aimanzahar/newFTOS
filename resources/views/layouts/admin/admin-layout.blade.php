@@ -11,6 +11,7 @@
     
     <!-- Scripts -->
     @vite(['resources/css/app.css', 'resources/js/app.js'])
+    @stack('css')
 
     <style>
         /* Force hide any Breeze defaults that might leak in */
@@ -89,5 +90,6 @@
             }
         });
     </script>
+    @stack('scripts')
 </body>
 </html>
