@@ -19,6 +19,7 @@ function manageMenusPage() {
         newCategoryName: '',
         newCategoryColor: 'purple',
         createCategoryLoading: false,
+        activeCategoryActionMenu: null,
         
         // Category rename/edit modal
         showEditCategoryModal: false,
@@ -505,7 +506,7 @@ function manageMenusPage() {
                     </button>
 
                     <div x-show="showCategoryFilter"
-                         @click.away="showCategoryFilter = false"
+                         @click.away="showCategoryFilter = false; activeCategoryActionMenu = null"
                          x-transition:enter="transition ease-out duration-150"
                          x-transition:enter-start="opacity-0 scale-95"
                          x-transition:enter-end="opacity-100 scale-100"
@@ -548,36 +549,50 @@ function manageMenusPage() {
                         <!-- Divider (show only if custom categories exist) -->
                         <div x-show="categories.length > 0" class="border-t border-gray-50 mx-3 my-0.5"></div>
 
-                        <!-- Custom Categories with Context Menu -->
+                        <!-- Custom Categories with Action Menu -->
                         <template x-for="cat in categories" :key="cat.id">
-                            <div class="relative group">
+                            <div class="relative flex items-center">
+                                <!-- Category filter button -->
                                 <button type="button" @click.stop="categoryFilter = cat.name; showCategoryFilter = false"
                                         :class="categoryFilter === cat.name ? 'font-black text-gray-700' : 'text-gray-500 hover:bg-gray-50'"
-                                        class="w-full text-left px-4 py-2 text-xs font-bold flex items-center gap-2.5 transition-colors justify-between"
+                                        class="flex-1 text-left px-4 py-2 text-xs font-bold flex items-center gap-2.5 transition-colors"
                                         :style="categoryFilter === cat.name ? `background-color: ${getBgColorClass(cat.color)}; color: ${getTextColorClass(cat.color)};` : ''">
-                                    <span class="flex items-center gap-2.5 flex-1">
-                                        <span class="w-2 h-2 rounded-full flex-shrink-0" :class="getColorClass(cat.color)"></span>
-                                        <span x-text="cat.name"></span>
-                                    </span>
-                                    <!-- Options button (show on hover) -->
-                                    <button type="button" @click.stop="$event.stopPropagation()"
-                                            class="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 w-5 h-5 flex items-center justify-center rounded hover:bg-black/10">
-                                        <i class="fas fa-ellipsis-v text-[8px]"></i>
-                                    </button>
+                                    <span class="w-2 h-2 rounded-full flex-shrink-0" :class="getColorClass(cat.color)"></span>
+                                    <span x-text="cat.name"></span>
                                 </button>
 
-                                <!-- Context Menu (shows below on hover) -->
-                                <div class="hidden group-hover:block absolute left-0 top-full mt-1 bg-white rounded-lg shadow-lg border border-gray-200 py-1 w-32 z-50">
-                                    <button type="button" @click.stop="openEditCategoryModal(cat); showCategoryFilter = false"
-                                            class="w-full text-left px-3 py-2 text-xs font-bold text-blue-600 hover:bg-blue-50 flex items-center gap-2 transition-colors">
-                                        <i class="fas fa-edit w-3 text-center"></i>
-                                        Rename
+                                <!-- Action button (3 dots) -->
+                                <div class="relative">
+                                    <button type="button" @click.stop="activeCategoryActionMenu = activeCategoryActionMenu === cat.id ? null : cat.id"
+                                            class="px-3 py-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors flex-shrink-0">
+                                        <i class="fas fa-ellipsis-v text-xs"></i>
                                     </button>
-                                    <button type="button" @click.stop="deleteCategory(cat); showCategoryFilter = false"
-                                            class="w-full text-left px-3 py-2 text-xs font-bold text-red-600 hover:bg-red-50 flex items-center gap-2 transition-colors">
-                                        <i class="fas fa-trash w-3 text-center"></i>
-                                        Delete
-                                    </button>
+
+                                    <!-- Action Context Menu -->
+                                    <div x-show="activeCategoryActionMenu === cat.id" 
+                                         @click.away="activeCategoryActionMenu = null"
+                                         x-transition:enter="transition ease-out duration-100"
+                                         x-transition:enter-start="opacity-0 scale-95"
+                                         x-transition:enter-end="opacity-100 scale-100"
+                                         style="display:none;"
+                                         class="absolute right-0 top-full mt-1 bg-white rounded-lg shadow-lg border border-gray-200 py-1 w-40 z-50">
+                                        
+                                        <!-- Rename option -->
+                                        <button type="button" @click.stop="openEditCategoryModal(cat); activeCategoryActionMenu = null"
+                                                class="w-full text-left px-4 py-2.5 text-xs font-bold text-blue-600 hover:bg-blue-50 flex items-center gap-3 transition-colors">
+                                            <i class="fas fa-pen-to-square w-3 text-center"></i>
+                                            <span>Rename & Color</span>
+                                        </button>
+
+                                        <div class="border-t border-gray-100 my-1"></div>
+
+                                        <!-- Delete option -->
+                                        <button type="button" @click.stop="deleteCategory(cat); activeCategoryActionMenu = null"
+                                                class="w-full text-left px-4 py-2.5 text-xs font-bold text-red-600 hover:bg-red-50 flex items-center gap-3 transition-colors">
+                                            <i class="fas fa-trash w-3 text-center"></i>
+                                            <span>Delete</span>
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         </template>
