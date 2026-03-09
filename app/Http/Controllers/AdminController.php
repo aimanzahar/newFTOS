@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\User;
 use App\Models\FoodTruck;
+use App\Models\MenuCategory;
 use App\Models\Order;
 
 class AdminController extends Controller
@@ -62,7 +63,45 @@ class AdminController extends Controller
      */
     public function globalMenus()
     {
-        return view('admin.global-menus');
+        $approvedRegistrations = FoodTruck::with(['menus' => function ($query) {
+                $query->orderBy('category', 'asc')->orderBy('name', 'asc');
+            }])
+            ->where('status', 'approved')
+            ->latest('food_trucks.created_at')
+            ->paginate(10);
+
+        $truckIds = $approvedRegistrations->getCollection()->pluck('id');
+
+        $customCategoriesByTruck = MenuCategory::whereIn('foodtruck_id', $truckIds)
+            ->orderBy('sort_order')
+            ->get()
+            ->groupBy('foodtruck_id');
+
+        $menusByTruck = [];
+
+        foreach ($approvedRegistrations as $truck) {
+            $customCategories = ($customCategoriesByTruck->get($truck->id) ?? collect())
+                ->pluck('name')
+                ->filter(fn ($name) => !in_array($name, ['Foods', 'Drinks', 'Desserts', 'Uncategorized'], true))
+                ->values();
+
+            $menusByTruck[$truck->id] = [
+                'foodtruck_name' => $truck->foodtruck_name,
+                'menus' => $truck->menus->map(function ($menu) {
+                    return [
+                        'id' => $menu->id,
+                        'name' => $menu->name,
+                        'category' => $menu->category ?: 'Uncategorized',
+                        'base_price' => $menu->base_price,
+                        'quantity' => $menu->quantity,
+                        'status' => $menu->status,
+                    ];
+                })->values(),
+                'custom_categories' => $customCategories,
+            ];
+        }
+
+        return view('admin.global-menus', compact('approvedRegistrations', 'menusByTruck'));
     }
 
     /**

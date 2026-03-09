@@ -225,7 +225,6 @@
         @php
             $trucksForJs = [];
             foreach($approvedRegistrations as $truck) {
-                $truck->load(['owner', 'staff', 'menus.optionGroups.choices']);
                 $trucksForJs[$truck->id] = $truck;
             }
         @endphp
