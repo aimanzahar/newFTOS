@@ -1555,7 +1555,7 @@ function ftadminDashboard() {
          x-transition:enter-end="opacity-100 scale-100"
          @keydown.escape.window="showMenuEditModal ? closeMenuEdit() : (showMenuModal = false, resetMenuForm())">
 
-        <div @click.away="!showMenuEditModal && !showImageAdjuster && (showMenuModal = false, resetMenuForm())"
+        <div @click.away="!showMenuEditModal && !showImageAdjuster && !showEditCategoryModal && !showCreateCategoryModal && (showMenuModal = false, resetMenuForm())"
              class="bg-white w-full max-w-5xl rounded-3xl shadow-2xl overflow-hidden flex flex-col h-[85vh] max-h-[750px] border border-white/20">
 
             <!-- Modal Header (Fixed) -->
@@ -1629,7 +1629,7 @@ function ftadminDashboard() {
                                 </button>
 
                                 <div x-show="showMenuFilter"
-                                     @click.away="showMenuFilter = false; activeCategoryActionMenu = null"
+                                     @click.away="!activeCategoryActionMenu && (showMenuFilter = false); activeCategoryActionMenu = null"
                                      x-transition:enter="transition ease-out duration-150"
                                      x-transition:enter-start="opacity-0 scale-95"
                                      x-transition:enter-end="opacity-100 scale-100"
@@ -1674,10 +1674,12 @@ function ftadminDashboard() {
 
                                     <!-- Custom Categories (with action buttons) - Exclude "Uncategorized" since it's a default category -->
                                     <template x-for="cat in dashboardCategories.filter(c => c.name !== 'Uncategorized')" :key="cat.id">
-                                        <div class="flex items-center justify-between px-2 py-1 hover:bg-gray-50 group transition-colors rounded-lg mx-1">
+                                        <div class="relative flex items-center">
+                                            <!-- Category filter button -->
                                             <button type="button" @click.stop="menuCategoryFilter = cat.name; showMenuFilter = false"
-                                                    :class="menuCategoryFilter === cat.name ? 'font-black' : 'text-gray-500 hover:text-gray-700'"
-                                                    class="flex-1 text-left px-2 py-2 text-xs font-bold flex items-center gap-2.5 transition-colors">
+                                                    :class="menuCategoryFilter === cat.name ? 'font-black text-gray-700' : 'text-gray-500 hover:bg-gray-50'"
+                                                    class="flex-1 text-left px-4 py-2 text-xs font-bold flex items-center gap-2.5 transition-colors"
+                                                    :style="menuCategoryFilter === cat.name ? `background-color: ${getBgColorClass(cat.color)}; color: ${getTextColorClass(cat.color)};` : ''">
                                                 <span class="w-2 h-2 rounded-full flex-shrink-0" :class="getColorClass(cat.color)"></span>
                                                 <span x-text="cat.name"></span>
                                             </button>
@@ -1685,12 +1687,13 @@ function ftadminDashboard() {
                                             <!-- Action button (3 dots) -->
                                             <div class="relative">
                                                 <button type="button" @click.stop="activeCategoryActionMenu = activeCategoryActionMenu === cat.id ? null : cat.id"
-                                                        class="px-2 py-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-200 transition-colors flex-shrink-0 rounded opacity-0 group-hover:opacity-100">
+                                                        class="px-3 py-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors flex-shrink-0">
                                                     <i class="fas fa-ellipsis-v text-xs"></i>
                                                 </button>
 
                                                 <!-- Action Context Menu -->
                                                 <div x-show="activeCategoryActionMenu === cat.id" 
+                                                     @click.stop="$event"
                                                      @click.away="activeCategoryActionMenu = null"
                                                      x-transition:enter="transition ease-out duration-100"
                                                      x-transition:enter-start="opacity-0 scale-95"
