@@ -270,8 +270,14 @@
 
                         <div>
                             <label class="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1.5 block">Truck Name</label>
-                            <div class="px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl">
-                                <p id="detail-truck-name" class="text-sm font-bold text-gray-800"></p>
+                            <div class="flex items-center gap-2">
+                                <div id="detail-truck-name-display" class="flex-1 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl">
+                                    <p id="detail-truck-name" class="text-sm font-bold text-gray-800"></p>
+                                </div>
+                                <input type="text" id="detail-truck-name-edit" class="hidden flex-1 px-4 py-2.5 bg-white border border-blue-300 rounded-xl text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none">
+                                <button onclick="toggleEditMode('truckName')" class="px-3 py-2.5 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-xl transition-all flex-shrink-0" title="Edit truck name">
+                                    <i class="fas fa-pen text-sm"></i>
+                                </button>
                             </div>
                         </div>
 
@@ -283,17 +289,23 @@
                         </div>
 
                         <div>
-                            <label class="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1.5 block">Operational Status</label>
-                            <div id="detail-status-box" class="px-4 py-3 rounded-xl border flex items-center gap-3">
-                                <div id="detail-status-dot" class="w-2.5 h-2.5 rounded-full flex-shrink-0"></div>
-                                <span id="detail-status-text" class="text-sm font-bold"></span>
+                            <label class="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1.5 block">Truck Description</label>
+                            <div class="flex items-start gap-2">
+                                <div id="detail-desc-display" class="flex-1 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl">
+                                    <p id="detail-desc" class="text-sm font-medium text-gray-700 leading-relaxed"></p>
+                                </div>
+                                <textarea id="detail-desc-edit" class="hidden flex-1 px-4 py-2.5 bg-white border border-blue-300 rounded-xl text-sm font-medium resize-none focus:ring-2 focus:ring-blue-500 outline-none" rows="4"></textarea>
+                                <button onclick="toggleEditMode('description')" class="px-3 py-2.5 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-xl transition-all flex-shrink-0 mt-1" title="Edit description">
+                                    <i class="fas fa-pen text-sm"></i>
+                                </button>
                             </div>
                         </div>
 
                         <div>
-                            <label class="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1.5 block">Description</label>
-                            <div class="px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl">
-                                <p id="detail-desc" class="text-sm font-medium text-gray-700 leading-relaxed"></p>
+                            <label class="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1.5 block">Operational Status</label>
+                            <div id="detail-status-box" class="px-4 py-3 rounded-xl border flex items-center gap-3">
+                                <div id="detail-status-dot" class="w-2.5 h-2.5 rounded-full flex-shrink-0"></div>
+                                <span id="detail-status-text" class="text-sm font-bold"></span>
                             </div>
                         </div>
 
@@ -376,6 +388,20 @@
 
                     </div>
 
+                </div>
+
+                <!-- Modal Footer with Update & Cancel Buttons -->
+                <div class="px-6 py-4 border-t border-gray-100 flex-shrink-0 flex items-center justify-end gap-3 bg-gray-50">
+                    <button id="modal-close-btn" onclick="closeModal()" class="px-6 py-2.5 border-2 border-gray-300 rounded-xl text-sm font-bold text-gray-700 hover:bg-gray-100 hover:border-gray-400 transition-all">
+                        Close
+                    </button>
+                    <button id="modal-cancel-btn" onclick="cancelEditMode()" class="hidden px-6 py-2.5 border-2 border-gray-200 rounded-xl text-sm font-bold text-gray-600 hover:bg-gray-100 hover:border-gray-300 transition-all">
+                        Cancel
+                    </button>
+                    <button id="modal-update-btn" onclick="updateTruckDetails()" class="hidden px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold shadow-md transition-all flex items-center gap-2">
+                        <i class="fas fa-save text-sm"></i>
+                        <span>Update</span>
+                    </button>
                 </div>
             </div>
         </div>
@@ -511,7 +537,106 @@
             });
             if (tab === 'orders' && !_ordersLoaded) loadOrders();
         }
+        // â"€â"€â"€ Edit Mode Functions â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+        var _editMode = { truckName: false, description: false };
 
+        function toggleEditMode(field) {
+            _editMode[field] = !_editMode[field];
+
+            if (field === 'truckName') {
+                var displayEl = document.getElementById('detail-truck-name-display');
+                var inputEl = document.getElementById('detail-truck-name-edit');
+                if (_editMode.truckName) {
+                    inputEl.value = document.getElementById('detail-truck-name').textContent;
+                    displayEl.classList.add('hidden');
+                    inputEl.classList.remove('hidden');
+                    inputEl.focus();
+                } else {
+                    displayEl.classList.remove('hidden');
+                    inputEl.classList.add('hidden');
+                }
+            } else if (field === 'description') {
+                var displayEl = document.getElementById('detail-desc-display');
+                var inputEl = document.getElementById('detail-desc-edit');
+                if (_editMode.description) {
+                    inputEl.value = document.getElementById('detail-desc').textContent;
+                    displayEl.classList.add('hidden');
+                    inputEl.classList.remove('hidden');
+                    inputEl.focus();
+                } else {
+                    displayEl.classList.remove('hidden');
+                    inputEl.classList.add('hidden');
+                }
+            }
+
+            // Show/hide action buttons if any field is in edit mode
+            var isAnyFieldEditing = _editMode.truckName || _editMode.description;
+            var closeBtn = document.getElementById('modal-close-btn');
+            var cancelBtn = document.getElementById('modal-cancel-btn');
+            var updateBtn = document.getElementById('modal-update-btn');
+            if (isAnyFieldEditing) {
+                closeBtn.classList.add('hidden');
+                cancelBtn.classList.remove('hidden');
+                updateBtn.classList.remove('hidden');
+            } else {
+                closeBtn.classList.remove('hidden');
+                cancelBtn.classList.add('hidden');
+                updateBtn.classList.add('hidden');
+            }
+        }
+
+        function cancelEditMode() {
+            _editMode.truckName = false;
+            _editMode.description = false;
+            document.getElementById('detail-truck-name-display').classList.remove('hidden');
+            document.getElementById('detail-truck-name-edit').classList.add('hidden');
+            document.getElementById('detail-desc-display').classList.remove('hidden');
+            document.getElementById('detail-desc-edit').classList.add('hidden');
+            document.getElementById('modal-close-btn').classList.remove('hidden');
+            document.getElementById('modal-cancel-btn').classList.add('hidden');
+            document.getElementById('modal-update-btn').classList.add('hidden');
+        }
+
+        function updateTruckDetails() {
+            if (!_currentTruck) return;
+            var truckName = document.getElementById('detail-truck-name-edit').value || '';
+            var description = document.getElementById('detail-desc-edit').value || '';
+
+            if (!truckName.trim()) {
+                alert('Please enter a truck name');
+                return;
+            }
+
+            var updateData = {
+                foodtruck_name: truckName,
+                foodtruck_desc: description
+            };
+
+            fetch('/admin/trucks/' + _currentTruck.id + '/update-details', {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                },
+                body: JSON.stringify(updateData)
+            })
+            .then(function(res) { return res.json(); })
+            .then(function(data) {
+                if (data.success) {
+                    _currentTruck.foodtruck_name = data.truck.foodtruck_name;
+                    _currentTruck.foodtruck_desc = data.truck.foodtruck_desc;
+                    populateTruckTab();
+                    cancelEditMode();
+                    alert('Truck details updated successfully!');
+                } else {
+                    alert('Error: ' + (data.message || 'Failed to update truck details'));
+                }
+            })
+            .catch(function(e) {
+                console.error(e);
+                alert('Error: Failed to update truck details. Please try again.');
+            });
+        }
         // â”€â”€â”€ Tab 1: Truck Details â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         function populateTruckTab() {
             var t = _currentTruck;

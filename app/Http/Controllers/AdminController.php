@@ -58,6 +58,28 @@ class AdminController extends Controller
     }
 
     /**
+     * Update truck details (name, description).
+     */
+    public function updateTruckDetails(Request $request, $truckId)
+    {
+        $request->validate([
+            'foodtruck_name' => 'required|string|max:255',
+            'foodtruck_desc' => 'nullable|string|max:1000',
+        ]);
+
+        $truck = FoodTruck::findOrFail($truckId);
+        $truck->foodtruck_name = $request->input('foodtruck_name');
+        $truck->foodtruck_desc = $request->input('foodtruck_desc');
+        $truck->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Truck details updated successfully',
+            'truck' => $truck,
+        ]);
+    }
+
+    /**
      * Approve a food truck.
      */
     public function approveTruck($id)
