@@ -9,7 +9,11 @@
     $menus = $menuItems ?? [];
 @endphp
 
-<div x-data="{
+<script>
+function ftadminDashboard() {
+    const workers   = @json($workers);
+    const menuItems = @json($menus);
+    return {
         showStaffModal: false,
         showMenuModal: false,
         showOperationalModal: false,
@@ -35,15 +39,111 @@
         showMenuCreateForm: false,
         searchQuery: '',
         menuSearchQuery: '',
-        workers: {{ json_encode($workers) }},
-        menuItems: {{ json_encode($menus) }},
+        workers,
+        menuItems,
         staffFilter: '',
         showStaffFilter: false,
         menuCategoryFilter: '',
         showMenuFilter: false,
+        dashboardCategories: [],
+        showCreateCategoryModal: false,
+        newCategoryName: '',
+        newCategoryColor: 'purple',
+        createCategoryLoading: false,
+        activeCategoryActionMenu: null,
+        showEditCategoryModal: false,
+        editingCategory: null,
+        editCategoryName: '',
+        editCategoryColor: 'purple',
+        editCategoryLoading: false,
+        colorOptions: [
+            { name: 'Purple', value: 'purple', class: 'bg-purple-500' },
+            { name: 'Blue', value: 'blue', class: 'bg-blue-500' },
+            { name: 'Green', value: 'green', class: 'bg-green-500' },
+            { name: 'Red', value: 'red', class: 'bg-red-500' },
+            { name: 'Pink', value: 'pink', class: 'bg-pink-500' },
+            { name: 'Amber', value: 'amber', class: 'bg-amber-500' },
+            { name: 'Cyan', value: 'cyan', class: 'bg-cyan-500' },
+            { name: 'Indigo', value: 'indigo', class: 'bg-indigo-500' },
+        ],
         menuSuccessMessage: '',
         showMenuSuccess: false,
         _menuSuccessTimer: null,
+        
+        /* ── Truck Profile ── */
+        showTruckProfileModal: false,
+        truckProfile: {},
+        truckName: '',
+        businessLicense: '',
+        truckDescription: '',
+        truckProfileSaving: false,
+        truckProfileLoading: false,
+        
+        async loadTruckProfile() {
+            this.truckProfileLoading = true;
+            try {
+                const res = await fetch('/ftadmin/truck-profile', {
+                    method: 'GET',
+                    headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content }
+                });
+                const data = await res.json();
+                if (data.success) {
+                    this.truckProfile = data.truck;
+                    this.truckName = data.truck.foodtruck_name || '';
+                    this.businessLicense = data.truck.business_license_no || '';
+                    this.truckDescription = data.truck.foodtruck_desc || '';
+                }
+            } catch(e) { console.error(e); }
+            this.truckProfileLoading = false;
+        },
+        
+        openTruckProfileModal() {
+            this.loadTruckProfile();
+            this.showTruckProfileModal = true;
+        },
+        
+        closeTruckProfileModal() {
+            this.showTruckProfileModal = false;
+            this.truckName = '';
+            this.businessLicense = '';
+            this.truckDescription = '';
+        },
+        
+        async saveTruckProfile() {
+            if (!this.truckName.trim()) {
+                alert('Please enter the truck name');
+                return;
+            }
+            if (!this.businessLicense.trim()) {
+                alert('Please enter the business license number');
+                return;
+            }
+            
+            this.truckProfileSaving = true;
+            try {
+                const res = await fetch('/ftadmin/truck-profile', {
+                    method: 'POST',
+                    headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content },
+                    body: JSON.stringify({
+                        foodtruck_name: this.truckName,
+                        business_license_no: this.businessLicense,
+                        foodtruck_desc: this.truckDescription
+                    })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    alert('Truck profile updated successfully!');
+                    this.closeTruckProfileModal();
+                } else {
+                    alert('Error: ' + (data.message || 'Failed to update truck profile'));
+                }
+            } catch(e) { 
+                console.error(e);
+                alert('Error: Failed to update truck profile. Please try again.');
+            }
+            this.truckProfileSaving = false;
+        },
+        
         async submitAddMenuForm() {
             // Validate pricing: either base_price OR all choice prices must be filled
             if (!this.hasValidPricing(this.formData.base_price, this.optionGroups)) {
@@ -134,6 +234,144 @@
             this._choiceIdCounter = 0;
             this.addOptionGroup();
         },
+        
+        /* ── Category Management ── */
+        async loadCategories() {
+            try {
+                const res = await fetch('/ftadmin/menu-category/list', {
+                    method: 'GET',
+                    headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content }
+                });
+                const data = await res.json();
+                if (data.success) this.dashboardCategories = data.categories;
+            } catch(e) { console.error(e); }
+        },
+        
+        openCreateCategoryModal() {
+            this.showCreateCategoryModal = true;
+            this.newCategoryName = '';
+            this.newCategoryColor = 'purple';
+        },
+        
+        closeCreateCategoryModal() {
+            this.showCreateCategoryModal = false;
+            this.newCategoryName = '';
+            this.newCategoryColor = 'purple';
+        },
+        
+        async createCategory() {
+            if (!this.newCategoryName.trim()) {
+                alert('Please enter a category name');
+                return;
+            }
+            if (this.dashboardCategories.some(c => c.name.toLowerCase() === this.newCategoryName.toLowerCase())) {
+                alert('This category already exists');
+                return;
+            }
+            this.createCategoryLoading = true;
+            try {
+                const res = await fetch('/ftadmin/menu-category/create', {
+                    method: 'POST',
+                    headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content },
+                    body: JSON.stringify({ name: this.newCategoryName, color: this.newCategoryColor })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    this.dashboardCategories.push(data.category);
+                    this.closeCreateCategoryModal();
+                } else {
+                    alert('Error: ' + (data.message || 'Failed to create category'));
+                }
+            } catch(e) { 
+                console.error(e);
+                alert('Error: Failed to create category. Please try again.');
+            }
+            this.createCategoryLoading = false;
+        },
+        
+        getColorClass(color) {
+            const colors = {
+                'purple': 'bg-purple-500',
+                'blue': 'bg-blue-500',
+                'green': 'bg-green-500',
+                'red': 'bg-red-500',
+                'pink': 'bg-pink-500',
+                'amber': 'bg-amber-500',
+                'cyan': 'bg-cyan-500',
+                'indigo': 'bg-indigo-500',
+            };
+            return colors[color] || 'bg-gray-500';
+        },
+        
+        openEditCategoryModal(category) {
+            this.editingCategory = category;
+            this.editCategoryName = category.name;
+            this.editCategoryColor = category.color;
+            this.showEditCategoryModal = true;
+        },
+        
+        closeEditCategoryModal() {
+            this.showEditCategoryModal = false;
+            this.editingCategory = null;
+            this.editCategoryName = '';
+            this.editCategoryColor = 'purple';
+        },
+        
+        async updateCategory() {
+            if (!this.editingCategory) return;
+            if (!this.editCategoryName.trim()) {
+                alert('Please enter a category name');
+                return;
+            }
+            
+            if (this.dashboardCategories.some(c => c.id !== this.editingCategory.id && c.name.toLowerCase() === this.editCategoryName.toLowerCase())) {
+                alert('A category with this name already exists');
+                return;
+            }
+
+            this.editCategoryLoading = true;
+            try {
+                const res = await fetch('/ftadmin/menu-category/' + this.editingCategory.id, {
+                    method: 'PATCH',
+                    headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content },
+                    body: JSON.stringify({ name: this.editCategoryName, color: this.editCategoryColor })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    const idx = this.dashboardCategories.findIndex(c => c.id === this.editingCategory.id);
+                    if (idx >= 0) this.dashboardCategories[idx] = data.category;
+                    this.closeEditCategoryModal();
+                } else {
+                    alert('Error: ' + (data.message || 'Failed to update category'));
+                }
+            } catch(e) { 
+                console.error(e);
+                alert('Error: Failed to update category. Please try again.');
+            }
+            this.editCategoryLoading = false;
+        },
+        
+        async deleteCategory(category) {
+            if (!confirm('Delete category "' + category.name + '"? Menu items in this category will be moved to Uncategorized.')) return;
+
+            try {
+                const res = await fetch('/ftadmin/menu-category/' + category.id, {
+                    method: 'DELETE',
+                    headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content }
+                });
+                const data = await res.json();
+                if (data.success) {
+                    this.dashboardCategories = this.dashboardCategories.filter(c => c.id !== category.id);
+                    if (this.menuCategoryFilter === category.name) this.menuCategoryFilter = '';
+                } else {
+                    alert('Error: ' + (data.message || 'Failed to delete category'));
+                }
+            } catch(e) { 
+                console.error(e);
+                alert('Error: Failed to delete category. Please try again.');
+            }
+        },
+        
         matches(worker) {
             if (this.staffFilter && worker.status !== this.staffFilter) return false;
             if (!this.searchQuery) return true;
@@ -626,8 +864,8 @@
                 img.src = this.imageDataUrl;
             }
             this.showRatioOptions = false;
-        }
-,
+        },
+
         /* compute scale so the internal crop viewport fits inside fixed container */
         getViewportScale() {
             const cw = this.adjusterContainerSize;
@@ -642,30 +880,37 @@
             return `width: ${w}px; height: ${h}px;`;
         },
 
-     }"
-     x-init="
-         const saved = localStorage.getItem('ftos_addMenuForm');
-         if (saved) {
-             try {
-                 const d = JSON.parse(saved);
-                 if (d.name)        formData.name        = d.name;
-                 if (d.category)    formData.category    = d.category;
-                 if (d.base_price)  formData.base_price  = d.base_price;
-                 if (d.quantity)    formData.quantity    = d.quantity;
-                 if (d.description) formData.description = d.description;
-             } catch(e) {}
-         }
-         const save = () => localStorage.setItem('ftos_addMenuForm', JSON.stringify(formData));
-         $watch('formData.name',        save);
-         $watch('formData.category',    save);
-         $watch('formData.base_price',  save);
-         $watch('formData.quantity',    save);
-         $watch('formData.description', save);
-         // ensure empty preview sizing is calculated and kept on resize
-         updateEmptyImageSize();
-         window.addEventListener('resize', updateEmptyImageSize);
-     "
-     class="relative min-h-full flex flex-col">
+        init() {
+            // Load custom categories and truck profile
+            this.loadCategories();
+            this.loadTruckProfile();
+
+            const saved = localStorage.getItem('ftos_addMenuForm');
+            if (saved) {
+                try {
+                    const d = JSON.parse(saved);
+                    if (d.name)        this.formData.name        = d.name;
+                    if (d.category)    this.formData.category    = d.category;
+                    if (d.base_price)  this.formData.base_price  = d.base_price;
+                    if (d.quantity)    this.formData.quantity    = d.quantity;
+                    if (d.description) this.formData.description = d.description;
+                } catch(e) {}
+            }
+            const save = () => localStorage.setItem('ftos_addMenuForm', JSON.stringify(this.formData));
+            this.$watch('formData.name',        save);
+            this.$watch('formData.category',    save);
+            this.$watch('formData.base_price',  save);
+            this.$watch('formData.quantity',    save);
+            this.$watch('formData.description', save);
+            // ensure empty preview sizing is calculated and kept on resize
+            this.updateEmptyImageSize();
+            window.addEventListener('resize', () => this.updateEmptyImageSize());
+        },
+    };
+}
+</script>
+
+<div x-data="ftadminDashboard()" x-init="init()" class="relative min-h-full flex flex-col">
 
     <!-- Fixed Top Header -->
     <header class="bg-white border-b border-gray-200 h-16 flex items-center justify-between px-6 z-20 flex-shrink-0">
@@ -719,8 +964,8 @@
                     <p class="text-gray-500 mt-1 font-medium">Welcome back, {{ $user->full_name }}</p>
                 </div>
 
-                <!-- 2×2 Tab Grid -->
-                <div class="grid grid-cols-[3fr_2fr] gap-5 h-[calc(100vh-14rem)]">
+                <!-- Top Row: 2 Columns (3fr_2fr ratio) -->
+                <div class="grid grid-cols-[3fr_2fr] gap-5 h-[calc((100vh-14rem)/2-5px)]">
 
                     <!-- Row 1 Col 1 — Total Revenue -->
                     <div class="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 flex flex-col justify-between">
@@ -737,7 +982,7 @@
                     </div>
 
                     <!-- Row 1 Col 2 — Menu Items -->
-                    <button @click="showMenuModal = true; showMenuCreateForm = false; resetMenuForm()"
+                    <button @click="loadCategories(); showMenuModal = true; showMenuCreateForm = false; resetMenuForm()"
                             class="text-left bg-white p-8 rounded-3xl border border-gray-100 shadow-sm hover:border-purple-300 hover:shadow-md transition-all group outline-none flex flex-col justify-between">
                         <div>
                             <div class="flex items-center justify-between mb-6">
@@ -751,6 +996,11 @@
                         </div>
                         <span class="text-xs font-bold text-purple-500 uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity">Manage Menu</span>
                     </button>
+
+                </div>
+
+                <!-- Bottom Row: 3 Columns (equal width) -->
+                <div class="grid grid-cols-3 gap-5 h-[calc((100vh-14rem)/2-5px)]">
 
                     <!-- Row 2 Col 1 — Truck Operational Status -->
                     <button @click="showOperationalModal = true"
@@ -778,7 +1028,23 @@
                               :class="isOperational ? 'text-emerald-500' : 'text-red-400'">Manage Status</span>
                     </button>
 
-                    <!-- Row 2 Col 2 — Active Staff -->
+                    <!-- Row 2 Col 2 — Truck Profile -->
+                    <button @click="openTruckProfileModal()"
+                            class="text-left bg-white p-8 rounded-3xl border border-gray-100 shadow-sm hover:border-teal-300 hover:shadow-md transition-all group outline-none flex flex-col justify-between">
+                        <div>
+                            <div class="flex items-center justify-between mb-6">
+                                <div class="p-4 bg-teal-50 text-teal-600 rounded-2xl group-hover:bg-teal-600 group-hover:text-white transition-all duration-300">
+                                    <i class="fas fa-info-circle text-2xl"></i>
+                                </div>
+                                <i class="fas fa-expand-alt text-gray-300 text-sm group-hover:text-teal-500 transition-colors"></i>
+                            </div>
+                            <h3 class="text-sm font-bold text-gray-400 uppercase tracking-widest mb-2">Truck Profile</h3>
+                            <p class="text-lg font-black text-gray-900">Your Truck</p>
+                        </div>
+                        <span class="text-xs font-bold text-teal-500 uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity">View Details</span>
+                    </button>
+
+                    <!-- Row 2 Col 3 — Active Staff -->
                     <button @click="showStaffModal = true; showCreateForm = false; resetForm()"
                             class="text-left bg-white p-8 rounded-3xl border border-gray-100 shadow-sm hover:border-orange-300 hover:shadow-md transition-all group outline-none flex flex-col justify-between">
                         <div>
@@ -1188,6 +1454,98 @@
         </div>
     </div>
 
+    <!-- TRUCK PROFILE MODAL -->
+    <div x-show="showTruckProfileModal"
+         style="display:none;"
+         x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
+         class="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+
+        <div @click.away="closeTruckProfileModal()"
+             x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 scale-95 translate-y-2" x-transition:enter-end="opacity-100 scale-100 translate-y-0"
+             class="bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden border border-white/20 flex flex-col h-[75vh] max-h-[600px]">
+
+            <!-- Header (Fixed) -->
+            <div class="px-8 py-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/50 flex-shrink-0">
+                <div class="flex items-center space-x-4">
+                    <div class="bg-teal-600 text-white p-3 rounded-2xl shadow-lg shadow-teal-100">
+                        <i class="fas fa-truck"></i>
+                    </div>
+                    <div>
+                        <h2 class="text-xl font-black text-gray-800 tracking-tight">Truck Profile</h2>
+                        <p class="text-xs text-gray-400 font-bold uppercase tracking-widest mt-0.5">Update your food truck details</p>
+                    </div>
+                </div>
+                <button @click="closeTruckProfileModal()" class="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-red-50 text-gray-400 hover:text-red-500 transition-all">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <!-- Body (Scrollable) -->
+            <div class="flex-1 overflow-y-auto px-8 py-8">
+                
+                <div x-show="truckProfileLoading" class="flex items-center justify-center h-full">
+                    <div class="text-center">
+                        <div class="w-12 h-12 rounded-full border-4 border-teal-100 border-t-teal-500 animate-spin mx-auto mb-4"></div>
+                        <p class="text-sm font-bold text-gray-400">Loading truck profile...</p>
+                    </div>
+                </div>
+
+                <div x-show="!truckProfileLoading" class="space-y-6 max-w-xl">
+                    <!-- Truck Name -->
+                    <div class="space-y-2">
+                        <label class="text-[11px] font-black uppercase tracking-widest text-gray-400 ml-1">Truck Name <span class="text-red-500">*</span></label>
+                        <div class="relative group">
+                            <i class="fas fa-truck absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-teal-500 transition-colors"></i>
+                            <input type="text" x-model="truckName" placeholder="Enter truck name"
+                                   class="w-full pl-11 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl focus:bg-white focus:ring-4 focus:ring-teal-500/10 focus:border-teal-500 transition-all outline-none text-sm font-bold placeholder:text-gray-300">
+                        </div>
+                    </div>
+
+                    <!-- Business License -->
+                    <div class="space-y-2">
+                        <label class="text-[11px] font-black uppercase tracking-widest text-gray-400 ml-1">Business License Number <span class="text-red-500">*</span></label>
+                        <div class="relative group">
+                            <i class="fas fa-certificate absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-teal-500 transition-colors"></i>
+                            <input type="text" x-model="businessLicense" placeholder="Enter business license number"
+                                   class="w-full pl-11 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl focus:bg-white focus:ring-4 focus:ring-teal-500/10 focus:border-teal-500 transition-all outline-none text-sm font-bold placeholder:text-gray-300">
+                        </div>
+                    </div>
+
+                    <!-- Description -->
+                    <div class="space-y-2">
+                        <label class="text-[11px] font-black uppercase tracking-widest text-gray-400 ml-1">Truck Description</label>
+                        <div class="relative group">
+                            <textarea x-model="truckDescription" placeholder="Enter a description about your food truck"
+                                      rows="4"
+                                      class="w-full px-4 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl focus:bg-white focus:ring-4 focus:ring-teal-500/10 focus:border-teal-500 transition-all outline-none text-sm font-bold placeholder:text-gray-300 resize-none"></textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer (Fixed) -->
+            <div class="px-8 py-6 bg-gray-50/80 border-t border-gray-100 flex items-center justify-between flex-shrink-0">
+                <p class="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Authorized Access Only</p>
+                <div class="flex gap-3">
+                    <button @click="closeTruckProfileModal()"
+                            class="px-6 py-3 border-2 border-gray-200 rounded-2xl text-sm font-black text-gray-600 hover:border-gray-300 hover:bg-white transition-all active:scale-[0.98]">
+                        Cancel
+                    </button>
+                    <button @click="saveTruckProfile()"
+                            :disabled="truckProfileSaving || truckProfileLoading"
+                            class="px-6 py-3 bg-teal-600 text-white rounded-2xl text-sm font-black hover:bg-teal-700 shadow-lg shadow-teal-200 hover:shadow-teal-300 transition-all active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed">
+                        <span x-show="!truckProfileSaving">Save Changes</span>
+                        <span x-show="truckProfileSaving" class="flex items-center gap-2">
+                            <i class="fas fa-spinner animate-spin"></i>
+                            Saving...
+                        </span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- MENU MODAL -->
     <div x-show="showMenuModal"
          class="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm"
@@ -1271,7 +1629,7 @@
                                 </button>
 
                                 <div x-show="showMenuFilter"
-                                     @click.away="showMenuFilter = false"
+                                     @click.away="showMenuFilter = false; activeCategoryActionMenu = null"
                                      x-transition:enter="transition ease-out duration-150"
                                      x-transition:enter-start="opacity-0 scale-95"
                                      x-transition:enter-end="opacity-100 scale-100"
@@ -1310,8 +1668,75 @@
                                         <span class="w-2 h-2 rounded-full bg-pink-500 flex-shrink-0"></span>
                                         Desserts
                                     </button>
+
+                                    <!-- Divider (show only if custom categories exist) -->
+                                    <div x-show="dashboardCategories.filter(c => c.name !== 'Uncategorized').length > 0" class="border-t border-gray-50 mx-3 my-0.5"></div>
+
+                                    <!-- Custom Categories (with action buttons) - Exclude "Uncategorized" since it's a default category -->
+                                    <template x-for="cat in dashboardCategories.filter(c => c.name !== 'Uncategorized')" :key="cat.id">
+                                        <div class="flex items-center justify-between px-2 py-1 hover:bg-gray-50 group transition-colors rounded-lg mx-1">
+                                            <button type="button" @click.stop="menuCategoryFilter = cat.name; showMenuFilter = false"
+                                                    :class="menuCategoryFilter === cat.name ? 'font-black' : 'text-gray-500 hover:text-gray-700'"
+                                                    class="flex-1 text-left px-2 py-2 text-xs font-bold flex items-center gap-2.5 transition-colors">
+                                                <span class="w-2 h-2 rounded-full flex-shrink-0" :class="getColorClass(cat.color)"></span>
+                                                <span x-text="cat.name"></span>
+                                            </button>
+                                            
+                                            <!-- Action button (3 dots) -->
+                                            <div class="relative">
+                                                <button type="button" @click.stop="activeCategoryActionMenu = activeCategoryActionMenu === cat.id ? null : cat.id"
+                                                        class="px-2 py-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-200 transition-colors flex-shrink-0 rounded opacity-0 group-hover:opacity-100">
+                                                    <i class="fas fa-ellipsis-v text-xs"></i>
+                                                </button>
+
+                                                <!-- Action Context Menu -->
+                                                <div x-show="activeCategoryActionMenu === cat.id" 
+                                                     @click.away="activeCategoryActionMenu = null"
+                                                     x-transition:enter="transition ease-out duration-100"
+                                                     x-transition:enter-start="opacity-0 scale-95"
+                                                     x-transition:enter-end="opacity-100 scale-100"
+                                                     style="display:none;"
+                                                     class="absolute right-0 top-full mt-1 bg-white rounded-lg shadow-lg border border-gray-200 py-1 w-40 z-50">
+                                                    
+                                                    <!-- Rename option -->
+                                                    <button type="button" @click.stop="openEditCategoryModal(cat); activeCategoryActionMenu = null"
+                                                            class="w-full text-left px-4 py-2.5 text-xs font-bold text-blue-600 hover:bg-blue-50 flex items-center gap-3 transition-colors">
+                                                        <i class="fas fa-pen-to-square w-3 text-center"></i>
+                                                        <span>Rename & Color</span>
+                                                    </button>
+
+                                                    <div class="border-t border-gray-100 my-1"></div>
+
+                                                    <!-- Delete option -->
+                                                    <button type="button" @click.stop="deleteCategory(cat); activeCategoryActionMenu = null"
+                                                            class="w-full text-left px-4 py-2.5 text-xs font-bold text-red-600 hover:bg-red-50 flex items-center gap-3 transition-colors">
+                                                        <i class="fas fa-trash w-3 text-center"></i>
+                                                        <span>Delete</span>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </template>
+
+                                    <!-- Divider before Uncategorized -->
+                                    <div class="border-t border-gray-50 mx-3 my-0.5"></div>
+
+                                    <!-- Uncategorized (default category - NO action button, placed at bottom) -->
+                                    <button type="button" @click.stop="menuCategoryFilter = 'Uncategorized'; showMenuFilter = false"
+                                            :class="menuCategoryFilter === 'Uncategorized' ? 'bg-gray-100 font-black text-gray-700' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-600'"
+                                            class="w-full text-left px-4 py-2 text-xs font-bold flex items-center gap-2.5 transition-colors">
+                                        <span class="w-2 h-2 rounded-full bg-gray-400 flex-shrink-0"></span>
+                                        Uncategorized
+                                    </button>
                                 </div>
                             </div>
+
+                            <!-- +New Category Button (moved here, next to filter) -->
+                            <button type="button" @click="openCreateCategoryModal()"
+                                    class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold bg-blue-600 text-white hover:bg-blue-700 transition-all shadow-sm">
+                                <i class="fas fa-plus text-xs"></i>
+                                <span>New Category</span>
+                            </button>
                         </div><!-- end search+filter group -->
 
                         <button @click="showMenuCreateForm = true; resetMenuForm()" class="inline-flex items-center px-5 py-2.5 bg-slate-900 hover:bg-purple-600 text-white text-sm font-bold rounded-xl shadow-md transition-all active:scale-95 group">
@@ -1988,7 +2413,7 @@
 
                         {{-- Row 4: Buttons --}}
                         <div class="md:col-span-2 pt-4 flex items-center space-x-4">
-                            <button type="button" @click.stop="closeMenuEdit(); showMenuModal = true;"
+                            <button type="button" @click.stop="closeMenuEdit(); loadCategories(); showMenuModal = true;"
                                     class="flex-1 px-8 py-4 border-2 border-gray-100 rounded-2xl text-sm font-black text-gray-400 hover:bg-gray-50 hover:text-gray-600 transition-all active:scale-[0.98]">
                                 <i class="fas fa-arrow-left mr-2"></i>
                                 Back
@@ -2212,6 +2637,158 @@
 
     </div>
 
+    <!-- CREATE CATEGORY MODAL -->
+    <div x-show="showCreateCategoryModal"
+         style="display:none;"
+         x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
+         class="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+
+        <div @click.away="closeCreateCategoryModal()"
+             x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 scale-95 translate-y-2" x-transition:enter-end="opacity-100 scale-100 translate-y-0"
+             class="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden border border-white/20 flex flex-col h-auto">
+
+            <!-- Header (Fixed) -->
+            <div class="px-8 py-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/50 flex-shrink-0">
+                <div class="flex items-center space-x-4">
+                    <div class="bg-blue-600 text-white p-3 rounded-2xl shadow-lg shadow-blue-100">
+                        <i class="fas fa-plus"></i>
+                    </div>
+                    <div>
+                        <h2 class="text-xl font-black text-gray-800 tracking-tight">Create New Category</h2>
+                        <p class="text-xs text-gray-400 font-bold uppercase tracking-widest mt-0.5">Add a custom menu category</p>
+                    </div>
+                </div>
+                <button @click="closeCreateCategoryModal()"
+                        class="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-red-50 text-gray-400 hover:text-red-500 transition-all">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <!-- Body (Scrollable) -->
+            <div class="px-8 py-8 space-y-6 overflow-y-auto">
+
+                <!-- Category Name Input -->
+                <div class="space-y-2">
+                    <label class="text-[11px] font-black uppercase tracking-widest text-gray-400 ml-1">Category Name <span class="text-red-500">*</span></label>
+                    <div class="relative group">
+                        <i class="fas fa-tag absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-blue-500 transition-colors"></i>
+                        <input type="text" x-model="newCategoryName" 
+                               @keydown.enter="createCategory()"
+                               placeholder="e.g., Alacarte, Set, Promotions"
+                               class="w-full pl-11 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all outline-none text-sm font-bold placeholder:text-gray-300">
+                    </div>
+                </div>
+
+                <!-- Color Picker -->
+                <div class="space-y-2">
+                    <label class="text-[11px] font-black uppercase tracking-widest text-gray-400 ml-1">Color</label>
+                    <div class="flex flex-wrap gap-4">
+                        <template x-for="color in colorOptions" :key="color.value">
+                            <button type="button"
+                                    @click="newCategoryColor = color.value"
+                                    :class="newCategoryColor === color.value ? 'ring-2 ring-offset-2 ring-blue-600 scale-110' : 'hover:scale-105'"
+                                    class="flex flex-col items-center gap-2 transition-all">
+                                <div :class="color.class + ' w-10 h-10 rounded-full border-2 border-white shadow-md transition-all'"></div>
+                                <span class="text-[10px] font-bold text-gray-600 text-center" x-text="color.name"></span>
+                            </button>
+                        </template>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer (Fixed) -->
+            <div class="px-8 py-6 bg-gray-50/80 border-t border-gray-100 flex items-center justify-between gap-3 flex-shrink-0">
+                <button @click="closeCreateCategoryModal()"
+                        class="flex-1 px-6 py-3 border-2 border-gray-200 rounded-2xl text-sm font-bold text-gray-600 hover:border-gray-300 hover:bg-white transition-all active:scale-[0.98]">
+                    Cancel
+                </button>
+                <button @click="createCategory()"
+                        :disabled="createCategoryLoading"
+                        class="flex-1 px-6 py-3 bg-blue-600 text-white rounded-2xl text-sm font-bold hover:bg-blue-700 shadow-lg shadow-blue-200 hover:shadow-blue-300 transition-all active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed"
+                        :class="createCategoryLoading ? 'opacity-60' : ''">
+                    <span x-show="!createCategoryLoading" class="flex items-center justify-center gap-2">
+                        <i class="fas fa-plus text-xs"></i>
+                        Create Category
+                    </span>
+                    <span x-show="createCategoryLoading" class="flex items-center justify-center gap-2">
+                        <i class="fas fa-spinner animate-spin text-xs"></i>
+                        Creating...
+                    </span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- EDIT CATEGORY MODAL -->
+    <div x-show="showEditCategoryModal"
+         @click.away="closeEditCategoryModal()"
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-150"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         style="display:none;"
+         class="fixed inset-0 bg-black/40 backdrop-blur-sm z-[90] flex items-center justify-center p-4">
+
+        <div x-transition:enter="transition ease-out duration-200"
+             x-transition:enter-start="opacity-0 scale-95 translate-y-2"
+             x-transition:enter-end="opacity-100 scale-100 translate-y-0"
+             class="bg-white rounded-3xl shadow-2xl w-full max-w-md flex flex-col">
+
+            <!-- Header -->
+            <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+                <div>
+                    <h2 class="text-base font-black text-gray-900">Edit Category</h2>
+                    <p class="text-xs text-gray-400 font-medium mt-0.5" x-text="editingCategory ? editingCategory.name : ''"></p>
+                </div>
+                <button @click="closeEditCategoryModal()" class="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-all">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <!-- Body -->
+            <div class="p-6 space-y-6">
+                <!-- Category Name -->
+                <div>
+                    <label class="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2 block">Category Name</label>
+                    <input type="text" x-model="editCategoryName" placeholder="Category name"
+                           @keydown.enter="updateCategory()"
+                           class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold placeholder:text-gray-300 outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all">
+                </div>
+
+                <!-- Color Picker -->
+                <div>
+                    <label class="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-3 block">Category Color</label>
+                    <div class="flex flex-wrap gap-3">
+                        <template x-for="color in colorOptions" :key="color.value">
+                            <button type="button"
+                                    @click="editCategoryColor = color.value"
+                                    :class="editCategoryColor === color.value ? 'ring-2 ring-offset-2 ring-blue-600 scale-110' : 'hover:scale-105'"
+                                    class="flex flex-col items-center gap-1.5 transition-all">
+                                <div :class="color.class + ' w-10 h-10 rounded-full border-2 border-white shadow-md transition-all'"></div>
+                                <span class="text-[10px] font-bold text-gray-600 text-center" x-text="color.name"></span>
+                            </button>
+                        </template>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="px-6 py-4 border-t border-gray-100 flex items-center gap-3">
+                <button @click="closeEditCategoryModal()"
+                        class="flex-1 px-6 py-3 border-2 border-gray-100 rounded-2xl text-sm font-black text-gray-400 hover:bg-gray-50 hover:text-gray-600 transition-all">
+                    Cancel
+                </button>
+                <button @click="updateCategory()" :disabled="editCategoryLoading"
+                        class="flex-[2] px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl text-sm font-black shadow-lg transition-all disabled:opacity-60 flex items-center justify-center gap-2">
+                    <i class="fas" :class="editCategoryLoading ? 'fa-spinner fa-spin' : 'fa-save'"></i>
+                    <span x-text="editCategoryLoading ? 'Saving...' : 'Save Changes'"></span>
+                </button>
+            </div>
+        </div>
+    </div>
 
 </div>
 

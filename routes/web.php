@@ -108,6 +108,47 @@ Route::middleware(['auth', 'ftadmin.status'])->prefix('ftadmin')->name('ftadmin.
         return response()->json(['success' => true, 'is_operational' => $truck->is_operational]);
     })->name('toggle-operational');
 
+    // Truck Profile
+    Route::get('/truck-profile', function () {
+        $user = Auth::user();
+        $truck = \App\Models\FoodTruck::find($user->foodtruck_id);
+        if (!$truck) return response()->json(['success' => false, 'message' => 'Truck not found'], 404);
+        return response()->json([
+            'success' => true,
+            'truck' => [
+                'id' => $truck->id,
+                'foodtruck_name' => $truck->foodtruck_name,
+                'business_license_no' => $truck->business_license_no,
+                'foodtruck_desc' => $truck->foodtruck_desc
+            ]
+        ]);
+    })->name('truck-profile.get');
+
+    Route::post('/truck-profile', function () {
+        $user = Auth::user();
+        $truck = \App\Models\FoodTruck::find($user->foodtruck_id);
+        if (!$truck) return response()->json(['success' => false, 'message' => 'Truck not found'], 404);
+        
+        $validated = request()->validate([
+            'foodtruck_name' => 'required|string|max:255',
+            'business_license_no' => 'required|string|max:255',
+            'foodtruck_desc' => 'nullable|string|max:1000'
+        ]);
+        
+        $truck->update($validated);
+        
+        return response()->json([
+            'success' => true,
+            'message' => 'Truck profile updated successfully',
+            'truck' => [
+                'id' => $truck->id,
+                'foodtruck_name' => $truck->foodtruck_name,
+                'business_license_no' => $truck->business_license_no,
+                'foodtruck_desc' => $truck->foodtruck_desc
+            ]
+        ]);
+    })->name('truck-profile.update');
+
     // Staff Management
     Route::post('/register-staff', [StaffController::class, 'store'])->name('register.staff');
     Route::post('/staff/{id}/deactivate', [StaffController::class, 'deactivate'])->name('staff.deactivate');

@@ -547,10 +547,10 @@ function manageMenusPage() {
                         </button>
 
                         <!-- Divider (show only if custom categories exist) -->
-                        <div x-show="categories.length > 0" class="border-t border-gray-50 mx-3 my-0.5"></div>
+                        <div x-show="categories.filter(c => c.name !== 'Uncategorized').length > 0" class="border-t border-gray-50 mx-3 my-0.5"></div>
 
-                        <!-- Custom Categories with Action Menu -->
-                        <template x-for="cat in categories" :key="cat.id">
+                        <!-- Custom Categories with Action Menu - Exclude "Uncategorized" since it's a default category -->
+                        <template x-for="cat in categories.filter(c => c.name !== 'Uncategorized')" :key="cat.id">
                             <div class="relative flex items-center">
                                 <!-- Category filter button -->
                                 <button type="button" @click.stop="categoryFilter = cat.name; showCategoryFilter = false"
