@@ -79,13 +79,13 @@
                 <h3 class="font-semibold text-indigo-700">Food Truck Details</h3>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div class="space-y-1">
-                        <label class="text-sm font-medium text-gray-700">Food Truck Name</label>
+                        <label class="text-sm font-medium text-gray-700">Food Truck Name <span class="text-red-500">*</span></label>
                         <input type="text" name="foodtruck_name" value="{{ old('foodtruck_name') }}" 
                                class="w-full px-4 py-2 border {{ $errors->has('foodtruck_name') ? 'border-red-500' : 'border-gray-300' }} rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
                         @error('foodtruck_name') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                     </div>
                     <div class="space-y-1">
-                        <label class="text-sm font-medium text-gray-700">Business License No.</label>
+                        <label class="text-sm font-medium text-gray-700">Business License No. <span class="text-red-500">*</span></label>
                         <input type="text" name="business_license_no" value="{{ old('business_license_no') }}" 
                                class="w-full px-4 py-2 border {{ $errors->has('business_license_no') ? 'border-red-500' : 'border-gray-300' }} rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
                         @error('business_license_no') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
@@ -138,15 +138,36 @@
     <script>
         function updateFormFields(role) {
             const adminFields = document.getElementById('vendor-admin-fields');
-            // Logic updated: only show admin fields if role is '2'
+            const foodtruckInputs = document.querySelectorAll('#vendor-admin-fields input, #vendor-admin-fields textarea');
+            
             if (adminFields) {
-                adminFields.classList.toggle('hidden', role !== '2');
+                if (role === '2') {
+                    adminFields.classList.remove('hidden');
+                    // Set required attribute for food truck fields
+                    foodtruckInputs.forEach(input => {
+                        if (input.name === 'foodtruck_name' || input.name === 'business_license_no') {
+                            input.setAttribute('required', 'required');
+                        }
+                    });
+                } else {
+                    adminFields.classList.add('hidden');
+                    // Remove required attribute when hidden
+                    foodtruckInputs.forEach(input => {
+                        input.removeAttribute('required');
+                    });
+                }
             }
         }
 
-        window.addEventListener('load', function() {
+        // Initialize on page load - properly handles validation errors
+        window.addEventListener('DOMContentLoaded', function() {
             const selectedRole = document.querySelector('input[name="role"]:checked');
-            if (selectedRole) updateFormFields(selectedRole.value);
+            if (selectedRole) {
+                updateFormFields(selectedRole.value);
+            } else {
+                // Default to Customer (role 1) if nothing is selected
+                updateFormFields('1');
+            }
         });
 
         const password = document.getElementById("password");
