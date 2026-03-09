@@ -232,7 +232,7 @@
              onclick="handleModalBackdropClick(event)">
 
             <div id="truckModalPanel"
-                 class="bg-white rounded-3xl shadow-2xl w-full max-w-4xl flex flex-col max-h-[88vh]">
+                 class="bg-white rounded-3xl shadow-2xl w-full max-w-5xl flex flex-col max-h-[90vh] overflow-hidden">
 
                 <!-- â”€â”€ Modal Header â”€â”€ -->
                 <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
@@ -247,18 +247,26 @@
                 </div>
 
                 <!-- â”€â”€ Tab Bar â”€â”€ -->
-                <div class="flex gap-0 px-6 border-b border-gray-100 flex-shrink-0">
-                    <button id="tab-btn-truck"   onclick="switchTab('truck')"  class="modal-tab-btn active-tab"><i class="fas fa-info-circle mr-1.5 text-[10px]"></i>Truck Details</button>
-                    <button id="tab-btn-owner"   onclick="switchTab('owner')"  class="modal-tab-btn"><i class="fas fa-user mr-1.5 text-[10px]"></i>Owner & Staff</button>
-                    <button id="tab-btn-menu"    onclick="switchTab('menu')"   class="modal-tab-btn"><i class="fas fa-utensils mr-1.5 text-[10px]"></i>Menu List</button>
-                    <button id="tab-btn-orders"  onclick="switchTab('orders')" class="modal-tab-btn"><i class="fas fa-receipt mr-1.5 text-[10px]"></i>Orders</button>
+                <div class="flex gap-2 px-6 py-4 border-b border-gray-100 flex-shrink-0 bg-gray-50/50">
+                    <button id="tab-btn-truck"   onclick="switchTab('truck')"  class="modal-tab-btn active-tab">
+                        <i class="fas fa-info-circle text-sm mr-2"></i><span class="font-bold text-sm">Truck Details</span>
+                    </button>
+                    <button id="tab-btn-owner"   onclick="switchTab('owner')"  class="modal-tab-btn">
+                        <i class="fas fa-user text-sm mr-2"></i><span class="font-bold text-sm">Owner & Staff</span>
+                    </button>
+                    <button id="tab-btn-menu"    onclick="switchTab('menu')"   class="modal-tab-btn">
+                        <i class="fas fa-utensils text-sm mr-2"></i><span class="font-bold text-sm">Menu List</span>
+                    </button>
+                    <button id="tab-btn-orders"  onclick="switchTab('orders')" class="modal-tab-btn">
+                        <i class="fas fa-receipt text-sm mr-2"></i><span class="font-bold text-sm">Orders</span>
+                    </button>
                 </div>
 
                 <!-- â”€â”€ Tab Panels â”€â”€ -->
                 <div class="flex-1 overflow-y-auto">
 
                     <!-- â”€ Tab 1: Truck Details â”€ -->
-                    <div id="tab-truck" class="p-6 space-y-4">
+                    <div id="tab-truck" class="p-6 space-y-4 w-full">
 
                         <div>
                             <label class="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1.5 block">Truck Name</label>
@@ -292,7 +300,7 @@
                     </div>
 
                     <!-- â”€ Tab 2: Owner & Staff â”€ -->
-                    <div id="tab-owner" class="p-6 space-y-5" style="display:none;">
+                    <div id="tab-owner" class="p-6 space-y-5 w-full" style="display:none;">
 
                         <div>
                             <p class="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-3 flex items-center gap-2">
@@ -328,7 +336,7 @@
                     </div>
 
                     <!-- â”€ Tab 3: Menu List â”€ -->
-                    <div id="tab-menu" class="p-6" style="display:none;">
+                    <div id="tab-menu" class="p-6 w-full" style="display:none;">
 
                         <!-- Category filter pills -->
                         <div id="menu-category-filters" class="flex flex-wrap gap-2 mb-5"></div>
@@ -347,7 +355,7 @@
                     </div>
 
                     <!-- â”€ Tab 4: Orders â”€ -->
-                    <div id="tab-orders" class="p-6" style="display:none;">
+                    <div id="tab-orders" class="p-6 w-full" style="display:none;">
 
                         <!-- Loading state -->
                         <div id="orders-loading" class="text-center py-16 flex flex-col items-center">
@@ -388,23 +396,70 @@
             ::-webkit-scrollbar { width: 5px; }
             ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
 
-            /* Tab bar â€” mirrors ftadmin modal style */
+            /* Tab bar – professional pill-shaped buttons */
             .modal-tab-btn {
                 display: inline-flex;
                 align-items: center;
-                padding: 0.625rem 1rem;
-                font-size: 0.7rem;
-                font-weight: 700;
-                text-transform: uppercase;
-                letter-spacing: 0.075em;
-                color: #9ca3af;
-                border-bottom: 2px solid transparent;
-                margin-bottom: -1px;
-                transition: color 0.15s, border-color 0.15s;
+                padding: 0.625rem 1.125rem;
+                font-size: 0.875rem;
+                font-weight: 600;
+                color: #6b7280;
+                background: transparent;
+                border: 1.5px solid transparent;
+                border-radius: 0.75rem;
+                transition: all 0.2s ease;
                 white-space: nowrap;
+                cursor: pointer;
+                outline: none;
             }
-            .modal-tab-btn:hover { color: #374151; }
-            .modal-tab-btn.active-tab { color: #2563eb; border-bottom-color: #2563eb; }
+            .modal-tab-btn:hover {
+                color: #374151;
+                background: #f3f4f6;
+                border-color: #d1d5db;
+            }
+            .modal-tab-btn.active-tab {
+                color: #2563eb;
+                background: #eff6ff;
+                border-color: #93c5fd;
+                font-weight: 700;
+                box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.1);
+            }
+            .modal-tab-btn i {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                flex-shrink: 0;
+            }
+
+            /* Fixed modal size - prevent resize on tab switching */
+            #truckModalPanel {
+                display: flex;
+                flex-direction: column;
+                width: 100%;
+                max-width: 90rem;
+                height: 90vh;
+                max-height: 90vh;
+            }
+            
+            /* Modal header - fixed size, no grow/shrink */
+            #truckModalPanel > div:nth-child(1) {
+                flex-shrink: 0;
+                flex-grow: 0;
+            }
+            
+            /* Tab bar - fixed size, no grow/shrink */
+            #truckModalPanel > div:nth-child(2) {
+                flex-shrink: 0;
+                flex-grow: 0;
+            }
+            
+            /* Tab content container - fills remaining space and scrolls */
+            #truckModalPanel > div:nth-child(3) {
+                flex: 1 1 auto;
+                min-height: 0;
+                overflow-y: auto;
+                overflow-x: hidden;
+            }
 
             /* Order status badge colours */
             .status-badge-pending        { background:#fef3c7; color:#92400e; }
