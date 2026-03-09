@@ -16,7 +16,7 @@ class Admin
     {
         // Check if user is logged in and if their role is 6 (Admin)
         // Adjust the '6' if your system uses a different number for Super Admin
-        if (Auth::check() && Auth::user()->role === 6) {
+        if (Auth::check() && (int) Auth::user()->role === 6) {
             return $next($request);
         }
 
