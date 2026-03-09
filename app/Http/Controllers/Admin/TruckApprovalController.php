@@ -4,7 +4,9 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\FoodTruck;
+use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class TruckApprovalController extends Controller
 {
@@ -34,8 +36,14 @@ class TruckApprovalController extends Controller
         $truck = FoodTruck::findOrFail($id);
         $name = $truck->foodtruck_name;
 
-        // Delete the record (as requested by your blade file logic)
-        $truck->delete();
+        DB::transaction(function () use ($truck) {
+            User::where('id', $truck->user_id)->update([
+                'status' => 'rejected',
+                'foodtruck_id' => null,
+            ]);
+
+            $truck->delete();
+        });
 
         return redirect()->back()->with('rejected', "Registration for '{$name}' was rejected and removed.");
     }

@@ -21,21 +21,7 @@ class CheckFtadminStatus
         if ($user && (int) $user->role === 2) {
             $status = $user->fresh()?->status ?? $user->status;
 
-            if ($status === 'rejected') {
-                // Log out rejected users and redirect to login
-                if (!$request->routeIs('logout')) {
-                    Auth::logout();
-                    $request->session()->invalidate();
-                    $request->session()->regenerateToken();
-                    
-                    return redirect('/login')->with('error', 'Your registration has been rejected and your access has been revoked.');
-                }
-                
-                // Allow logout request to proceed
-                return $next($request);
-            }
-
-            if ($status === 'pending') {
+            if (in_array($status, ['pending', 'rejected'], true)) {
                 // Allow logout so the user is not trapped
                 if ($request->routeIs('logout')) {
                     return $next($request);

@@ -106,14 +106,17 @@ class AdminController extends Controller
     public function rejectTruck($id)
     {
         $truck = FoodTruck::findOrFail($id);
-        $user = $truck->user;
+        $userId = $truck->user_id;
         $name = $truck->foodtruck_name;
         
-        // Set user status to rejected
-        $user->update(['status' => 'rejected']);
+        // Update user status to rejected using direct query to ensure it works
+        User::where('id', $userId)->update([
+            'status' => 'rejected',
+            'foodtruck_id' => null,
+        ]);
         
-        // Optionally set truck status to rejected as well
-        $truck->update(['status' => 'rejected']);
+        // Delete the food truck record
+        $truck->delete();
 
         return back()->with('rejected', "The registration for '{$name}' has been rejected.");
     }

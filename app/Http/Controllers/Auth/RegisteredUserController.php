@@ -32,7 +32,10 @@ class RegisteredUserController extends Controller
     {
         $request->validate([
             'full_name'           => ['required', 'string', 'max:255'],
-            'email'               => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:'.User::class],
+            'email'               => ['required', 'string', 'lowercase', 'email', 'max:255', 
+                                      Rule::unique('users')->where(function ($query) {
+                                          $query->where('status', '!=', 'rejected');
+                                      })],
             'password'            => ['required', 'confirmed', Rules\Password::defaults()],
             'role'                => ['required', 'in:1,2'], // Removed '3' from allowed roles
             'phone_no'            => ['required', 'string', 'max:20'],
@@ -49,14 +52,30 @@ class RegisteredUserController extends Controller
         ]);
 
         return DB::transaction(function () use ($request) {
-            $user = User::create([
-                'full_name' => $request->full_name,
-                'email'     => $request->email,
-                'password'  => Hash::make($request->password),
-                'role'      => $request->role,
-                'phone_no'  => $request->phone_no,
-                'status'    => ($request->role == 2) ? 'pending' : 'active',
-            ]);
+            // Check if a rejected user is re-registering
+            $existingRejected = User::where('email', $request->email)->where('status', 'rejected')->first();
+            
+            if ($existingRejected) {
+                // Reactivate the rejected user
+                $user = $existingRejected;
+                $user->update([
+                    'full_name' => $request->full_name,
+                    'password'  => Hash::make($request->password),
+                    'role'      => $request->role,
+                    'phone_no'  => $request->phone_no,
+                    'status'    => ($request->role == 2) ? 'pending' : 'active',
+                ]);
+            } else {
+                // Create new user
+                $user = User::create([
+                    'full_name' => $request->full_name,
+                    'email'     => $request->email,
+                    'password'  => Hash::make($request->password),
+                    'role'      => $request->role,
+                    'phone_no'  => $request->phone_no,
+                    'status'    => ($request->role == 2) ? 'pending' : 'active',
+                ]);
+            }
 
             // Logic for Food Truck Admin
             if ($request->role == 2) {
