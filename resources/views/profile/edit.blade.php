@@ -118,7 +118,7 @@
 @push('css')
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
-        nav, .min-h-screen > header { display: none !important; }
+        nav[x-data], .min-h-screen > header { display: none !important; }
         .py-12 { padding: 0 !important; }
         ::-webkit-scrollbar { width: 5px; }
         ::-webkit-scrollbar-track { background: transparent; }
@@ -142,6 +142,5 @@
         });
     </script>
 @endpush
-
 
 </x-app-layout>

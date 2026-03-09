@@ -311,8 +311,13 @@ function truckMenuPage() {
                         </template>
 
                         <div class="flex items-center justify-between mt-3">
-                            <span class="text-base font-black text-gray-900"
-                                  x-text="'RM ' + parseFloat(item.base_price).toFixed(2)"></span>
+                            <template x-if="item.base_price">
+                                <span class="text-base font-black text-gray-900"
+                                      x-text="'RM ' + parseFloat(item.base_price).toFixed(2)"></span>
+                            </template>
+                            <template x-if="!item.base_price && item.option_groups?.length > 0">
+                                <span class="text-base font-black text-blue-600">From Options</span>
+                            </template>
                             <span class="w-8 h-8 rounded-xl bg-amber-400 group-hover:bg-amber-500 flex items-center justify-center transition-colors shadow-sm">
                                 <i class="fas fa-plus text-amber-900 text-xs"></i>
                             </span>
@@ -393,7 +398,8 @@ function truckMenuPage() {
                         </span>
                     </div>
                     <p class="text-xs text-gray-400 font-medium mt-0.5"
-                       x-text="selectedItem ? 'Base price: RM ' + parseFloat(selectedItem.base_price).toFixed(2) : ''"></p>
+                       x-show="selectedItem && (selectedItem.base_price || selectedItem.option_groups?.some(g => g.choices?.some(c => c.price > 0)))"
+                       x-text="selectedItem ? (selectedItem.base_price ? 'Base price: RM ' + parseFloat(selectedItem.base_price).toFixed(2) : 'Price from options') : ''"></p>
                 </div>
                 <button @click="showModal = false; editingCartId = null"
                         class="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-gray-100 text-gray-400 transition-all">
@@ -492,7 +498,20 @@ function truckMenuPage() {
 
             <!-- Modal Footer -->
             <div class="px-6 py-4 border-t border-gray-100 flex-shrink-0">
-                <div class="flex items-center justify-between mb-3">
+                <!-- Price Breakdown (if both base price and choices have prices) -->
+                <template x-if="selectedItem && selectedItem.base_price && modalChoiceExtra > 0">
+                    <div class="flex items-center justify-between text-xs text-gray-500 mb-2 pb-2 border-b border-gray-100">
+                        <span>
+                            <span>Base price:</span>
+                            <span class="text-gray-700 font-medium ml-1" x-text="'RM ' + parseFloat(selectedItem.base_price).toFixed(2)"></span>
+                            <span class="mx-1">+</span>
+                            <span>Options:</span>
+                            <span class="text-gray-700 font-medium ml-1" x-text="'RM ' + modalChoiceExtra.toFixed(2)"></span>
+                        </span>
+                    </div>
+                </template>
+
+                <div class="flex items-center justify-between">
                     <span class="text-xs font-bold text-gray-500 uppercase tracking-widest">Total Price</span>
                     <span class="text-xl font-black text-gray-900"
                           x-text="'RM ' + modalItemTotal.toFixed(2)"></span>

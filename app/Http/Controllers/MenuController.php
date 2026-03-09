@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Menu;
 use App\Models\MenuOptionGroup;
 use App\Models\MenuChoice;
+use App\Models\MenuCategory;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -48,12 +49,36 @@ class MenuController extends Controller
         // Validation based on your preferred field names
         $request->validate([
             'name'        => ['required', 'string', 'max:255'],
-            'category'    => ['required', 'string', 'max:100'],
-            'base_price'  => ['required', 'numeric', 'min:0'],
-            'quantity'    => ['required', 'integer', 'min:0'],
+            'category'    => ['nullable', 'string', 'max:100'],
+            'base_price'  => ['nullable', 'numeric', 'min:0'],
+            'quantity'    => ['nullable', 'integer', 'min:0'],
             'description' => ['nullable', 'string'],
             'image'       => ['nullable', 'image', 'mimes:jpg,jpeg,png', 'max:2048'],
         ]);
+
+        $optionGroups = json_decode($request->input('option_groups', '[]'), true);
+        if (!is_array($optionGroups)) {
+            $optionGroups = [];
+        }
+
+        $optionError = $this->validateOptionGroupQuantities($optionGroups);
+        if ($optionError) {
+            if ($request->wantsJson()) {
+                return response()->json(['success' => false, 'message' => $optionError], 422);
+            }
+
+            return redirect()->back()->withErrors(['option_groups' => $optionError])->withInput();
+        }
+
+        // Validate pricing: either base_price or choice prices must be filled
+        $pricingError = $this->validatePricing($request->base_price, $optionGroups);
+        if ($pricingError) {
+            if ($request->wantsJson()) {
+                return response()->json(['success' => false, 'message' => $pricingError], 422);
+            }
+
+            return redirect()->back()->withErrors(['pricing' => $pricingError])->withInput();
+        }
 
         $imagePath = null;
         $originalImagePath = null;
@@ -80,19 +105,21 @@ class MenuController extends Controller
             $originalImagePath = $origFilename;
         }
 
+        // Set category to "Uncategorized" if empty
+        $category = !empty($request->category) ? $request->category : 'Uncategorized';
+
         $item = Menu::create([
             'foodtruck_id'   => $user->foodtruck_id,
             'name'           => $request->name,
-            'category'       => $request->category,
+            'category'       => $category,
             'base_price'     => $request->base_price,
-            'quantity'       => $request->quantity,
+            'quantity'       => $request->filled('quantity') ? (int) $request->quantity : null,
             'description'    => $request->description,
             'image'          => $imagePath,
             'original_image' => $originalImagePath,
         ]);
 
         // Save option groups and their choices
-        $optionGroups = json_decode($request->input('option_groups', '[]'), true);
         if (is_array($optionGroups)) {
             foreach ($optionGroups as $i => $groupData) {
                 if (empty($groupData['name'])) continue;
@@ -106,12 +133,20 @@ class MenuController extends Controller
                 ]);
                 foreach (($groupData['choices'] ?? []) as $j => $choiceData) {
                     if (empty($choiceData['name'])) continue;
+                    $choiceQtyRaw = $choiceData['quantity'] ?? '';
+                    $choiceQty = ($choiceQtyRaw !== '' && $choiceQtyRaw !== null) ? (int) $choiceQtyRaw : null;
+                    // Only set unavailable if quantity is explicitly 0, not if it's empty
+                    $choiceStatus = ($choiceQty !== null && $choiceQty <= 0)
+                        ? 'unavailable'
+                        : (in_array($choiceData['status'] ?? 'available', ['available', 'unavailable'])
+                            ? $choiceData['status']
+                            : 'available');
                     $group->choices()->create([
                         'name'       => $choiceData['name'],
                         'price'      => is_numeric($choiceData['price'] ?? '') ? (float) $choiceData['price'] : 0,
-                        'quantity'   => is_numeric($choiceData['quantity'] ?? '') ? (int) $choiceData['quantity'] : 0,
+                        'quantity'   => $choiceQty,
                         'sort_order' => $j,
-                        'status'     => in_array($choiceData['status'] ?? 'available', ['available', 'unavailable']) ? $choiceData['status'] : 'available',
+                        'status'     => $choiceStatus,
                     ]);
                 }
             }
@@ -137,12 +172,29 @@ class MenuController extends Controller
         $request->validate([
             'name'        => ['required', 'string', 'max:255'],
             'category'    => ['required', 'string', 'max:100'],
-            'base_price'  => ['required', 'numeric', 'min:0'],
-            'quantity'    => ['required', 'integer', 'min:0'],
+            'base_price'  => ['nullable', 'numeric', 'min:0'],
+            'quantity'    => ['nullable', 'integer', 'min:0'],
             'description' => ['nullable', 'string'],
         ]);
 
         $data = $request->only(['name', 'category', 'base_price', 'quantity', 'description']);
+        $data['quantity'] = $request->filled('quantity') ? (int) $request->quantity : null;
+
+        $optionGroups = json_decode($request->input('option_groups', '[]'), true);
+        if (!is_array($optionGroups)) {
+            $optionGroups = [];
+        }
+
+        $optionError = $this->validateOptionGroupQuantities($optionGroups);
+        if ($optionError) {
+            return redirect()->back()->withErrors(['option_groups' => $optionError])->withInput();
+        }
+
+        // Validate pricing: either base_price or choice prices must be filled
+        $pricingError = $this->validatePricing($request->base_price, $optionGroups);
+        if ($pricingError) {
+            return redirect()->back()->withErrors(['pricing' => $pricingError])->withInput();
+        }
 
         $imageData = $request->input('image_data', '');
         if (str_starts_with($imageData, 'data:')) {
@@ -170,7 +222,6 @@ class MenuController extends Controller
 
         // Replace option groups
         $item->optionGroups()->delete();
-        $optionGroups = json_decode($request->input('option_groups', '[]'), true);
         if (is_array($optionGroups)) {
             foreach ($optionGroups as $i => $groupData) {
                 if (empty($groupData['name'])) continue;
@@ -184,12 +235,20 @@ class MenuController extends Controller
                 ]);
                 foreach (($groupData['choices'] ?? []) as $j => $choiceData) {
                     if (empty($choiceData['name'])) continue;
+                    $choiceQtyRaw = $choiceData['quantity'] ?? '';
+                    $choiceQty = ($choiceQtyRaw !== '' && $choiceQtyRaw !== null) ? (int) $choiceQtyRaw : null;
+                    // Only set unavailable if quantity is explicitly 0, not if it's empty
+                    $choiceStatus = ($choiceQty !== null && $choiceQty <= 0)
+                        ? 'unavailable'
+                        : (in_array($choiceData['status'] ?? 'available', ['available', 'unavailable'])
+                            ? $choiceData['status']
+                            : 'available');
                     $group->choices()->create([
                         'name'       => $choiceData['name'],
                         'price'      => is_numeric($choiceData['price'] ?? '') ? (float) $choiceData['price'] : 0,
-                        'quantity'   => is_numeric($choiceData['quantity'] ?? '') ? (int) $choiceData['quantity'] : 0,
+                        'quantity'   => $choiceQty,
                         'sort_order' => $j,
-                        'status'     => in_array($choiceData['status'] ?? 'available', ['available', 'unavailable']) ? $choiceData['status'] : 'available',
+                        'status'     => $choiceStatus,
                     ]);
                 }
             }
@@ -211,9 +270,23 @@ class MenuController extends Controller
         $request->validate([
             'name'        => ['required', 'string', 'max:255'],
             'category'    => ['required', 'string', 'max:100'],
-            'base_price'  => ['required', 'numeric', 'min:0'],
+            'base_price'  => ['nullable', 'numeric', 'min:0'],
             'description' => ['nullable', 'string'],
         ]);
+
+        // Validate pricing: either base_price or choice prices must be filled
+        $item->load('optionGroups.choices');
+        $optionGroups = $item->optionGroups->map(fn($g) => [
+            'choices' => $g->choices->map(fn($c) => [
+                'name' => $c->name,
+                'price' => $c->price,
+            ])->toArray()
+        ])->toArray();
+        
+        $pricingError = $this->validatePricing($request->base_price, $optionGroups);
+        if ($pricingError) {
+            return response()->json(['success' => false, 'message' => $pricingError], 422);
+        }
 
         $item->update($request->only(['name', 'category', 'base_price', 'description']));
 
@@ -253,6 +326,17 @@ class MenuController extends Controller
             $optionGroups = json_decode($optionGroups, true) ?? [];
         }
 
+        $optionError = $this->validateOptionGroupQuantities($optionGroups);
+        if ($optionError) {
+            return response()->json(['success' => false, 'message' => $optionError], 422);
+        }
+
+        // Validate pricing: either base_price or choice prices must be filled
+        $pricingError = $this->validatePricing($item->base_price, $optionGroups);
+        if ($pricingError) {
+            return response()->json(['success' => false, 'message' => $pricingError], 422);
+        }
+
         foreach ($optionGroups as $i => $groupData) {
             if (empty($groupData['name'])) continue;
             $selType = in_array($groupData['selectionType'] ?? 'single', ['single', 'multiple'])
@@ -265,12 +349,20 @@ class MenuController extends Controller
             ]);
             foreach (($groupData['choices'] ?? []) as $j => $choiceData) {
                 if (empty($choiceData['name'])) continue;
+                $choiceQtyRaw = $choiceData['quantity'] ?? '';
+                $choiceQty = ($choiceQtyRaw !== '' && $choiceQtyRaw !== null) ? (int) $choiceQtyRaw : null;
+                // Only set unavailable if quantity is explicitly 0, not if it's empty
+                $choiceStatus = ($choiceQty !== null && $choiceQty <= 0)
+                    ? 'unavailable'
+                    : (in_array($choiceData['status'] ?? 'available', ['available', 'unavailable'])
+                        ? $choiceData['status']
+                        : 'available');
                 $group->choices()->create([
                     'name'       => $choiceData['name'],
                     'price'      => is_numeric($choiceData['price'] ?? '') ? (float) $choiceData['price'] : 0,
-                    'quantity'   => is_numeric($choiceData['quantity'] ?? '') ? (int) $choiceData['quantity'] : 0,
+                    'quantity'   => $choiceQty,
                     'sort_order' => $j,
-                    'status'     => in_array($choiceData['status'] ?? 'available', ['available', 'unavailable']) ? $choiceData['status'] : 'available',
+                    'status'     => $choiceStatus,
                 ]);
             }
         }
@@ -314,5 +406,165 @@ class MenuController extends Controller
         }
 
         return redirect()->back()->with('success', 'Menu item deleted.');
+    }
+
+    private function validateOptionGroupQuantities(array $optionGroups): ?string
+    {
+        foreach ($optionGroups as $groupData) {
+            foreach (($groupData['choices'] ?? []) as $choiceData) {
+                if (empty($choiceData['name'])) continue;
+
+                // Quantity can be empty (will be updated later) or must be numeric if provided
+                if (array_key_exists('quantity', $choiceData) && $choiceData['quantity'] !== '' && $choiceData['quantity'] !== null) {
+                    if (!is_numeric($choiceData['quantity']) || (int) $choiceData['quantity'] < 0) {
+                        return 'Please enter a valid quantity (0 or more) for every option choice.';
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private function validatePricing($basePrice, array $optionGroups): ?string
+    {
+        // Check if base_price is filled
+        $hasBasePrice = !empty($basePrice) && is_numeric($basePrice);
+        
+        // Check if all named choices have prices filled
+        $hasPricesInChoices = true;
+        foreach ($optionGroups as $groupData) {
+            foreach (($groupData['choices'] ?? []) as $choiceData) {
+                // Skip unnamed choices
+                if (empty($choiceData['name'])) continue;
+                // If choice has a name, it must have a price
+                if (empty($choiceData['price']) || !is_numeric($choiceData['price'])) {
+                    $hasPricesInChoices = false;
+                    break 2;
+                }
+            }
+        }
+        
+        // Valid if either base_price is filled OR all choice prices are filled
+        if (!$hasBasePrice && !$hasPricesInChoices) {
+            return 'Please provide pricing: Fill the Base Price in Section 1, OR Fill the Price for all choices in Section 2.';
+        }
+        
+        return null;
+    }
+
+    /**
+     * Create a new custom category for a food truck.
+     */
+    public function createCategory(Request $request)
+    {
+        $user = Auth::user();
+        
+        $request->validate([
+            'name'  => ['required', 'string', 'max:50'],
+            'color' => ['required', 'string', 'max:50'],
+        ]);
+
+        $category = MenuCategory::create([
+            'foodtruck_id' => $user->foodtruck_id,
+            'name'         => $request->name,
+            'color'        => $request->color,
+            'sort_order'   => MenuCategory::where('foodtruck_id', $user->foodtruck_id)->count(),
+        ]);
+
+        return response()->json(['success' => true, 'category' => $category]);
+    }
+
+    /**
+     * Get all categories for the current user's food truck.
+     */
+    public function getCategories()
+    {
+        $user = Auth::user();
+        
+        $categories = MenuCategory::where('foodtruck_id', $user->foodtruck_id)
+            ->orderBy('sort_order')
+            ->get();
+
+        return response()->json(['success' => true, 'categories' => $categories]);
+    }
+
+    /**
+     * Update an existing category (rename and/or change color).
+     */
+    public function updateCategory(Request $request, $categoryId)
+    {
+        $user = Auth::user();
+        
+        $category = MenuCategory::where('foodtruck_id', $user->foodtruck_id)
+            ->findOrFail($categoryId);
+
+        // Don't allow renaming of Uncategorized category
+        if ($category->name === 'Uncategorized') {
+            return response()->json(['success' => false, 'message' => 'Cannot rename the Uncategorized category'], 403);
+        }
+
+        $request->validate([
+            'name'  => ['required', 'string', 'max:50'],
+            'color' => ['required', 'string', 'max:50'],
+        ]);
+
+        // Check if new name already exists (case-insensitive)
+        $existingCategory = MenuCategory::where('foodtruck_id', $user->foodtruck_id)
+            ->where('id', '!=', $categoryId)
+            ->whereRaw('LOWER(name) = ?', [strtolower($request->name)])
+            ->first();
+
+        if ($existingCategory) {
+            return response()->json(['success' => false, 'message' => 'A category with this name already exists'], 422);
+        }
+
+        $oldName = $category->name;
+        $category->update([
+            'name'  => $request->name,
+            'color' => $request->color,
+        ]);
+
+        return response()->json(['success' => true, 'category' => $category]);
+    }
+
+    /**
+     * Delete a category and move its menu items to Uncategorized.
+     */
+    public function deleteCategory($categoryId)
+    {
+        $user = Auth::user();
+        
+        $category = MenuCategory::where('foodtruck_id', $user->foodtruck_id)
+            ->findOrFail($categoryId);
+
+        // Don't allow deleting default categories
+        if (in_array($category->name, ['Foods', 'Drinks', 'Desserts', 'Uncategorized'])) {
+            return response()->json(['success' => false, 'message' => 'Cannot delete default categories'], 403);
+        }
+
+        // Get or create Uncategorized category
+        $uncategorized = MenuCategory::where('foodtruck_id', $user->foodtruck_id)
+            ->where('name', 'Uncategorized')
+            ->first();
+
+        if (!$uncategorized) {
+            $uncategorized = MenuCategory::create([
+                'foodtruck_id' => $user->foodtruck_id,
+                'name'         => 'Uncategorized',
+                'color'        => 'gray',
+                'sort_order'   => 0,
+            ]);
+        }
+
+        // Move all menu items from this category to Uncategorized
+        Menu::where('foodtruck_id', $user->foodtruck_id)
+            ->where('category', $category->name)
+            ->update(['category' => $uncategorized->name]);
+
+        // Delete the category
+        $category->delete();
+
+        return response()->json(['success' => true, 'message' => 'Category deleted. Menu items moved to Uncategorized.']);
     }
 }

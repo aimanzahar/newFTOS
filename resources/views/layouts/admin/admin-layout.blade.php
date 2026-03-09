@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" class="h-full">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" class="h-full overflow-hidden">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -11,6 +11,7 @@
     
     <!-- Scripts -->
     @vite(['resources/css/app.css', 'resources/js/app.js'])
+    @stack('css')
 
     <style>
         /* Force hide any Breeze defaults that might leak in */
@@ -27,7 +28,7 @@
         }
     </style>
 </head>
-<body class="font-sans antialiased h-full bg-gray-50 text-gray-900">
+<body class="font-sans antialiased h-full overflow-hidden bg-gray-50 text-gray-900">
     <div class="flex h-screen overflow-hidden">
         
         <!-- Sidebar Component -->
@@ -89,5 +90,6 @@
             }
         });
     </script>
+    @stack('scripts')
 </body>
 </html>

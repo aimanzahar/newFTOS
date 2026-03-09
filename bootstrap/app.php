@@ -16,7 +16,11 @@ return Application::configure(basePath: dirname(__DIR__))
             'truck.approved' => \App\Http\Middleware\CheckTruckStatus::class,
             'admin'          => \App\Http\Middleware\Admin::class,
             'ftadmin.status' => \App\Http\Middleware\CheckFtadminStatus::class,
+            'role'           => \App\Http\Middleware\EnsureUserRole::class,
         ]);
+
+        // Enforce pending ftadmin lockout across all web routes
+        $middleware->appendToGroup('web', \App\Http\Middleware\CheckFtadminStatus::class);
     })
     ->withExceptions(function (Exceptions $exceptions) {
         //

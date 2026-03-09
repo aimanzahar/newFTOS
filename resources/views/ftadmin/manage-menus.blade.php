@@ -11,6 +11,33 @@ function manageMenusPage() {
         menuItems: @json($menuItems),
         searchQuery: '',
         categoryFilter: '',
+        showCategoryFilter: false,
+        
+        // Category management
+        categories: [],
+        showCreateCategoryModal: false,
+        newCategoryName: '',
+        newCategoryColor: 'purple',
+        createCategoryLoading: false,
+        activeCategoryActionMenu: null,
+        
+        // Category rename/edit modal
+        showEditCategoryModal: false,
+        editingCategory: null,
+        editCategoryName: '',
+        editCategoryColor: 'purple',
+        editCategoryLoading: false,
+        
+        colorOptions: [
+            { name: 'Purple', value: 'purple', class: 'bg-purple-500' },
+            { name: 'Blue', value: 'blue', class: 'bg-blue-500' },
+            { name: 'Green', value: 'green', class: 'bg-green-500' },
+            { name: 'Red', value: 'red', class: 'bg-red-500' },
+            { name: 'Pink', value: 'pink', class: 'bg-pink-500' },
+            { name: 'Amber', value: 'amber', class: 'bg-amber-500' },
+            { name: 'Cyan', value: 'cyan', class: 'bg-cyan-500' },
+            { name: 'Indigo', value: 'indigo', class: 'bg-indigo-500' },
+        ],
 
         get filteredItems() {
             return this.menuItems.filter(item => {
@@ -33,7 +60,9 @@ function manageMenusPage() {
             this.detailsItem = item;
             this.editName        = item.name;
             this.editCategory    = item.category;
-            this.editPrice       = parseFloat(item.base_price).toFixed(2);
+            this.editPrice       = item.base_price !== null && item.base_price !== ''
+                ? parseFloat(item.base_price).toFixed(2)
+                : '';
             this.editDescription = item.description || '';
             this.showDetailsModal = true;
             this.$nextTick(() => { if (this.$refs.detailsNameInput) this.$refs.detailsNameInput.focus(); });
@@ -41,21 +70,57 @@ function manageMenusPage() {
         closeDetailsModal() { this.showDetailsModal = false; this.detailsItem = null; },
         async saveDetails() {
             if (this.detailsSaving || !this.detailsItem) return;
+            // Validate pricing: either edit price (base_price) OR existing choices must have prices
+            const hasValidPricing = this.hasValidPricing(this.editPrice, this.detailsItem.option_groups || []);
+            if (!hasValidPricing) {
+                alert('Please provide pricing:\n- Fill the Base Price in Section 1, OR\n- Ensure all choices in Section 2 have prices filled');
+                return;
+            }
             this.detailsSaving = true;
             try {
                 const res = await fetch('/ftadmin/menu/' + this.detailsItem.id + '/details', {
                     method: 'PATCH',
                     headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content },
-                    body: JSON.stringify({ name: this.editName, category: this.editCategory, base_price: this.editPrice, description: this.editDescription })
+                    body: JSON.stringify({ name: this.editName, category: this.editCategory, base_price: this.editPrice === '' ? null : this.editPrice, description: this.editDescription })
                 });
                 const data = await res.json();
                 if (data.success) {
                     const item = this.menuItems.find(i => i.id === this.detailsItem.id);
                     if (item) { item.name = data.item.name; item.category = data.item.category; item.base_price = data.item.base_price; item.description = data.item.description; }
                     this.closeDetailsModal();
+                } else {
+                    alert('Error: ' + (data.message || 'Failed to save menu details.'));
                 }
-            } catch(e) { console.error(e); }
+            } catch(e) { 
+                console.error(e);
+                alert('Error: Failed to save menu details. Please try again.');
+            }
             this.detailsSaving = false;
+        },
+        hasMissingChoiceQuantities(groups) {
+            return (groups || []).some(group =>
+                (group.choices || []).some(choice => {
+                    if (!choice.name || choice.name.trim() === '') return false;
+                    return choice.quantity === '' || choice.quantity === null || choice.quantity === undefined || isNaN(Number(choice.quantity));
+                })
+            );
+        },
+        hasValidPricing(basePrice, optionGroups) {
+            // Check if base_price is filled
+            const hasBasePrice = basePrice && basePrice !== '' && !isNaN(Number(basePrice));
+            
+            // Check if all named choices have prices filled
+            const hasPricesInChoices = (optionGroups || []).every(group => {
+                return (group.choices || []).every(choice => {
+                    // If choice has no name, it's not required
+                    if (!choice.name || choice.name.trim() === '') return true;
+                    // If choice has a name, it must have a price
+                    return choice.price && choice.price !== '' && !isNaN(Number(choice.price));
+                });
+            });
+            
+            // Valid if either base_price is filled OR all choice prices are filled
+            return hasBasePrice || hasPricesInChoices;
         },
 
         /* ── Quantity inline edit ── */
@@ -81,8 +146,16 @@ function manageMenusPage() {
                     body: JSON.stringify({ quantity: parseInt(this.editQtyValue) || 0 })
                 });
                 const data = await res.json();
-                if (data.success) { item.quantity = data.quantity; this.editingQtyId = null; }
-            } catch(e) { console.error(e); }
+                if (data.success) { 
+                    item.quantity = data.quantity; 
+                    this.editingQtyId = null; 
+                } else {
+                    alert('Error: ' + (data.message || 'Failed to update quantity.'));
+                }
+            } catch(e) { 
+                console.error(e);
+                alert('Error: Failed to update quantity. Please try again.');
+            }
             this.qtySaving = false;
         },
 
@@ -125,6 +198,14 @@ function manageMenusPage() {
         removeEditChoice(gi, ci) { this.editOptionGroups[gi].choices.splice(ci, 1); },
         async saveOptions() {
             if (this.optionsSaving || !this.optionsItem) return;
+            // Validate pricing: either base_price OR all choice prices must be filled
+            const basePrice = this.optionsItem.base_price;
+            const allChoices = this.editOptionGroups.flatMap(g => g.choices);
+            const hasValidPricing = this.hasValidPricing(basePrice, this.editOptionGroups);
+            if (!hasValidPricing) {
+                alert('Please provide pricing:\n- Fill the Base Price in Section 1, OR\n- Fill the Price for all choices in Section 2');
+                return;
+            }
             this.optionsSaving = true;
             try {
                 const res = await fetch('/ftadmin/menu/' + this.optionsItem.id + '/options', {
@@ -137,8 +218,13 @@ function manageMenusPage() {
                     const item = this.menuItems.find(i => i.id === this.optionsItem.id);
                     if (item) item.option_groups = data.option_groups;
                     this.closeOptionsModal();
+                } else {
+                    alert('Error: ' + (data.message || 'Failed to save menu options.'));
                 }
-            } catch(e) { console.error(e); }
+            } catch(e) { 
+                console.error(e);
+                alert('Error: Failed to save menu options. Please try again.');
+            }
             this.optionsSaving = false;
         },
 
@@ -166,6 +252,179 @@ function manageMenusPage() {
                 const data = await res.json();
                 if (data.success) this.menuItems = this.menuItems.filter(i => i.id !== item.id);
             } catch(e) { console.error(e); }
+        },
+
+        /* ── Category Management ── */
+        async loadCategories() {
+            try {
+                const res = await fetch('/ftadmin/menu-category/list', {
+                    method: 'GET',
+                    headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content }
+                });
+                const data = await res.json();
+                if (data.success) this.categories = data.categories;
+            } catch(e) { console.error(e); }
+        },
+
+        openCreateCategoryModal() {
+            this.showCreateCategoryModal = true;
+            this.newCategoryName = '';
+            this.newCategoryColor = 'purple';
+        },
+
+        closeCreateCategoryModal() {
+            this.showCreateCategoryModal = false;
+            this.newCategoryName = '';
+            this.newCategoryColor = 'purple';
+        },
+
+        async createCategory() {
+            if (!this.newCategoryName.trim()) {
+                alert('Please enter a category name');
+                return;
+            }
+            if (this.categories.some(c => c.name.toLowerCase() === this.newCategoryName.toLowerCase())) {
+                alert('This category already exists');
+                return;
+            }
+            this.createCategoryLoading = true;
+            try {
+                const res = await fetch('/ftadmin/menu-category/create', {
+                    method: 'POST',
+                    headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content },
+                    body: JSON.stringify({ name: this.newCategoryName, color: this.newCategoryColor })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    this.categories.push(data.category);
+                    this.closeCreateCategoryModal();
+                } else {
+                    alert('Error: ' + (data.message || 'Failed to create category'));
+                }
+            } catch(e) { 
+                console.error(e);
+                alert('Error: Failed to create category. Please try again.');
+            }
+            this.createCategoryLoading = false;
+        },
+
+        openEditCategoryModal(category) {
+            this.editingCategory = category;
+            this.editCategoryName = category.name;
+            this.editCategoryColor = category.color;
+            this.showEditCategoryModal = true;
+        },
+
+        closeEditCategoryModal() {
+            this.showEditCategoryModal = false;
+            this.editingCategory = null;
+            this.editCategoryName = '';
+            this.editCategoryColor = 'purple';
+        },
+
+        async updateCategory() {
+            if (!this.editingCategory) return;
+            if (!this.editCategoryName.trim()) {
+                alert('Please enter a category name');
+                return;
+            }
+            
+            // Check if name already exists (excluding current category)
+            if (this.categories.some(c => c.id !== this.editingCategory.id && c.name.toLowerCase() === this.editCategoryName.toLowerCase())) {
+                alert('A category with this name already exists');
+                return;
+            }
+
+            this.editCategoryLoading = true;
+            try {
+                const res = await fetch('/ftadmin/menu-category/' + this.editingCategory.id, {
+                    method: 'PATCH',
+                    headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content },
+                    body: JSON.stringify({ name: this.editCategoryName, color: this.editCategoryColor })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    // Update local array
+                    const idx = this.categories.findIndex(c => c.id === this.editingCategory.id);
+                    if (idx >= 0) this.categories[idx] = data.category;
+                    this.closeEditCategoryModal();
+                } else {
+                    alert('Error: ' + (data.message || 'Failed to update category'));
+                }
+            } catch(e) { 
+                console.error(e);
+                alert('Error: Failed to update category. Please try again.');
+            }
+            this.editCategoryLoading = false;
+        },
+
+        async deleteCategory(category) {
+            if (!confirm('Delete category "' + category.name + '"? Menu items in this category will be moved to Uncategorized.')) return;
+
+            try {
+                const res = await fetch('/ftadmin/menu-category/' + category.id, {
+                    method: 'DELETE',
+                    headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content }
+                });
+                const data = await res.json();
+                if (data.success) {
+                    // Remove from local array
+                    this.categories = this.categories.filter(c => c.id !== category.id);
+                    // If we were filtering by this category, clear the filter
+                    if (this.categoryFilter === category.name) this.categoryFilter = '';
+                } else {
+                    alert('Error: ' + (data.message || 'Failed to delete category'));
+                }
+            } catch(e) { 
+                console.error(e);
+                alert('Error: Failed to delete category. Please try again.');
+            }
+        },
+
+        getColorClass(color) {
+            const colors = {
+                'purple': 'bg-purple-500',
+                'blue': 'bg-blue-500',
+                'green': 'bg-green-500',
+                'red': 'bg-red-500',
+                'pink': 'bg-pink-500',
+                'amber': 'bg-amber-500',
+                'cyan': 'bg-cyan-500',
+                'indigo': 'bg-indigo-500',
+            };
+            return colors[color] || 'bg-gray-500';
+        },
+
+        getBgColorClass(color) {
+            const colors = {
+                'purple': 'rgb(243, 232, 255)',
+                'blue': 'rgb(239, 246, 255)',
+                'green': 'rgb(240, 253, 250)',
+                'red': 'rgb(254, 242, 242)',
+                'pink': 'rgb(252, 240, 247)',
+                'amber': 'rgb(255, 251, 235)',
+                'cyan': 'rgb(236, 254, 255)',
+                'indigo': 'rgb(238, 242, 255)',
+            };
+            return colors[color] || 'rgb(245, 245, 245)';
+        },
+
+        getTextColorClass(color) {
+            const colors = {
+                'purple': 'rgb(147, 51, 234)',
+                'blue': 'rgb(37, 99, 235)',
+                'green': 'rgb(16, 185, 129)',
+                'red': 'rgb(239, 68, 68)',
+                'pink': 'rgb(236, 72, 153)',
+                'amber': 'rgb(217, 119, 6)',
+                'cyan': 'rgb(34, 211, 238)',
+                'indigo': 'rgb(79, 70, 229)',
+            };
+            return colors[color] || 'rgb(107, 114, 128)';
+        },
+
+        init() {
+            this.loadCategories();
         }
     };
 }
@@ -228,28 +487,135 @@ function manageMenusPage() {
             </div>
 
             <!-- Search + Filter Bar -->
-            <div class="flex flex-col sm:flex-row gap-3">
+            <div class="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
                 <!-- Search -->
-                <div class="relative flex-1">
+                <div class="relative flex-1 w-full">
                     <i class="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 text-sm pointer-events-none"></i>
                     <input type="text" x-model="searchQuery" placeholder="Search menu name or category…"
                            class="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700 placeholder:text-gray-300 outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all shadow-sm">
                 </div>
-                <!-- Category Filters -->
-                <div class="flex items-center gap-2 flex-shrink-0">
-                    <button @click="categoryFilter = ''"
-                            :class="categoryFilter === '' ? 'bg-slate-800 text-white shadow-sm' : 'bg-white text-gray-500 hover:bg-gray-50 border border-gray-200'"
-                            class="px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all">All</button>
-                    <button @click="categoryFilter = categoryFilter === 'food' ? '' : 'food'"
-                            :class="categoryFilter === 'food' ? 'bg-amber-500 text-white shadow-sm' : 'bg-white text-gray-500 hover:bg-amber-50 border border-gray-200'"
-                            class="px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all">Foods</button>
-                    <button @click="categoryFilter = categoryFilter === 'drink' ? '' : 'drink'"
-                            :class="categoryFilter === 'drink' ? 'bg-blue-500 text-white shadow-sm' : 'bg-white text-gray-500 hover:bg-blue-50 border border-gray-200'"
-                            class="px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all">Drinks</button>
-                    <button @click="categoryFilter = categoryFilter === 'dessert' ? '' : 'dessert'"
-                            :class="categoryFilter === 'dessert' ? 'bg-pink-500 text-white shadow-sm' : 'bg-white text-gray-500 hover:bg-pink-50 border border-gray-200'"
-                            class="px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all">Desserts</button>
+
+                <!-- Category Filter Dropdown -->
+                <div class="relative flex-shrink-0">
+                    <button type="button" @click.stop="showCategoryFilter = !showCategoryFilter"
+                            :class="categoryFilter ? 'bg-purple-50 text-purple-600 border border-purple-200' : 'bg-gray-100 text-gray-500 border border-transparent hover:bg-gray-200'"
+                            class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap">
+                        <i class="fas fa-filter text-xs"></i>
+                        <span x-text="categoryFilter ? (categoryFilter === 'food' ? 'Foods' : categoryFilter === 'drink' ? 'Drinks' : categoryFilter === 'dessert' ? 'Desserts' : categoryFilter) : 'Filter'"></span>
+                        <i class="fas fa-chevron-down text-[10px] transition-transform duration-200" :class="showCategoryFilter ? 'rotate-180' : ''"></i>
+                    </button>
+
+                    <div x-show="showCategoryFilter"
+                         @click.away="showCategoryFilter = false; activeCategoryActionMenu = null"
+                         x-transition:enter="transition ease-out duration-150"
+                         x-transition:enter-start="opacity-0 scale-95"
+                         x-transition:enter-end="opacity-100 scale-100"
+                         style="display:none;"
+                         class="absolute right-0 top-full mt-1 bg-white rounded-2xl shadow-xl border border-gray-100 py-1.5 w-40 z-50">
+
+                        <!-- All (clear filter) -->
+                        <button type="button" @click.stop="categoryFilter = ''; showCategoryFilter = false"
+                                :class="!categoryFilter ? 'bg-gray-50 font-black text-gray-700' : 'text-gray-500 hover:bg-gray-50'"
+                                class="w-full text-left px-4 py-2 text-xs font-bold flex items-center gap-2.5 transition-colors">
+                            <span class="w-2 h-2 rounded-full bg-gray-300 flex-shrink-0"></span>
+                            All
+                        </button>
+                        <div class="border-t border-gray-50 mx-3 my-0.5"></div>
+
+                        <!-- Foods -->
+                        <button type="button" @click.stop="categoryFilter = 'food'; showCategoryFilter = false"
+                                :class="categoryFilter === 'food' ? 'bg-purple-50 font-black text-purple-600' : 'text-gray-500 hover:bg-purple-50 hover:text-purple-600'"
+                                class="w-full text-left px-4 py-2 text-xs font-bold flex items-center gap-2.5 transition-colors">
+                            <span class="w-2 h-2 rounded-full bg-purple-500 flex-shrink-0"></span>
+                            Foods
+                        </button>
+
+                        <!-- Drinks -->
+                        <button type="button" @click.stop="categoryFilter = 'drink'; showCategoryFilter = false"
+                                :class="categoryFilter === 'drink' ? 'bg-blue-50 font-black text-blue-600' : 'text-gray-500 hover:bg-blue-50 hover:text-blue-600'"
+                                class="w-full text-left px-4 py-2 text-xs font-bold flex items-center gap-2.5 transition-colors">
+                            <span class="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0"></span>
+                            Drinks
+                        </button>
+
+                        <!-- Desserts -->
+                        <button type="button" @click.stop="categoryFilter = 'dessert'; showCategoryFilter = false"
+                                :class="categoryFilter === 'dessert' ? 'bg-pink-50 font-black text-pink-600' : 'text-gray-500 hover:bg-pink-50 hover:text-pink-600'"
+                                class="w-full text-left px-4 py-2 text-xs font-bold flex items-center gap-2.5 transition-colors">
+                            <span class="w-2 h-2 rounded-full bg-pink-500 flex-shrink-0"></span>
+                            Desserts
+                        </button>
+
+                        <!-- Divider (show only if custom categories exist) -->
+                        <div x-show="categories.filter(c => c.name !== 'Uncategorized').length > 0" class="border-t border-gray-50 mx-3 my-0.5"></div>
+
+                        <!-- Custom Categories with Action Menu - Exclude "Uncategorized" since it's a default category -->
+                        <template x-for="cat in categories.filter(c => c.name !== 'Uncategorized')" :key="cat.id">
+                            <div class="relative flex items-center">
+                                <!-- Category filter button -->
+                                <button type="button" @click.stop="categoryFilter = cat.name; showCategoryFilter = false"
+                                        :class="categoryFilter === cat.name ? 'font-black text-gray-700' : 'text-gray-500 hover:bg-gray-50'"
+                                        class="flex-1 text-left px-4 py-2 text-xs font-bold flex items-center gap-2.5 transition-colors"
+                                        :style="categoryFilter === cat.name ? `background-color: ${getBgColorClass(cat.color)}; color: ${getTextColorClass(cat.color)};` : ''">
+                                    <span class="w-2 h-2 rounded-full flex-shrink-0" :class="getColorClass(cat.color)"></span>
+                                    <span x-text="cat.name"></span>
+                                </button>
+
+                                <!-- Action button (3 dots) -->
+                                <div class="relative">
+                                    <button type="button" @click.stop="activeCategoryActionMenu = activeCategoryActionMenu === cat.id ? null : cat.id"
+                                            class="px-3 py-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors flex-shrink-0">
+                                        <i class="fas fa-ellipsis-v text-xs"></i>
+                                    </button>
+
+                                    <!-- Action Context Menu -->
+                                    <div x-show="activeCategoryActionMenu === cat.id" 
+                                         @click.away="activeCategoryActionMenu = null"
+                                         x-transition:enter="transition ease-out duration-100"
+                                         x-transition:enter-start="opacity-0 scale-95"
+                                         x-transition:enter-end="opacity-100 scale-100"
+                                         style="display:none;"
+                                         class="absolute right-0 top-full mt-1 bg-white rounded-lg shadow-lg border border-gray-200 py-1 w-40 z-50">
+                                        
+                                        <!-- Rename option -->
+                                        <button type="button" @click.stop="openEditCategoryModal(cat); activeCategoryActionMenu = null"
+                                                class="w-full text-left px-4 py-2.5 text-xs font-bold text-blue-600 hover:bg-blue-50 flex items-center gap-3 transition-colors">
+                                            <i class="fas fa-pen-to-square w-3 text-center"></i>
+                                            <span>Rename & Color</span>
+                                        </button>
+
+                                        <div class="border-t border-gray-100 my-1"></div>
+
+                                        <!-- Delete option -->
+                                        <button type="button" @click.stop="deleteCategory(cat); activeCategoryActionMenu = null"
+                                                class="w-full text-left px-4 py-2.5 text-xs font-bold text-red-600 hover:bg-red-50 flex items-center gap-3 transition-colors">
+                                            <i class="fas fa-trash w-3 text-center"></i>
+                                            <span>Delete</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+
+                        <!-- Divider before Uncategorized -->
+                        <div class="border-t border-gray-50 mx-3 my-0.5"></div>
+
+                        <!-- Uncategorized (always at bottom) -->
+                        <button type="button" @click.stop="categoryFilter = 'Uncategorized'; showCategoryFilter = false"
+                                :class="categoryFilter === 'Uncategorized' ? 'bg-gray-100 font-black text-gray-700' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-600'"
+                                class="w-full text-left px-4 py-2 text-xs font-bold flex items-center gap-2.5 transition-colors">
+                            <span class="w-2 h-2 rounded-full bg-gray-400 flex-shrink-0"></span>
+                            Uncategorized
+                        </button>
+                    </div>
                 </div>
+
+                <!-- Create Category Button -->
+                <button type="button" @click="openCreateCategoryModal()"
+                        class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold bg-blue-600 text-white hover:bg-blue-700 transition-all whitespace-nowrap shadow-sm">
+                    <i class="fas fa-plus text-xs"></i>
+                    <span>New Category</span>
+                </button>
             </div>
 
             <!-- Empty State — no items at all -->
@@ -318,7 +684,7 @@ function manageMenusPage() {
                                 </div>
                                 <div class="flex items-baseline space-x-1 mt-2">
                                     <span class="text-xs text-gray-400 font-medium">RM</span>
-                                    <span class="text-lg font-black text-gray-900" x-text="parseFloat(item.base_price).toFixed(2)"></span>
+                                    <span class="text-lg font-black text-gray-900" x-text="item.base_price !== null && item.base_price !== '' ? parseFloat(item.base_price).toFixed(2) : '0.00'"></span>
                                 </div>
                                 <p x-show="item.description" x-text="item.description"
                                    class="text-[11px] text-gray-400 leading-relaxed line-clamp-2 mt-1"></p>
@@ -335,7 +701,7 @@ function manageMenusPage() {
                                         <i class="fas fa-box text-sm"
                                            :class="editingQtyId === item.id ? 'text-blue-200' : 'text-gray-400 group-hover:text-blue-400'"></i>
                                         <span class="text-sm font-bold"
-                                              x-text="item.quantity > 0 ? item.quantity + ' Left' : 'Out of Stock'"></span>
+                                              x-text="item.quantity === null || item.quantity === '' || item.quantity === undefined ? '-' : (item.quantity > 0 ? item.quantity + ' Left' : 'Out of Stock')"></span>
                                     </div>
                                     <i class="fas fa-pen text-xs opacity-40"></i>
                                 </button>
@@ -587,8 +953,8 @@ function manageMenusPage() {
                                                class="w-full pl-7 pr-1 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium placeholder:text-gray-300 outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-400 transition-all">
                                     </div>
                                     <div class="col-span-2">
-                                        <input type="text" x-model="choice.quantity" placeholder="Qty" inputmode="numeric"
-                                               @input="choice.quantity = $event.target.value.replace(/[^0-9]/g,''); $event.target.value = choice.quantity"
+                                             <input type="text" x-model="choice.quantity" placeholder="Qty" inputmode="numeric"
+                                                 @input="choice.quantity = $event.target.value.replace(/[^0-9]/g,''); $event.target.value = choice.quantity; if (choice.quantity === '0') choice.status = 'unavailable'"
                                                class="w-full px-2 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium placeholder:text-gray-300 outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-400 transition-all text-center">
                                     </div>
                                     <div class="col-span-3">
@@ -643,6 +1009,146 @@ function manageMenusPage() {
                         class="flex-[2] px-6 py-3 bg-slate-900 hover:bg-purple-600 text-white rounded-2xl text-sm font-black shadow-lg transition-all disabled:opacity-60 flex items-center justify-center gap-2">
                     <i class="fas" :class="optionsSaving ? 'fa-spinner fa-spin' : 'fa-save'"></i>
                     <span x-text="optionsSaving ? 'Saving...' : 'Save Options'"></span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Create Category Modal ── -->
+    <div x-show="showCreateCategoryModal"
+         @click.away="closeCreateCategoryModal()"
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-150"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         style="display:none;"
+         class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+
+        <div x-transition:enter="transition ease-out duration-200"
+             x-transition:enter-start="opacity-0 scale-95 translate-y-2"
+             x-transition:enter-end="opacity-100 scale-100 translate-y-0"
+             class="bg-white rounded-3xl shadow-2xl w-full max-w-md flex flex-col">
+
+            <!-- Header -->
+            <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+                <div>
+                    <h2 class="text-base font-black text-gray-900">Create New Category</h2>
+                    <p class="text-xs text-gray-400 font-medium mt-0.5">Add a custom category for your menu</p>
+                </div>
+                <button @click="closeCreateCategoryModal()" class="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-all">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <!-- Body -->
+            <div class="p-6 space-y-6">
+                <!-- Category Name -->
+                <div>
+                    <label class="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2 block">Category Name</label>
+                    <input type="text" x-model="newCategoryName" placeholder="e.g. Alacarte, Set, Promotions"
+                           @keydown.enter="createCategory()"
+                           class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold placeholder:text-gray-300 outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all">
+                </div>
+
+                <!-- Color Picker -->
+                <div>
+                    <label class="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-3 block">Category Color</label>
+                    <div class="flex flex-wrap gap-3">
+                        <template x-for="color in colorOptions" :key="color.value">
+                            <button type="button"
+                                    @click="newCategoryColor = color.value"
+                                    :class="newCategoryColor === color.value ? 'ring-2 ring-offset-2 ring-blue-600 scale-110' : 'hover:scale-105'"
+                                    class="flex flex-col items-center gap-1.5 transition-all">
+                                <div :class="color.class + ' w-10 h-10 rounded-full border-2 border-white shadow-md transition-all'"></div>
+                                <span class="text-[10px] font-bold text-gray-600 text-center" x-text="color.name"></span>
+                            </button>
+                        </template>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="px-6 py-4 border-t border-gray-100 flex items-center gap-3">
+                <button @click="closeCreateCategoryModal()"
+                        class="flex-1 px-6 py-3 border-2 border-gray-100 rounded-2xl text-sm font-black text-gray-400 hover:bg-gray-50 hover:text-gray-600 transition-all">
+                    Cancel
+                </button>
+                <button @click="createCategory()" :disabled="createCategoryLoading"
+                        class="flex-[2] px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl text-sm font-black shadow-lg transition-all disabled:opacity-60 flex items-center justify-center gap-2">
+                    <i class="fas" :class="createCategoryLoading ? 'fa-spinner fa-spin' : 'fa-check'"></i>
+                    <span x-text="createCategoryLoading ? 'Creating...' : 'Create Category'"></span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Edit Category Modal ── -->
+    <div x-show="showEditCategoryModal"
+         @click.away="closeEditCategoryModal()"
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-150"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         style="display:none;"
+         class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+
+        <div x-transition:enter="transition ease-out duration-200"
+             x-transition:enter-start="opacity-0 scale-95 translate-y-2"
+             x-transition:enter-end="opacity-100 scale-100 translate-y-0"
+             class="bg-white rounded-3xl shadow-2xl w-full max-w-md flex flex-col">
+
+            <!-- Header -->
+            <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+                <div>
+                    <h2 class="text-base font-black text-gray-900">Edit Category</h2>
+                    <p class="text-xs text-gray-400 font-medium mt-0.5" x-text="editingCategory ? editingCategory.name : ''"></p>
+                </div>
+                <button @click="closeEditCategoryModal()" class="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-all">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <!-- Body -->
+            <div class="p-6 space-y-6">
+                <!-- Category Name -->
+                <div>
+                    <label class="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2 block">Category Name</label>
+                    <input type="text" x-model="editCategoryName" placeholder="Category name"
+                           @keydown.enter="updateCategory()"
+                           class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold placeholder:text-gray-300 outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all">
+                </div>
+
+                <!-- Color Picker -->
+                <div>
+                    <label class="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-3 block">Category Color</label>
+                    <div class="flex flex-wrap gap-3">
+                        <template x-for="color in colorOptions" :key="color.value">
+                            <button type="button"
+                                    @click="editCategoryColor = color.value"
+                                    :class="editCategoryColor === color.value ? 'ring-2 ring-offset-2 ring-blue-600 scale-110' : 'hover:scale-105'"
+                                    class="flex flex-col items-center gap-1.5 transition-all">
+                                <div :class="color.class + ' w-10 h-10 rounded-full border-2 border-white shadow-md transition-all'"></div>
+                                <span class="text-[10px] font-bold text-gray-600 text-center" x-text="color.name"></span>
+                            </button>
+                        </template>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="px-6 py-4 border-t border-gray-100 flex items-center gap-3">
+                <button @click="closeEditCategoryModal()"
+                        class="flex-1 px-6 py-3 border-2 border-gray-100 rounded-2xl text-sm font-black text-gray-400 hover:bg-gray-50 hover:text-gray-600 transition-all">
+                    Cancel
+                </button>
+                <button @click="updateCategory()" :disabled="editCategoryLoading"
+                        class="flex-[2] px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl text-sm font-black shadow-lg transition-all disabled:opacity-60 flex items-center justify-center gap-2">
+                    <i class="fas" :class="editCategoryLoading ? 'fa-spinner fa-spin' : 'fa-save'"></i>
+                    <span x-text="editCategoryLoading ? 'Saving...' : 'Save Changes'"></span>
                 </button>
             </div>
         </div>

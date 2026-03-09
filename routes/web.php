@@ -2,7 +2,6 @@
 
 use App\Http\Controllers\ProfileController;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\Admin\TruckApprovalController;
 use App\Http\Controllers\StaffController;
@@ -15,18 +14,15 @@ Route::get('/', function () {
     return view('welcome');
 });
 
-Route::get('register', [RegisteredUserController::class, 'create'])
-    ->name('register');
-
 // Standard User (Customer) Dashboard
 Route::get('/dashboard', function () {
     return view('dashboard');
-})->middleware(['auth', 'verified'])->name('dashboard');
+})->middleware(['auth', 'verified', 'role:1'])->name('dashboard');
 
 /**
  * Customer Routes
  */
-Route::middleware(['auth'])->prefix('customer')->name('customer.')->group(function () {
+Route::middleware(['auth', 'role:1'])->prefix('customer')->name('customer.')->group(function () {
     Route::get('/dashboard', function () {
         return view('customer.customer-dashboard');
     })->name('dashboard');
@@ -39,7 +35,7 @@ Route::middleware(['auth'])->prefix('customer')->name('customer.')->group(functi
  * Shared Profile Routes
  * These are used by Customers, Admins, FT Admins, and FT Workers.
  */
-Route::middleware('auth')->group(function () {
+Route::middleware(['auth', 'ftadmin.status'])->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
@@ -48,18 +44,23 @@ Route::middleware('auth')->group(function () {
 /**
  * Admin Routes (Super Admin)
  */
-Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(function () {
+Route::middleware(['auth', 'role:6'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/dashboard', [AdminController::class, 'index'])->name('dashboard');
     Route::get('/pending', [AdminController::class, 'pendingTrucks'])->name('pending.trucks');
+    Route::get('/approved', [AdminController::class, 'approvedTrucks'])->name('approved.trucks');
+    Route::get('/global-menus', [AdminController::class, 'globalMenus'])->name('global-menus');
     Route::post('/approve-user/{id}', [AdminController::class, 'approveUser'])->name('approve.user');
     Route::post('/trucks/{id}/approve', [TruckApprovalController::class, 'approve'])->name('approve-truck');
     Route::delete('/trucks/{id}/reject', [TruckApprovalController::class, 'reject'])->name('reject-truck');
+    Route::get('/trucks/{truckId}/orders', [AdminController::class, 'truckOrders'])->name('truck.orders');
+    Route::patch('/orders/{orderId}/status', [AdminController::class, 'updateOrderStatus'])->name('order.update-status');
+    Route::patch('/trucks/{truckId}/update-details', [AdminController::class, 'updateTruckDetails'])->name('truck.update-details');
 });
 
 /**
  * Food Truck Admin Routes (ftadmin)
  */
-Route::middleware(['auth', 'ftadmin.status'])->prefix('ftadmin')->name('ftadmin.')->group(function () {
+Route::middleware(['auth', 'role:2', 'ftadmin.status'])->prefix('ftadmin')->name('ftadmin.')->group(function () {
     
     // FT Admin Dashboard
     Route::get('/dashboard', function () {
@@ -108,6 +109,47 @@ Route::middleware(['auth', 'ftadmin.status'])->prefix('ftadmin')->name('ftadmin.
         return response()->json(['success' => true, 'is_operational' => $truck->is_operational]);
     })->name('toggle-operational');
 
+    // Truck Profile
+    Route::get('/truck-profile', function () {
+        $user = Auth::user();
+        $truck = \App\Models\FoodTruck::find($user->foodtruck_id);
+        if (!$truck) return response()->json(['success' => false, 'message' => 'Truck not found'], 404);
+        return response()->json([
+            'success' => true,
+            'truck' => [
+                'id' => $truck->id,
+                'foodtruck_name' => $truck->foodtruck_name,
+                'business_license_no' => $truck->business_license_no,
+                'foodtruck_desc' => $truck->foodtruck_desc
+            ]
+        ]);
+    })->name('truck-profile.get');
+
+    Route::post('/truck-profile', function () {
+        $user = Auth::user();
+        $truck = \App\Models\FoodTruck::find($user->foodtruck_id);
+        if (!$truck) return response()->json(['success' => false, 'message' => 'Truck not found'], 404);
+        
+        $validated = request()->validate([
+            'foodtruck_name' => 'required|string|max:255',
+            'business_license_no' => 'required|string|max:255',
+            'foodtruck_desc' => 'nullable|string|max:1000'
+        ]);
+        
+        $truck->update($validated);
+        
+        return response()->json([
+            'success' => true,
+            'message' => 'Truck profile updated successfully',
+            'truck' => [
+                'id' => $truck->id,
+                'foodtruck_name' => $truck->foodtruck_name,
+                'business_license_no' => $truck->business_license_no,
+                'foodtruck_desc' => $truck->foodtruck_desc
+            ]
+        ]);
+    })->name('truck-profile.update');
+
     // Staff Management
     Route::post('/register-staff', [StaffController::class, 'store'])->name('register.staff');
     Route::post('/staff/{id}/deactivate', [StaffController::class, 'deactivate'])->name('staff.deactivate');
@@ -125,12 +167,18 @@ Route::middleware(['auth', 'ftadmin.status'])->prefix('ftadmin')->name('ftadmin.
         Route::patch('/{id}/options', [MenuController::class, 'updateOptions'])->name('update-options');
         Route::delete('/{id}', [MenuController::class, 'destroy'])->name('destroy');
     });
+
+    // Category Management
+    Route::post('/menu-category/create', [MenuController::class, 'createCategory'])->name('menu-category.create');
+    Route::get('/menu-category/list', [MenuController::class, 'getCategories'])->name('menu-category.list');
+    Route::patch('/menu-category/{id}', [MenuController::class, 'updateCategory'])->name('menu-category.update');
+    Route::delete('/menu-category/{id}', [MenuController::class, 'deleteCategory'])->name('menu-category.delete');
 });
 
 /**
  * Food Truck Worker Routes (ftworker)
  */
-Route::middleware(['auth'])->prefix('ftworker')->name('ftworker.')->group(function () {
+Route::middleware(['auth', 'role:3'])->prefix('ftworker')->name('ftworker.')->group(function () {
     Route::get('/dashboard', function () {
         return view('ftworker.ftworker-dashboard');
     })->name('dashboard');
@@ -143,7 +191,7 @@ Route::middleware(['auth'])->prefix('ftworker')->name('ftworker.')->group(functi
 /**
  * Shared Order Routes (ftworker + ftadmin, same truck)
  */
-Route::middleware(['auth'])->prefix('orders')->name('orders.')->group(function () {
+Route::middleware(['auth', 'role:2,3'])->prefix('orders')->name('orders.')->group(function () {
     Route::get('/pending', [OrderController::class, 'pending'])->name('pending');
     Route::get('/my-activity', [OrderController::class, 'myActivity'])->name('my-activity');
     Route::post('/{id}/accept', [OrderController::class, 'accept'])->name('accept');

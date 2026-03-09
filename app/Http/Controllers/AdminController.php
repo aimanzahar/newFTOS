@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\User;
 use App\Models\FoodTruck;
+use App\Models\Order;
 
 class AdminController extends Controller
 {
@@ -44,6 +45,49 @@ class AdminController extends Controller
     }
 
     /**
+     * Show approved food trucks.
+     */
+    public function approvedTrucks()
+    {
+        $approvedRegistrations = FoodTruck::with(['owner', 'staff', 'menus.optionGroups.choices'])
+            ->where('status', 'approved')
+            ->latest('food_trucks.created_at')
+            ->paginate(10);
+
+        return view('admin.approved-trucks-list', compact('approvedRegistrations'));
+    }
+
+    /**
+     * Show global menus page.
+     */
+    public function globalMenus()
+    {
+        return view('admin.global-menus');
+    }
+
+    /**
+     * Update truck details (name, description).
+     */
+    public function updateTruckDetails(Request $request, $truckId)
+    {
+        $request->validate([
+            'foodtruck_name' => 'required|string|max:255',
+            'foodtruck_desc' => 'nullable|string|max:1000',
+        ]);
+
+        $truck = FoodTruck::findOrFail($truckId);
+        $truck->foodtruck_name = $request->input('foodtruck_name');
+        $truck->foodtruck_desc = $request->input('foodtruck_desc');
+        $truck->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Truck details updated successfully',
+            'truck' => $truck,
+        ]);
+    }
+
+    /**
      * Approve a food truck.
      */
     public function approveTruck($id)
@@ -65,16 +109,52 @@ class AdminController extends Controller
     }
 
     /**
-     * Reject and delete a food truck registration.
+     * Reject a food truck registration.
      */
     public function rejectTruck($id)
     {
         $truck = FoodTruck::findOrFail($id);
+        $userId = $truck->user_id;
         $name = $truck->foodtruck_name;
         
-        // Delete the record from food_trucks table
+        // Update user status to rejected using direct query to ensure it works
+        User::where('id', $userId)->update([
+            'status' => 'rejected',
+            'foodtruck_id' => null,
+        ]);
+        
+        // Delete the food truck record
         $truck->delete();
 
-        return back()->with('rejected', "The registration for '{$name}' has been rejected and removed.");
+        return back()->with('rejected', "The registration for '{$name}' has been rejected.");
+    }
+
+    /**
+     * Return orders for a specific food truck (JSON).
+     */
+    public function truckOrders($truckId)
+    {
+        $orders = Order::where('foodtruck_id', $truckId)
+            ->latest()
+            ->limit(100)
+            ->get();
+
+        return response()->json($orders);
+    }
+
+    /**
+     * Update status of a specific order (JSON).
+     */
+    public function updateOrderStatus(Request $request, $orderId)
+    {
+        $request->validate([
+            'status' => 'required|in:pending,accepted,preparing,prepared,ready_for_pickup,delivery,done',
+        ]);
+
+        $order = Order::findOrFail($orderId);
+        $order->status = $request->status;
+        $order->save();
+
+        return response()->json(['success' => true, 'status' => $order->status]);
     }
 }
