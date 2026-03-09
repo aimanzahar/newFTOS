@@ -18,10 +18,19 @@ class CheckFtadminStatus
     {
         $user = Auth::user();
 
-        if ($user && $user->role == 2 && $user->status == 'pending') {
-            // If pending ftadmin tries to access other ftadmin routes, redirect to dashboard
-            if (!$request->routeIs('ftadmin.dashboard')) {
-                return redirect()->route('ftadmin.dashboard');
+        if ($user && (int) $user->role === 2) {
+            $status = $user->fresh()?->status ?? $user->status;
+
+            if ($status === 'pending') {
+                // Allow logout so the user is not trapped
+                if ($request->routeIs('logout')) {
+                    return $next($request);
+                }
+
+                // For any other route, force the ftadmin dashboard
+                if (!$request->routeIs('ftadmin.dashboard')) {
+                    return redirect()->route('ftadmin.dashboard');
+                }
             }
         }
 

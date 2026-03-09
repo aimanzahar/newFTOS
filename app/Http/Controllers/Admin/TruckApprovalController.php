@@ -13,13 +13,15 @@ class TruckApprovalController extends Controller
      */
     public function approve($id)
     {
-        $truck = FoodTruck::findOrFail($id);
+        $truck = FoodTruck::with('owner')->findOrFail($id);
 
-        // Update the status to 'approved'
-        // Assuming your 'add_status_to_food_trucks_table' migration uses 'approved'
-        $truck->update([
-            'status' => 'approved'
-        ]);
+        $truck->update(['status' => 'approved']);
+
+        // Clear the pending status on the owner's user account so the
+        // overlay in ftadmin-layout no longer appears after approval.
+        if ($truck->owner) {
+            $truck->owner->update(['status' => 'active']);
+        }
 
         return redirect()->back()->with('success', "Food truck '{$truck->foodtruck_name}' has been approved successfully.");
     }

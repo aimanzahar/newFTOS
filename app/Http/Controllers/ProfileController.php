@@ -17,7 +17,7 @@ class ProfileController extends Controller
     public function edit(Request $request): View
     {
         $user = $request->user();
-        
+
         /**
          * Determine layout based on user role
          * Role 1: Admin (System Admin)
