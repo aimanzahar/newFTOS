@@ -48,7 +48,7 @@ class AdminController extends Controller
      */
     public function approvedTrucks()
     {
-        $approvedRegistrations = FoodTruck::with(['user', 'workers', 'menus.optionGroups.choices'])
+        $approvedRegistrations = FoodTruck::with(['owner', 'staff', 'menus.optionGroups.choices'])
             ->where('status', 'approved')
             ->latest('food_trucks.created_at')
             ->paginate(10);

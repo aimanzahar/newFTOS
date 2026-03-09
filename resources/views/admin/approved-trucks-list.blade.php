@@ -2,7 +2,7 @@
     {{-- This slot override helps prevent Breeze from injecting headers into the top --}}
     <x-slot name="header"></x-slot>
 
-    <div class="fixed inset-0 flex h-screen bg-gray-50 font-sans antialiased overflow-hidden z-50" x-data="approvedTrucksPage()">
+    <div class="fixed inset-0 flex h-screen bg-gray-50 font-sans antialiased overflow-hidden z-50">
 
         <!-- Sidebar Component (Fixed Position) -->
         @include('layouts.admin.admin-left-navbar')
@@ -71,7 +71,7 @@
                     <div class="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between">
                         <div>
                             <h1 class="text-2xl font-black text-gray-900 tracking-tight">
-                                Approved Food Trucks
+                                Approved Trucks
                             </h1>
                             <p class="text-gray-500 mt-1 font-medium">
                                 Currently operating food trucks on the platform.
@@ -160,14 +160,13 @@
                                             <td class="px-6 py-4 text-right">
                                                 <div class="flex justify-end space-x-2">
 
-                                                    <!-- View Details Button -->
+                                                    <!-- See More Details Button -->
                                                     <button
                                                         type="button"
-                                                        x-data="{ truck: @json($truck) }"
-                                                        @click="$root.selectedTruck = truck; $root.activeDetailTab = 'truck'; $root.menuFilter = ''; $root.showDetailModal = true"
+                                                        onclick="openTruckModal({{ $truck->id }})"
                                                         class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-1.5 px-4 rounded-lg transition duration-200 shadow-sm text-[11px]"
                                                     >
-                                                        View Details
+                                                        See More Details
                                                     </button>
 
                                                     <!-- Manage Button (Optional) -->
@@ -214,17 +213,28 @@
             </main>
         </div>
 
-        <!-- TRUCK DETAILS MODAL -->
-        <div x-show="showDetailModal"
-             x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
-             x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
-             class="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+        {{-- Safe truck data store: browser never parses this as JS --}}
+        @php
+            $trucksForJs = [];
+            foreach($approvedRegistrations as $truck) {
+                $truck->load(['owner', 'staff', 'menus.optionGroups.choices']);
+                $trucksForJs[$truck->id] = $truck;
+            }
+        @endphp
+        <script id="trucks-json-data" type="application/json">{!! json_encode($trucksForJs, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) !!}</script>
 
-            <div @click.away="showDetailModal = false"
-                 x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 scale-95 translate-y-2" x-transition:enter-end="opacity-100 scale-100 translate-y-0"
+        <!-- =============================================
+             TRUCK DETAILS MODAL (Pure Vanilla JS)
+             ============================================= -->
+        <div id="truckDetailModal"
+             style="display:none;"
+             class="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm"
+             onclick="handleModalBackdropClick(event)">
+
+            <div id="truckModalPanel"
                  class="bg-white w-full max-w-4xl rounded-3xl shadow-2xl overflow-hidden border border-white/20 flex flex-col h-[85vh] max-h-[750px]">
 
-                <!-- Header with Tabs -->
+                <!-- Modal Header with Tabs -->
                 <div class="px-8 py-6 border-b border-gray-100 bg-gray-50/50 flex-shrink-0">
                     <div class="flex items-center justify-between mb-6">
                         <div class="flex items-center space-x-4">
@@ -232,30 +242,27 @@
                                 <i class="fas fa-truck"></i>
                             </div>
                             <div>
-                                <h2 class="text-xl font-black text-gray-800 tracking-tight" x-text="selectedTruck?.foodtruck_name"></h2>
+                                <h2 id="modalTruckName" class="text-xl font-black text-gray-800 tracking-tight"></h2>
                                 <p class="text-xs text-gray-400 font-bold uppercase tracking-widest mt-0.5">Truck Details & Information</p>
                             </div>
                         </div>
-                        <button @click="showDetailModal = false" class="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-red-50 text-gray-400 hover:text-red-500 transition-all">
+                        <button onclick="closeModal()" class="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-red-50 text-gray-400 hover:text-red-500 transition-all">
                             <i class="fas fa-times"></i>
                         </button>
                     </div>
 
                     <!-- Tab Navigation -->
                     <div class="flex gap-2 border-t border-gray-100 pt-4">
-                        <button @click="activeDetailTab = 'truck'"
-                                :class="activeDetailTab === 'truck' ? 'bg-blue-50 text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'"
-                                class="relative px-4 py-2 text-sm font-bold uppercase tracking-widest transition-colors">
+                        <button id="tab-btn-truck" onclick="switchTab('truck')"
+                                class="modal-tab-btn active-tab px-4 py-2 text-sm font-bold uppercase tracking-widest transition-colors">
                             <i class="fas fa-info-circle mr-2"></i>Truck Details
                         </button>
-                        <button @click="activeDetailTab = 'owner'"
-                                :class="activeDetailTab === 'owner' ? 'bg-blue-50 text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'"
-                                class="relative px-4 py-2 text-sm font-bold uppercase tracking-widest transition-colors">
+                        <button id="tab-btn-owner" onclick="switchTab('owner')"
+                                class="modal-tab-btn px-4 py-2 text-sm font-bold uppercase tracking-widest transition-colors">
                             <i class="fas fa-user mr-2"></i>Owner & Staff
                         </button>
-                        <button @click="activeDetailTab = 'menu'"
-                                :class="activeDetailTab === 'menu' ? 'bg-blue-50 text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'"
-                                class="relative px-4 py-2 text-sm font-bold uppercase tracking-widest transition-colors">
+                        <button id="tab-btn-menu" onclick="switchTab('menu')"
+                                class="modal-tab-btn px-4 py-2 text-sm font-bold uppercase tracking-widest transition-colors">
                             <i class="fas fa-utensils mr-2"></i>Menu Lists
                         </button>
                     </div>
@@ -265,94 +272,70 @@
                 <div class="flex-1 overflow-y-auto">
 
                     <!-- Tab 1: Truck Details -->
-                    <div x-show="activeDetailTab === 'truck'" class="p-8">
+                    <div id="tab-truck" class="modal-tab-panel p-8">
                         <div class="space-y-6">
-                            <!-- Truck Name -->
                             <div>
                                 <label class="text-[11px] font-black uppercase tracking-widest text-gray-400 ml-1 block mb-2">Truck Name</label>
                                 <div class="p-4 bg-gray-50 rounded-2xl border border-gray-100">
-                                    <p class="text-lg font-bold text-gray-800" x-text="selectedTruck?.foodtruck_name"></p>
+                                    <p id="detail-truck-name" class="text-lg font-bold text-gray-800"></p>
                                 </div>
                             </div>
 
-                            <!-- Business License Number -->
                             <div>
                                 <label class="text-[11px] font-black uppercase tracking-widest text-gray-400 ml-1 block mb-2">Business License Number</label>
                                 <div class="p-4 bg-gray-50 rounded-2xl border border-gray-100">
-                                    <p class="text-sm font-mono text-gray-700" x-text="selectedTruck?.business_license_no"></p>
+                                    <p id="detail-license" class="text-sm font-mono text-gray-700"></p>
                                 </div>
                             </div>
 
-                            <!-- Operational Status -->
                             <div>
                                 <label class="text-[11px] font-black uppercase tracking-widest text-gray-400 ml-1 block mb-2">Operational Status</label>
-                                <div class="p-4 rounded-2xl border" :class="selectedTruck?.is_operational ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'">
+                                <div id="detail-status-box" class="p-4 rounded-2xl border">
                                     <div class="flex items-center gap-3">
-                                        <div class="w-3 h-3 rounded-full flex-shrink-0" :class="selectedTruck?.is_operational ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'"></div>
-                                        <span class="text-sm font-bold" :class="selectedTruck?.is_operational ? 'text-emerald-700' : 'text-red-600'" x-text="selectedTruck?.is_operational ? 'Online & Operational' : 'Offline'"></span>
+                                        <div id="detail-status-dot" class="w-3 h-3 rounded-full flex-shrink-0"></div>
+                                        <span id="detail-status-text" class="text-sm font-bold"></span>
                                     </div>
                                 </div>
                             </div>
 
-                            <!-- Description -->
                             <div>
                                 <label class="text-[11px] font-black uppercase tracking-widest text-gray-400 ml-1 block mb-2">Description</label>
                                 <div class="p-4 bg-gray-50 rounded-2xl border border-gray-100">
-                                    <p class="text-sm text-gray-700 leading-relaxed" x-text="selectedTruck?.foodtruck_desc || 'No description provided'"></p>
+                                    <p id="detail-desc" class="text-sm text-gray-700 leading-relaxed"></p>
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Tab 2: Owner & Staff Details -->
-                    <div x-show="activeDetailTab === 'owner'" class="p-8">
+                    <!-- Tab 2: Owner & Staff -->
+                    <div id="tab-owner" class="modal-tab-panel p-8" style="display:none;">
                         <div class="space-y-6">
-                            <!-- Truck Owner Section -->
                             <div>
                                 <h3 class="text-base font-black text-gray-800 mb-4 flex items-center">
-                                    <i class="fas fa-user-tie mr-2 text-blue-600"></i>
-                                    Truck Owner / Admin
+                                    <i class="fas fa-user-tie mr-2 text-blue-600"></i>Truck Owner / Admin
                                 </h3>
                                 <div class="bg-blue-50 rounded-2xl border border-blue-100 p-4 space-y-3">
                                     <div>
                                         <p class="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Full Name</p>
-                                        <p class="text-sm font-bold text-gray-800" x-text="selectedTruck?.user?.full_name"></p>
+                                        <p id="detail-owner-name" class="text-sm font-bold text-gray-800"></p>
                                     </div>
                                     <div>
                                         <p class="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Email Address</p>
-                                        <p class="text-sm font-mono text-gray-700" x-text="selectedTruck?.user?.email"></p>
+                                        <p id="detail-owner-email" class="text-sm font-mono text-gray-700"></p>
                                     </div>
                                     <div>
                                         <p class="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Phone Number</p>
-                                        <p class="text-sm text-gray-700" x-text="selectedTruck?.user?.phone_no || 'Not provided'"></p>
+                                        <p id="detail-owner-phone" class="text-sm text-gray-700"></p>
                                     </div>
                                 </div>
                             </div>
 
-                            <!-- Staff / Workers Section -->
                             <div>
                                 <h3 class="text-base font-black text-gray-800 mb-4 flex items-center">
-                                    <i class="fas fa-users mr-2 text-emerald-600"></i>
-                                    Food Truck Workers / Staff
+                                    <i class="fas fa-users mr-2 text-emerald-600"></i>Food Truck Workers / Staff
                                 </h3>
-                                <div x-show="selectedTruck?.workers && selectedTruck?.workers?.length > 0" class="space-y-3">
-                                    <template x-for="worker in selectedTruck?.workers" :key="worker.id">
-                                        <div class="bg-emerald-50 rounded-2xl border border-emerald-100 p-4 space-y-2">
-                                            <div class="flex items-center gap-3 mb-3">
-                                                <div class="w-10 h-10 rounded-lg bg-slate-800 text-white flex items-center justify-center font-bold text-sm" x-text="worker.full_name.charAt(0)"></div>
-                                                <div>
-                                                    <p class="text-sm font-bold text-gray-800" x-text="worker.full_name"></p>
-                                                    <span class="text-[10px] font-bold text-emerald-600 bg-white px-2 py-0.5 rounded uppercase" x-text="worker.status === 'active' ? 'Active' : worker.status"></span>
-                                                </div>
-                                            </div>
-                                            <div class="text-xs space-y-1">
-                                                <p><span class="font-bold text-gray-600">Email:</span> <span class="text-gray-700" x-text="worker.email"></span></p>
-                                                <p><span class="font-bold text-gray-600">Phone:</span> <span class="text-gray-700" x-text="worker.phone_no || 'Not provided'"></span></p>
-                                            </div>
-                                        </div>
-                                    </template>
-                                </div>
-                                <div x-show="!selectedTruck?.workers || selectedTruck?.workers?.length === 0" class="text-center py-8 bg-gray-50 rounded-2xl border border-gray-100">
+                                <div id="detail-staff-list" class="space-y-3"></div>
+                                <div id="detail-staff-empty" class="text-center py-8 bg-gray-50 rounded-2xl border border-gray-100" style="display:none;">
                                     <i class="fas fa-users text-3xl text-gray-300 mb-2 block"></i>
                                     <p class="text-sm font-bold text-gray-500">No staff members assigned</p>
                                 </div>
@@ -361,77 +344,24 @@
                     </div>
 
                     <!-- Tab 3: Menu Lists -->
-                    <div x-show="activeDetailTab === 'menu'" class="p-8">
+                    <div id="tab-menu" class="modal-tab-panel p-8" style="display:none;">
                         <div class="space-y-6">
-                            <!-- Category Filter -->
                             <div>
                                 <label class="text-[11px] font-black uppercase tracking-widest text-gray-400 ml-1 block mb-3">Filter by Category</label>
-                                <div class="flex flex-wrap gap-2">
-                                    <button @click="menuFilter = ''"
-                                            :class="!menuFilter ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
-                                            class="px-4 py-2 rounded-lg text-xs font-bold uppercase transition-colors">
-                                        All
-                                    </button>
-                                    <template x-for="category in getMenuCategories()" :key="category">
-                                        <button @click="menuFilter = category"
-                                                :class="menuFilter === category ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
-                                                class="px-4 py-2 rounded-lg text-xs font-bold uppercase transition-colors"
-                                                x-text="category">
-                                        </button>
-                                    </template>
-                                </div>
+                                <div id="menu-category-filters" class="flex flex-wrap gap-2"></div>
                             </div>
-
-                            <!-- Menus List -->
-                            <div>
-                                <div x-show="getFilteredMenus().length > 0" class="space-y-4">
-                                    <template x-for="menu in getFilteredMenus()" :key="menu.id">
-                                        <div class="bg-purple-50 rounded-2xl border border-purple-100 p-5">
-                                            <div class="flex items-start justify-between mb-4">
-                                                <div>
-                                                    <div class="flex items-center gap-2 mb-2">
-                                                        <h4 class="text-base font-black text-gray-800" x-text="menu.name"></h4>
-                                                        <span class="text-[10px] font-bold text-purple-600 bg-white px-2 py-0.5 rounded uppercase" x-text="menu.category"></span>
-                                                    </div>
-                                                    <p class="text-sm text-gray-600" x-text="menu.details || 'No details'"></p>
-                                                </div>
-                                                <div class="text-right">
-                                                    <p class="text-lg font-black text-gray-900" x-text="'RM ' + parseFloat(menu.price).toFixed(2)"></p>
-                                                </div>
-                                            </div>
-
-                                            <!-- Menu Choices & Option Groups -->
-                                            <div x-show="menu.option_groups && menu.option_groups.length > 0" class="mt-4 pt-4 border-t border-purple-200">
-                                                <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Options & Choices</p>
-                                                <template x-for="optionGroup in menu.option_groups" :key="optionGroup.id">
-                                                    <div class="mb-3">
-                                                        <p class="text-xs font-bold text-gray-700 mb-2" x-text="optionGroup.name"></p>
-                                                        <div class="flex flex-wrap gap-2">
-                                                            <template x-for="choice in optionGroup.choices" :key="choice.id">
-                                                                <span class="text-xs bg-white px-2.5 py-1 rounded-full border border-purple-200 text-gray-700 font-medium">
-                                                                    <span x-text="choice.name"></span>
-                                                                    <span class="text-purple-600 font-bold ml-1" x-text="'(+RM ' + parseFloat(choice.additional_price).toFixed(2) + ')'"></span>
-                                                                </span>
-                                                            </template>
-                                                        </div>
-                                                    </div>
-                                                </template>
-                                            </div>
-                                        </div>
-                                    </template>
-                                </div>
-
-                                <div x-show="getFilteredMenus().length === 0" class="text-center py-12 bg-gray-50 rounded-2xl border border-gray-100">
-                                    <i class="fas fa-utensils text-4xl text-gray-300 mb-3 block"></i>
-                                    <p class="text-sm font-bold text-gray-500">No menus available</p>
-                                </div>
+                            <div id="detail-menu-list" class="space-y-4"></div>
+                            <div id="detail-menu-empty" class="text-center py-12 bg-gray-50 rounded-2xl border border-gray-100" style="display:none;">
+                                <i class="fas fa-utensils text-4xl text-gray-300 mb-3 block"></i>
+                                <p class="text-sm font-bold text-gray-500">No menus available</p>
                             </div>
                         </div>
                     </div>
-                </div>
 
+                </div>
             </div>
         </div>
+        <!-- END MODAL -->
 
     </div>
 
@@ -461,49 +391,215 @@
                 background: #cbd5e1;
                 border-radius: 10px;
             }
+
+            .modal-tab-btn {
+                color: #6b7280;
+            }
+            .modal-tab-btn:hover {
+                color: #374151;
+            }
+            .modal-tab-btn.active-tab {
+                background-color: #eff6ff;
+                color: #2563eb;
+                border-bottom: 2px solid #2563eb;
+            }
         </style>
     @endpush
 
-    @push('scripts')
-        <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-        <script>
-            // Define the Alpine component function immediately
-            function approvedTrucksPage() {
-                return {
-                    showDetailModal: false,
-                    activeDetailTab: 'truck',
-                    selectedTruck: null,
-                    menuFilter: '',
+    <script>
+        // ─── Truck data store (keyed by ID) — read from safe JSON script tag ────
+        var _trucksById = {};
+        try {
+            var _jsonEl = document.getElementById('trucks-json-data');
+            if (_jsonEl) { _trucksById = JSON.parse(_jsonEl.textContent); }
+        } catch(e) { console.error('Truck JSON parse error:', e); }
 
-                    getMenuCategories() {
-                        if (!this.selectedTruck?.menus) return [];
-                        const categories = [...new Set(this.selectedTruck.menus.map(m => m.category))];
-                        return categories.filter(c => c !== null && c !== undefined);
-                    },
+        // ─── State ────────────────────────────────────────────────────────────────
+        var _currentTruck = null;
+        var _menuFilter   = '';
 
-                    getFilteredMenus() {
-                        if (!this.selectedTruck?.menus) return [];
-                        if (!this.menuFilter) return this.selectedTruck.menus;
-                        return this.selectedTruck.menus.filter(m => m.category === this.menuFilter);
-                    }
-                }
-            }
+        // ─── Open / Close ─────────────────────────────────────────────────────────
+        function openTruckModal(id) {
+            _currentTruck = _trucksById[id] || null;
+            if (!_currentTruck) { alert('Truck data not found.'); return; }
+            populateTruckTab();
+            populateOwnerTab();
+            populateMenuTab('');
+            switchTab('truck');
+            document.getElementById('truckDetailModal').style.display = 'flex';
+        }
 
-            document.addEventListener('DOMContentLoaded', function () {
-                const sidebar  = document.getElementById('sidebar');
-                const openBtn  = document.getElementById('openSidebar');
-                const closeBtn = document.getElementById('closeSidebar');
+        function closeModal() {
+            document.getElementById('truckDetailModal').style.display = 'none';
+        }
 
-                if (openBtn)
-                    openBtn.addEventListener('click', () =>
-                        sidebar.classList.remove('sidebar-hidden')
-                    );
+        function handleModalBackdropClick(e) {
+            if (e.target === document.getElementById('truckDetailModal')) closeModal();
+        }
 
-                if (closeBtn)
-                    closeBtn.addEventListener('click', () =>
-                        sidebar.classList.add('sidebar-hidden')
-                    );
+        // ─── Tab Switching ────────────────────────────────────────────────────────
+        function switchTab(tab) {
+            ['truck', 'owner', 'menu'].forEach(function(t) {
+                document.getElementById('tab-' + t).style.display       = (t === tab) ? 'block' : 'none';
+                document.getElementById('tab-btn-' + t).classList.toggle('active-tab', t === tab);
             });
-        </script>
-    @endpush
+        }
+
+        // ─── Tab 1: Truck Details ─────────────────────────────────────────────────
+        function populateTruckTab() {
+            var t = _currentTruck;
+            document.getElementById('modalTruckName').textContent    = t.foodtruck_name || '';
+            document.getElementById('detail-truck-name').textContent = t.foodtruck_name || '';
+            document.getElementById('detail-license').textContent    = t.business_license_no || '';
+            document.getElementById('detail-desc').textContent       = t.foodtruck_desc || 'No description provided';
+
+            var dot = document.getElementById('detail-status-dot');
+            var txt = document.getElementById('detail-status-text');
+            var box = document.getElementById('detail-status-box');
+            if (t.is_operational) {
+                dot.className   = 'w-3 h-3 rounded-full flex-shrink-0 bg-emerald-500 animate-pulse';
+                txt.className   = 'text-sm font-bold text-emerald-700';
+                txt.textContent = 'Online & Operational';
+                box.className   = 'p-4 rounded-2xl border bg-emerald-50 border-emerald-200';
+            } else {
+                dot.className   = 'w-3 h-3 rounded-full flex-shrink-0 bg-red-500';
+                txt.className   = 'text-sm font-bold text-red-600';
+                txt.textContent = 'Offline';
+                box.className   = 'p-4 rounded-2xl border bg-red-50 border-red-200';
+            }
+        }
+
+        // ─── Tab 2: Owner & Staff ─────────────────────────────────────────────────
+        function populateOwnerTab() {
+            var t   = _currentTruck;
+            var own = t.owner || {};
+            document.getElementById('detail-owner-name').textContent  = own.full_name || 'N/A';
+            document.getElementById('detail-owner-email').textContent = own.email     || 'N/A';
+            document.getElementById('detail-owner-phone').textContent = own.phone_no  || 'Not provided';
+
+            var staffList  = document.getElementById('detail-staff-list');
+            var staffEmpty = document.getElementById('detail-staff-empty');
+            staffList.innerHTML  = '';
+
+            var workers = (t.staff || []).filter(function(w) { return w.role == 3; });
+            if (workers.length === 0) {
+                staffList.style.display  = 'none';
+                staffEmpty.style.display = 'block';
+            } else {
+                staffList.style.display  = 'block';
+                staffEmpty.style.display = 'none';
+                workers.forEach(function(w) {
+                    var initial = (w.full_name || '?').charAt(0).toUpperCase();
+                    var badge   = w.status === 'active' ? 'Active' : (w.status || '');
+                    staffList.innerHTML += '<div class="bg-emerald-50 rounded-2xl border border-emerald-100 p-4 space-y-2">'
+                        + '<div class="flex items-center gap-3 mb-3">'
+                        + '<div class="w-10 h-10 rounded-lg bg-slate-800 text-white flex items-center justify-center font-bold text-sm">' + escHtml(initial) + '</div>'
+                        + '<div>'
+                        + '<p class="text-sm font-bold text-gray-800">' + escHtml(w.full_name || '') + '</p>'
+                        + '<span class="text-[10px] font-bold text-emerald-600 bg-white px-2 py-0.5 rounded uppercase">' + escHtml(badge) + '</span>'
+                        + '</div></div>'
+                        + '<div class="text-xs space-y-1">'
+                        + '<p><span class="font-bold text-gray-600">Email:</span> <span class="text-gray-700">' + escHtml(w.email || '') + '</span></p>'
+                        + '<p><span class="font-bold text-gray-600">Phone:</span> <span class="text-gray-700">' + escHtml(w.phone_no || 'Not provided') + '</span></p>'
+                        + '</div></div>';
+                });
+            }
+        }
+
+        // ─── Tab 3: Menu Lists ────────────────────────────────────────────────────
+        function populateMenuTab(filter) {
+            _menuFilter = filter;
+            var t      = _currentTruck;
+            var menus  = t.menus || [];
+            var cats   = [];
+            menus.forEach(function(m) { if (m.category && cats.indexOf(m.category) === -1) cats.push(m.category); });
+
+            // Category filter buttons
+            var filterBar = document.getElementById('menu-category-filters');
+            filterBar.innerHTML = '';
+
+            var allBtn = document.createElement('button');
+            allBtn.type        = 'button';
+            allBtn.textContent = 'All';
+            allBtn.className   = 'px-4 py-2 rounded-lg text-xs font-bold uppercase transition-colors ' + (!filter ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200');
+            allBtn.onclick     = function() { populateMenuTab(''); };
+            filterBar.appendChild(allBtn);
+
+            cats.forEach(function(cat) {
+                var btn = document.createElement('button');
+                btn.type        = 'button';
+                btn.textContent = cat;
+                btn.className   = 'px-4 py-2 rounded-lg text-xs font-bold uppercase transition-colors ' + (filter === cat ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200');
+                btn.onclick     = (function(c) { return function() { populateMenuTab(c); }; })(cat);
+                filterBar.appendChild(btn);
+            });
+
+            // Filtered menus
+            var filtered  = filter ? menus.filter(function(m) { return m.category === filter; }) : menus;
+            var menuList  = document.getElementById('detail-menu-list');
+            var menuEmpty = document.getElementById('detail-menu-empty');
+            menuList.innerHTML = '';
+
+            if (filtered.length === 0) {
+                menuList.style.display  = 'none';
+                menuEmpty.style.display = 'block';
+            } else {
+                menuList.style.display  = 'block';
+                menuEmpty.style.display = 'none';
+                filtered.forEach(function(menu) {
+                    var price     = parseFloat(menu.base_price || 0).toFixed(2);
+                    var optGroups = menu.option_groups || [];
+                    var optHtml   = '';
+                    if (optGroups.length > 0) {
+                        optHtml += '<div class="mt-4 pt-4 border-t border-purple-200"><p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Options & Choices</p>';
+                        optGroups.forEach(function(og) {
+                            optHtml += '<div class="mb-3"><p class="text-xs font-bold text-gray-700 mb-2">' + escHtml(og.name || '') + '</p><div class="flex flex-wrap gap-2">';
+                            (og.choices || []).forEach(function(ch) {
+                                var chPrice = parseFloat(ch.price || 0) > 0
+                                    ? '(+RM ' + parseFloat(ch.price).toFixed(2) + ')'
+                                    : '(Free)';
+                                optHtml += '<span class="text-xs bg-white px-2.5 py-1 rounded-full border border-purple-200 text-gray-700 font-medium">'
+                                    + escHtml(ch.name || '') + ' <span class="text-purple-600 font-bold ml-1">' + escHtml(chPrice) + '</span></span>';
+                            });
+                            optHtml += '</div></div>';
+                        });
+                        optHtml += '</div>';
+                    }
+                    menuList.innerHTML +=
+                        '<div class="bg-purple-50 rounded-2xl border border-purple-100 p-5">'
+                        + '<div class="flex items-start justify-between mb-4">'
+                        + '<div>'
+                        + '<div class="flex items-center gap-2 mb-2">'
+                        + '<h4 class="text-base font-black text-gray-800">' + escHtml(menu.name || '') + '</h4>'
+                        + '<span class="text-[10px] font-bold text-purple-600 bg-white px-2 py-0.5 rounded uppercase">' + escHtml(menu.category || '') + '</span>'
+                        + '</div>'
+                        + '<p class="text-sm text-gray-600">' + escHtml(menu.description || 'No description') + '</p>'
+                        + '</div>'
+                        + '<div class="text-right"><p class="text-lg font-black text-gray-900">RM ' + escHtml(price) + '</p></div>'
+                        + '</div>'
+                        + optHtml
+                        + '</div>';
+                });
+            }
+        }
+
+        // ─── XSS-safe HTML escape ─────────────────────────────────────────────────
+        function escHtml(str) {
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        // ─── Sidebar Toggle ───────────────────────────────────────────────────────
+        document.addEventListener('DOMContentLoaded', function () {
+            var sidebar  = document.getElementById('sidebar');
+            var openBtn  = document.getElementById('openSidebar');
+            var closeBtn = document.getElementById('closeSidebar');
+            if (openBtn)  openBtn.addEventListener('click',  function() { sidebar.classList.remove('sidebar-hidden'); });
+            if (closeBtn) closeBtn.addEventListener('click', function() { sidebar.classList.add('sidebar-hidden'); });
+        });
+    </script>
 </x-app-layout>
