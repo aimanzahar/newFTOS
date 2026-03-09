@@ -129,6 +129,8 @@ Route::middleware(['auth', 'ftadmin.status'])->prefix('ftadmin')->name('ftadmin.
     // Category Management
     Route::post('/menu-category/create', [MenuController::class, 'createCategory'])->name('menu-category.create');
     Route::get('/menu-category/list', [MenuController::class, 'getCategories'])->name('menu-category.list');
+    Route::patch('/menu-category/{id}', [MenuController::class, 'updateCategory'])->name('menu-category.update');
+    Route::delete('/menu-category/{id}', [MenuController::class, 'deleteCategory'])->name('menu-category.delete');
 });
 
 /**

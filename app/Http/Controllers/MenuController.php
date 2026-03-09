@@ -49,7 +49,7 @@ class MenuController extends Controller
         // Validation based on your preferred field names
         $request->validate([
             'name'        => ['required', 'string', 'max:255'],
-            'category'    => ['required', 'string', 'max:100'],
+            'category'    => ['nullable', 'string', 'max:100'],
             'base_price'  => ['nullable', 'numeric', 'min:0'],
             'quantity'    => ['nullable', 'integer', 'min:0'],
             'description' => ['nullable', 'string'],
@@ -105,10 +105,13 @@ class MenuController extends Controller
             $originalImagePath = $origFilename;
         }
 
+        // Set category to "Uncategorized" if empty
+        $category = !empty($request->category) ? $request->category : 'Uncategorized';
+
         $item = Menu::create([
             'foodtruck_id'   => $user->foodtruck_id,
             'name'           => $request->name,
-            'category'       => $request->category,
+            'category'       => $category,
             'base_price'     => $request->base_price,
             'quantity'       => $request->filled('quantity') ? (int) $request->quantity : null,
             'description'    => $request->description,
@@ -484,5 +487,84 @@ class MenuController extends Controller
             ->get();
 
         return response()->json(['success' => true, 'categories' => $categories]);
+    }
+
+    /**
+     * Update an existing category (rename and/or change color).
+     */
+    public function updateCategory(Request $request, $categoryId)
+    {
+        $user = Auth::user();
+        
+        $category = MenuCategory::where('foodtruck_id', $user->foodtruck_id)
+            ->findOrFail($categoryId);
+
+        // Don't allow renaming of Uncategorized category
+        if ($category->name === 'Uncategorized') {
+            return response()->json(['success' => false, 'message' => 'Cannot rename the Uncategorized category'], 403);
+        }
+
+        $request->validate([
+            'name'  => ['required', 'string', 'max:50'],
+            'color' => ['required', 'string', 'max:50'],
+        ]);
+
+        // Check if new name already exists (case-insensitive)
+        $existingCategory = MenuCategory::where('foodtruck_id', $user->foodtruck_id)
+            ->where('id', '!=', $categoryId)
+            ->whereRaw('LOWER(name) = ?', [strtolower($request->name)])
+            ->first();
+
+        if ($existingCategory) {
+            return response()->json(['success' => false, 'message' => 'A category with this name already exists'], 422);
+        }
+
+        $oldName = $category->name;
+        $category->update([
+            'name'  => $request->name,
+            'color' => $request->color,
+        ]);
+
+        return response()->json(['success' => true, 'category' => $category]);
+    }
+
+    /**
+     * Delete a category and move its menu items to Uncategorized.
+     */
+    public function deleteCategory($categoryId)
+    {
+        $user = Auth::user();
+        
+        $category = MenuCategory::where('foodtruck_id', $user->foodtruck_id)
+            ->findOrFail($categoryId);
+
+        // Don't allow deleting default categories
+        if (in_array($category->name, ['Foods', 'Drinks', 'Desserts', 'Uncategorized'])) {
+            return response()->json(['success' => false, 'message' => 'Cannot delete default categories'], 403);
+        }
+
+        // Get or create Uncategorized category
+        $uncategorized = MenuCategory::where('foodtruck_id', $user->foodtruck_id)
+            ->where('name', 'Uncategorized')
+            ->first();
+
+        if (!$uncategorized) {
+            $uncategorized = MenuCategory::create([
+                'foodtruck_id' => $user->foodtruck_id,
+                'name'         => 'Uncategorized',
+                'color'        => 'gray',
+                'sort_order'   => 0,
+            ]);
+        }
+
+        // Move all menu items from this category to Uncategorized
+        Menu::where('foodtruck_id', $user->foodtruck_id)
+            ->where('category', $category->name)
+            ->update(['category' => $uncategorized->name]);
+
+        // Delete the category
+        $category->delete();
+
+        return response()->json(['success' => true, 'message' => 'Category deleted. Menu items moved to Uncategorized.']);
     }
 }
