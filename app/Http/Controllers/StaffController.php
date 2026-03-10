@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Order;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rules;
 
@@ -56,9 +58,35 @@ class StaffController extends Controller
             ->where('role', 3)
             ->firstOrFail();
 
-        $staff->update(['status' => 'fired']);
+        if ((bool) $staff->status_locked_by_system_admin && in_array($staff->status, ['deactivated', 'fired'], true)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'This staff status is managed by system admin and cannot be changed here.',
+            ], 403);
+        }
 
-        return response()->json(['success' => true, 'status' => 'fired']);
+        $releasedOrdersCount = 0;
+
+        DB::transaction(function () use ($staff, $admin, &$releasedOrdersCount) {
+            $staff->update([
+                'status' => 'fired',
+                'status_locked_by_system_admin' => false,
+            ]);
+
+            $releasedOrdersCount = Order::where('foodtruck_id', $admin->foodtruck_id)
+                ->where('status', 'accepted')
+                ->where('accepted_by', $staff->id)
+                ->update([
+                    'status' => 'pending',
+                    'accepted_by' => null,
+                ]);
+        });
+
+        return response()->json([
+            'success' => true,
+            'status' => 'fired',
+            'released_orders_count' => $releasedOrdersCount,
+        ]);
     }
 
     /**
@@ -73,10 +101,39 @@ class StaffController extends Controller
             ->where('role', 3)
             ->firstOrFail();
 
-        $newStatus = $staff->status === 'deactivated' ? 'active' : 'deactivated';
-        $staff->update(['status' => $newStatus]);
+        if ((bool) $staff->status_locked_by_system_admin && in_array($staff->status, ['deactivated', 'fired'], true)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'This staff status is managed by system admin and cannot be changed here.',
+            ], 403);
+        }
 
-        return response()->json(['success' => true, 'status' => $newStatus]);
+        $newStatus = $staff->status === 'deactivated' ? 'active' : 'deactivated';
+
+        $releasedOrdersCount = 0;
+
+        DB::transaction(function () use ($staff, $admin, $newStatus, &$releasedOrdersCount) {
+            $staff->update([
+                'status' => $newStatus,
+                'status_locked_by_system_admin' => false,
+            ]);
+
+            if ($newStatus === 'deactivated') {
+                $releasedOrdersCount = Order::where('foodtruck_id', $admin->foodtruck_id)
+                    ->where('status', 'accepted')
+                    ->where('accepted_by', $staff->id)
+                    ->update([
+                        'status' => 'pending',
+                        'accepted_by' => null,
+                    ]);
+            }
+        });
+
+        return response()->json([
+            'success' => true,
+            'status' => $newStatus,
+            'released_orders_count' => $releasedOrdersCount,
+        ]);
     }
 
     /**
@@ -90,6 +147,13 @@ class StaffController extends Controller
             ->where('foodtruck_id', $admin->foodtruck_id)
             ->where('role', 3)
             ->firstOrFail();
+
+        if ((bool) $staff->status_locked_by_system_admin && in_array($staff->status, ['deactivated', 'fired'], true)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'This staff status is managed by system admin and cannot be deleted here.',
+            ], 403);
+        }
 
         $staff->delete();
 

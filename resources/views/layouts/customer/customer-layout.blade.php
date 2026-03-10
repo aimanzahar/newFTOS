@@ -147,6 +147,7 @@
           prepared: 'bg-purple-100 text-purple-700',
           ready_for_pickup: 'bg-emerald-100 text-emerald-700',
           delivery: 'bg-cyan-100 text-cyan-700',
+          rejected: 'bg-rose-100 text-rose-700',
           done: 'bg-gray-100 text-gray-700',
         };
         return map[status] || 'bg-gray-100 text-gray-700';
@@ -754,14 +755,19 @@
                   <div class="space-y-4">
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div class="bg-gray-50 rounded-xl px-4 py-3 border border-gray-100">
+                        <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Truck Name</p>
+                        <p class="text-sm font-black text-gray-800"
+                           x-text="lastOrder.truck_name || 'Food Truck'"></p>
+                      </div>
+                      <div class="bg-gray-50 rounded-xl px-4 py-3 border border-gray-100">
                         <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Order Number</p>
                         <p class="text-sm font-black text-gray-800"
                            x-text="'#' + String(lastOrder.id || 0).padStart(4, '0')"></p>
                       </div>
                       <div class="bg-gray-50 rounded-xl px-4 py-3 border border-gray-100">
-                        <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Submitted Time</p>
+                        <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Payment Time</p>
                         <p class="text-sm font-black text-gray-800"
-                           x-text="formatDateTime(lastOrder.created_at)"></p>
+                           x-text="formatDateTime(lastOrder.payment_time || lastOrder.created_at)"></p>
                       </div>
                       <div class="bg-gray-50 rounded-xl px-4 py-3 border border-gray-100">
                         <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Payment Method</p>

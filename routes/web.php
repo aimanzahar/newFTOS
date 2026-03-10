@@ -8,16 +8,25 @@ use App\Http\Controllers\StaffController;
 use App\Http\Controllers\MenuController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\CustomerController;
+use App\Models\User;
 use Illuminate\Support\Facades\Auth;
 
 Route::get('/', function () {
     return view('welcome');
 });
 
-// Standard User (Customer) Dashboard
+// Unified post-auth entrypoint: always redirect by role to real dashboard.
 Route::get('/dashboard', function () {
-    return view('dashboard');
-})->middleware(['auth', 'verified', 'role:1'])->name('dashboard');
+    $user = Auth::user();
+
+    return match ((int) ($user->role ?? 0)) {
+        User::ROLE_CUSTOMER => redirect()->route('customer.dashboard'),
+        User::ROLE_FOOD_TRUCK_ADMIN => redirect()->route('ftadmin.dashboard'),
+        User::ROLE_FOOD_TRUCK_WORKER => redirect()->route('ftworker.dashboard'),
+        User::ROLE_SYSTEM_ADMIN => redirect()->route('admin.dashboard'),
+        default => redirect('/'),
+    };
+})->middleware(['auth'])->name('dashboard');
 
 /**
  * Customer Routes
@@ -35,7 +44,7 @@ Route::middleware(['auth', 'role:1'])->prefix('customer')->name('customer.')->gr
  * Shared Profile Routes
  * These are used by Customers, Admins, FT Admins, and FT Workers.
  */
-Route::middleware(['auth', 'ftadmin.status'])->group(function () {
+Route::middleware(['auth', 'ftadmin.status', 'ftworker.status'])->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
@@ -179,7 +188,7 @@ Route::middleware(['auth', 'role:2', 'ftadmin.status'])->prefix('ftadmin')->name
 /**
  * Food Truck Worker Routes (ftworker)
  */
-Route::middleware(['auth', 'role:3'])->prefix('ftworker')->name('ftworker.')->group(function () {
+Route::middleware(['auth', 'role:3', 'ftworker.status'])->prefix('ftworker')->name('ftworker.')->group(function () {
     Route::get('/dashboard', function () {
         return view('ftworker.ftworker-dashboard');
     })->name('dashboard');
@@ -192,7 +201,7 @@ Route::middleware(['auth', 'role:3'])->prefix('ftworker')->name('ftworker.')->gr
 /**
  * Shared Order Routes (ftworker + ftadmin, same truck)
  */
-Route::middleware(['auth', 'role:2,3'])->prefix('orders')->name('orders.')->group(function () {
+Route::middleware(['auth', 'role:2,3', 'ftworker.status'])->prefix('orders')->name('orders.')->group(function () {
     Route::get('/pending', [OrderController::class, 'pending'])->name('pending');
     Route::get('/my-activity', [OrderController::class, 'myActivity'])->name('my-activity');
     Route::post('/{id}/accept', [OrderController::class, 'accept'])->name('accept');

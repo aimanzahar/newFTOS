@@ -21,7 +21,7 @@ class CheckFtadminStatus
         if ($user && (int) $user->role === 2) {
             $status = $user->fresh()?->status ?? $user->status;
 
-            if (in_array($status, ['pending', 'rejected'], true)) {
+            if (in_array($status, ['pending', 'rejected', 'deactivated', 'fired'], true)) {
                 // Allow logout so the user is not trapped
                 if ($request->routeIs('logout')) {
                     return $next($request);

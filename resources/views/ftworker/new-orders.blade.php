@@ -370,9 +370,17 @@ function newOrdersPage() {
             setInterval(() => this.loadMyActivity(), 5000);
         },
 
+        redirectToRestrictedDashboard() {
+            window.location.href = '{{ route('ftworker.dashboard') }}';
+        },
+
         async loadPending() {
             try {
                 const res = await fetch('/orders/pending', { headers: { 'Accept': 'application/json' } });
+                if (res.status === 403) {
+                    this.redirectToRestrictedDashboard();
+                    return;
+                }
                 if (res.ok) this.pendingOrders = await res.json();
             } catch (e) { console.error(e); }
         },
@@ -380,6 +388,10 @@ function newOrdersPage() {
         async loadMyActivity() {
             try {
                 const res = await fetch('/orders/my-activity', { headers: { 'Accept': 'application/json' } });
+                if (res.status === 403) {
+                    this.redirectToRestrictedDashboard();
+                    return;
+                }
                 if (res.ok) this.myOrders = await res.json();
             } catch (e) { console.error(e); }
         },
@@ -395,6 +407,10 @@ function newOrdersPage() {
                         'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content,
                     },
                 });
+                if (res.status === 403) {
+                    this.redirectToRestrictedDashboard();
+                    return;
+                }
                 const data = await res.json();
                 if (data.success) {
                     // Optimistically remove from pending, add to my activity
@@ -421,6 +437,10 @@ function newOrdersPage() {
                     },
                     body: JSON.stringify({ status }),
                 });
+                if (res.status === 403) {
+                    this.redirectToRestrictedDashboard();
+                    return;
+                }
                 const data = await res.json();
                 if (data.success) order.status = data.order.status;
             } catch (e) { console.error(e); }

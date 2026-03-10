@@ -513,17 +513,26 @@ function ftadminDashboard() {
             } catch(e) { console.error(e); }
         },
         async deactivateStaff(id) {
-            const res = await fetch('/ftadmin/staff/' + id + '/deactivate', {
-                method: 'POST',
-                headers: {
-                    'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').getAttribute('content'),
-                    'Accept': 'application/json'
+            try {
+                const res = await fetch('/ftadmin/staff/' + id + '/deactivate', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').getAttribute('content'),
+                        'Accept': 'application/json'
+                    }
+                });
+                const data = await res.json();
+                if (!res.ok || !data.success) {
+                    alert(data.message || 'Unable to update staff status.');
+                    this.openActionMenu = null;
+                    return;
                 }
-            });
-            const data = await res.json();
-            if (data.success) {
+
                 const w = this.workers.find(w => w.id === id);
                 if (w) w.status = data.status;
+            } catch (e) {
+                console.error(e);
+                alert('Unable to update staff status right now.');
             }
             this.openActionMenu = null;
         },
@@ -543,31 +552,49 @@ function ftadminDashboard() {
             this.openActionMenu = null;
         },
         async deleteStaff(id) {
-            const res = await fetch('/ftadmin/staff/' + id, {
-                method: 'DELETE',
-                headers: {
-                    'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').getAttribute('content'),
-                    'Accept': 'application/json'
+            try {
+                const res = await fetch('/ftadmin/staff/' + id, {
+                    method: 'DELETE',
+                    headers: {
+                        'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').getAttribute('content'),
+                        'Accept': 'application/json'
+                    }
+                });
+                const data = await res.json();
+                if (!res.ok || !data.success) {
+                    alert(data.message || 'Unable to delete staff member.');
+                    this.openActionMenu = null;
+                    return;
                 }
-            });
-            const data = await res.json();
-            if (data.success) {
+
                 this.workers = this.workers.filter(w => w.id !== id);
+            } catch (e) {
+                console.error(e);
+                alert('Unable to delete staff member right now.');
             }
             this.openActionMenu = null;
         },
         async fireStaff(id) {
-            const res = await fetch('/ftadmin/staff/' + id + '/fire', {
-                method: 'POST',
-                headers: {
-                    'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').getAttribute('content'),
-                    'Accept': 'application/json'
+            try {
+                const res = await fetch('/ftadmin/staff/' + id + '/fire', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').getAttribute('content'),
+                        'Accept': 'application/json'
+                    }
+                });
+                const data = await res.json();
+                if (!res.ok || !data.success) {
+                    alert(data.message || 'Unable to update staff status.');
+                    this.openActionMenu = null;
+                    return;
                 }
-            });
-            const data = await res.json();
-            if (data.success) {
+
                 const w = this.workers.find(w => w.id === id);
                 if (w) w.status = data.status;
+            } catch (e) {
+                console.error(e);
+                alert('Unable to update staff status right now.');
             }
             this.openActionMenu = null;
         },

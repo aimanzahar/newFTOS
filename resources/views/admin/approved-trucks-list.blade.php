@@ -784,6 +784,22 @@
                 }
 
                 target.status = data.status;
+                target.status_locked_by_system_admin = !!data.status_locked_by_system_admin;
+
+                if (
+                    _ownerStaffActionTarget.type === 'owner'
+                    && data.cascaded_to_workers
+                    && Array.isArray(_currentTruck.staff)
+                    && data.cascaded_status
+                ) {
+                    _currentTruck.staff.forEach(function(member) {
+                        if (member && member.role == 3) {
+                            member.status = data.cascaded_status;
+                            member.status_locked_by_system_admin = true;
+                        }
+                    });
+                }
+
                 closeOwnerStaffActionMenu();
                 populateOwnerTab();
             } catch (error) {

@@ -130,6 +130,10 @@ class CustomerController extends Controller
             'payment_method'=> $request->payment_method,
         ]);
 
-        return response()->json(['success' => true, 'order' => $order]);
+        $orderPayload = $order->toArray();
+        $orderPayload['truck_name'] = $truck->foodtruck_name;
+        $orderPayload['payment_time'] = $order->created_at?->toIso8601String();
+
+        return response()->json(['success' => true, 'order' => $orderPayload]);
     }
 }

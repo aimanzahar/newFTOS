@@ -24,6 +24,7 @@ class User extends Authenticatable
         'role',
         'foodtruck_id',
         'status',
+        'status_locked_by_system_admin',
     ];
 
     protected $hidden = [
@@ -38,6 +39,7 @@ class User extends Authenticatable
             'password' => 'hashed',
             'role' => 'integer',
             'foodtruck_id' => 'integer',
+            'status_locked_by_system_admin' => 'boolean',
         ];
     }
 

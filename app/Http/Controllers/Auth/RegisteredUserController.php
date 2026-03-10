@@ -94,12 +94,14 @@ class RegisteredUserController extends Controller
             event(new Registered($user));
             Auth::login($user);
 
-            // Redirect based on role
-            if ($user->role == 2) {
-                return redirect(route('ftadmin.dashboard', absolute: false));
-            } else {
-                return redirect(route('dashboard', absolute: false));
-            }
+            return match ((int) $user->role) {
+                User::ROLE_SYSTEM_ADMIN => redirect(route('admin.dashboard', absolute: false)),
+                User::ROLE_FOOD_TRUCK_ADMIN => redirect(route('ftadmin.dashboard', absolute: false)),
+                User::ROLE_FOOD_TRUCK_WORKER => redirect(route('ftworker.dashboard', absolute: false)),
+                User::ROLE_CUSTOMER => redirect(route('customer.dashboard', absolute: false))
+                    ->with('customer_welcome_type', 'new'),
+                default => redirect(route('dashboard', absolute: false)),
+            };
         });
     }
 }

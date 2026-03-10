@@ -16,6 +16,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'truck.approved' => \App\Http\Middleware\CheckTruckStatus::class,
             'admin'          => \App\Http\Middleware\Admin::class,
             'ftadmin.status' => \App\Http\Middleware\CheckFtadminStatus::class,
+            'ftworker.status' => \App\Http\Middleware\CheckFtworkerStatus::class,
             'role'           => \App\Http\Middleware\EnsureUserRole::class,
         ]);
 

@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Models\FoodTruck;
 use App\Models\MenuCategory;
 use App\Models\Order;
+use Illuminate\Support\Facades\DB;
 
 class AdminController extends Controller
 {
@@ -167,12 +168,71 @@ class AdminController extends Controller
             ], 422);
         }
 
-        $user->update(['status' => $request->input('status')]);
+        $newStatus = $request->input('status');
+        $lockBySystemAdmin = in_array($newStatus, ['deactivated', 'fired'], true);
+        $cascadeToWorkers = $isOwner && $lockBySystemAdmin;
+        $shutdownOrderStatuses = ['pending', 'accepted', 'preparing', 'prepared', 'ready_for_pickup', 'delivery'];
+        $cascadedWorkersCount = 0;
+        $releasedOrdersCount = 0;
+
+        DB::transaction(function () use (
+            $user,
+            $newStatus,
+            $lockBySystemAdmin,
+            $cascadeToWorkers,
+            $shutdownOrderStatuses,
+            $truck,
+            $isStaff,
+            &$cascadedWorkersCount,
+            &$releasedOrdersCount
+        ) {
+            $user->update([
+                'status' => $newStatus,
+                'status_locked_by_system_admin' => $lockBySystemAdmin,
+            ]);
+
+            if ($cascadeToWorkers) {
+                $workerIds = User::where('foodtruck_id', $truck->id)
+                    ->where('role', User::ROLE_FOOD_TRUCK_WORKER)
+                    ->pluck('id');
+
+                $cascadedWorkersCount = $workerIds->count();
+
+                if ($cascadedWorkersCount > 0) {
+                    User::whereIn('id', $workerIds)->update([
+                        'status' => $newStatus,
+                        'status_locked_by_system_admin' => true,
+                    ]);
+                }
+
+                $releasedOrdersCount = Order::where('foodtruck_id', $truck->id)
+                    ->whereIn('status', $shutdownOrderStatuses)
+                    ->update([
+                        'status' => 'rejected',
+                        'accepted_by' => null,
+                    ]);
+            } elseif ($isStaff && $lockBySystemAdmin) {
+                $releasedOrdersCount = Order::where('foodtruck_id', $truck->id)
+                    ->where('status', 'accepted')
+                    ->where('accepted_by', $user->id)
+                    ->update([
+                        'status' => 'pending',
+                        'accepted_by' => null,
+                    ]);
+            }
+        });
+
+        $user->refresh();
 
         return response()->json([
             'success' => true,
             'message' => 'User status updated successfully.',
             'status' => $user->status,
+            'status_locked_by_system_admin' => (bool) $user->status_locked_by_system_admin,
+            'cascaded_to_workers' => $cascadeToWorkers,
+            'cascaded_workers_count' => $cascadedWorkersCount,
+            'cascaded_status' => $cascadeToWorkers ? $newStatus : null,
+            'released_orders_count' => $releasedOrdersCount,
             'user_id' => $user->id,
             'foodtruck_id' => $truck->id,
             'target_type' => $isOwner ? 'owner' : 'staff',
@@ -240,7 +300,7 @@ class AdminController extends Controller
     public function updateOrderStatus(Request $request, $orderId)
     {
         $request->validate([
-            'status' => 'required|in:pending,accepted,preparing,prepared,ready_for_pickup,delivery,done',
+            'status' => 'required|in:pending,accepted,preparing,prepared,ready_for_pickup,delivery,done,rejected',
         ]);
 
         $order = Order::findOrFail($orderId);

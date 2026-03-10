@@ -44,19 +44,20 @@ class AuthenticatedSessionController extends Controller
          */
         return match ($role) {
             // System Admin (Route name is admin.dashboard)
-            self::ROLE_SYSTEM_ADMIN => redirect(route('admin.dashboard')),
+            self::ROLE_SYSTEM_ADMIN => redirect(route('admin.dashboard', absolute: false)),
             
             // Food Truck Admin (Route name is ftadmin.dashboard)
-            self::ROLE_FOOD_TRUCK_ADMIN => redirect(route('ftadmin.dashboard')),
+            self::ROLE_FOOD_TRUCK_ADMIN => redirect(route('ftadmin.dashboard', absolute: false)),
 
             // Food Truck Worker (Route name is ftworker.dashboard)
-            self::ROLE_FOOD_TRUCK_WORKER => redirect()->intended(route('ftworker.dashboard')),
+            self::ROLE_FOOD_TRUCK_WORKER => redirect(route('ftworker.dashboard', absolute: false)),
 
             // Customer
-            self::ROLE_CUSTOMER => redirect()->intended(route('customer.dashboard')),
+            self::ROLE_CUSTOMER => redirect(route('customer.dashboard', absolute: false))
+                ->with('customer_welcome_type', 'back'),
 
             // Default fallback
-            default => redirect()->intended(route('dashboard')),
+            default => redirect(route('dashboard', absolute: false)),
         };
     }
 

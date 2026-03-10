@@ -7,6 +7,16 @@
 
 @php
     $user = Auth::user();
+    $welcomeType = session('customer_welcome_type');
+    $showWelcomeModal = in_array($welcomeType, ['new', 'back'], true);
+
+    $welcomeModalTitle = $welcomeType === 'new'
+        ? 'Welcome, ' . $user->full_name . '!'
+        : 'Welcome back, ' . $user->full_name . '!';
+
+    $welcomeModalMessage = $welcomeType === 'new'
+        ? 'Hi ' . $user->full_name . ', your customer account has been created successfully. You can now explore food trucks and place your first order.'
+        : 'Welcome back, ' . $user->full_name . '. Ready to order something delicious today?';
 
     $activeStatuses = ['pending', 'accepted', 'preparing', 'prepared', 'ready_for_pickup', 'delivery'];
 
@@ -15,14 +25,12 @@
         ->latest()
         ->get();
 
-    $activeOrders = $orders->whereIn('status', $activeStatuses)->values();
-
-    $activeOrderGroups = [];
-    foreach ($activeOrders as $order) {
+    $purchasedOrderGroups = [];
+    foreach ($orders as $order) {
         $menuRows = [];
 
         foreach (($order->items ?? []) as $item) {
-            $status = $item['status'] ?? $order->status;
+            $status = $order->status ?? ($item['status'] ?? 'pending');
             $statusClass = match ($status) {
                 'pending' => 'bg-amber-100 text-amber-700',
                 'accepted' => 'bg-blue-100 text-blue-700',
@@ -30,6 +38,7 @@
                 'prepared' => 'bg-purple-100 text-purple-700',
                 'ready_for_pickup' => 'bg-emerald-100 text-emerald-700',
                 'delivery' => 'bg-cyan-100 text-cyan-700',
+                'rejected' => 'bg-rose-100 text-rose-700',
                 'done' => 'bg-gray-100 text-gray-700',
                 default => 'bg-gray-100 text-gray-700',
             };
@@ -52,7 +61,20 @@
         }
 
         if (!empty($menuRows)) {
-            $activeOrderGroups[] = [
+            $status = (string) ($order->status ?? 'pending');
+            $statusClass = match ($status) {
+                'pending' => 'bg-amber-100 text-amber-700',
+                'accepted' => 'bg-blue-100 text-blue-700',
+                'preparing' => 'bg-indigo-100 text-indigo-700',
+                'prepared' => 'bg-purple-100 text-purple-700',
+                'ready_for_pickup' => 'bg-emerald-100 text-emerald-700',
+                'delivery' => 'bg-cyan-100 text-cyan-700',
+                'rejected' => 'bg-rose-100 text-rose-700',
+                'done' => 'bg-gray-100 text-gray-700',
+                default => 'bg-gray-100 text-gray-700',
+            };
+
+            $purchasedOrderGroups[] = [
                 'order_id'       => $order->id,
                 'truck_name'     => $order->foodTruck?->foodtruck_name ?? 'Food Truck',
                 'items_count'    => count($menuRows),
@@ -61,15 +83,48 @@
                 'order_type'     => $order->order_type ?? 'self_pickup',
                 'table_number'   => $order->table_number ?? null,
                 'created_at'     => $order->created_at?->toIso8601String(),
+                'status'         => $status,
+                'status_label'   => str($status)->replace('_', ' ')->title(),
+                'status_class'   => $statusClass,
                 'items'          => $menuRows,
             ];
         }
+    }
+
+    $activeOrders = $orders->whereIn('status', $activeStatuses)->values();
+    $activeOrderGroups = collect($purchasedOrderGroups)
+        ->whereIn('status', $activeStatuses)
+        ->values()
+        ->all();
+
+    $rejectedOrders = $orders->where('status', 'rejected')->values();
+
+    $rejectedOrderNotices = [];
+    foreach ($rejectedOrders as $order) {
+        $paymentMethodRaw = (string) ($order->payment_method ?? '');
+        $isCashRefund = strcasecmp($paymentMethodRaw, 'cash') === 0;
+        $paymentMethodLabel = $paymentMethodRaw !== ''
+            ? ($isCashRefund ? 'Cash' : $paymentMethodRaw)
+            : 'Not specified';
+        $formattedTotal = number_format((float) ($order->total ?? 0), 2);
+
+        $rejectedOrderNotices[] = [
+            'order_id' => $order->id,
+            'truck_name' => $order->foodTruck?->foodtruck_name ?? 'Food Truck',
+            'total' => (float) ($order->total ?? 0),
+            'payment_method' => $paymentMethodLabel,
+            'created_at' => $order->created_at?->format('d M Y, h:i A'),
+            'refund_message' => $isCashRefund
+                ? "Please show your order receipt at our food truck to receive your cash refund of RM {$formattedTotal}."
+                : "Your payment of RM {$formattedTotal} via {$paymentMethodLabel} will be refunded to the same payment method. Please allow a short processing period.",
+        ];
     }
 @endphp
 
 <script>
 function customerDashboardPage() {
     return {
+        showWelcomeModal: @json($showWelcomeModal),
         showActiveOrdersModal: false,
         showOrderReceiptModal: false,
         selectedReceipt: null,
@@ -108,15 +163,136 @@ function customerDashboardPage() {
                 prepared: 'bg-purple-100 text-purple-700',
                 ready_for_pickup: 'bg-emerald-100 text-emerald-700',
                 delivery: 'bg-cyan-100 text-cyan-700',
+                rejected: 'bg-rose-100 text-rose-700',
                 done: 'bg-gray-100 text-gray-700',
             };
             return map[status] || 'bg-gray-100 text-gray-700';
+        },
+
+        escapeForPrint(value) {
+            return String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        },
+
+        printSelectedReceipt() {
+            if (!this.selectedReceipt) return;
+
+            const receipt = this.selectedReceipt;
+            const paymentMethod = this.paymentMethodLabel(receipt.payment_method);
+            const paymentTime = this.formatDateTime(receipt.created_at);
+            const total = this.formatCurrency(receipt.total);
+
+            const rows = (receipt.items || []).map((item) => {
+                const basePrice = parseFloat(item.base_price || 0) > 0
+                    ? this.formatCurrency(item.base_price)
+                    : '-';
+
+                return `
+                    <tr>
+                        <td>${this.escapeForPrint(item.menu_name || 'Menu Item')}</td>
+                        <td>${this.escapeForPrint(basePrice)}</td>
+                        <td>${this.escapeForPrint(item.quantity || 1)}</td>
+                        <td>${this.escapeForPrint(this.formatCurrency(item.item_total || 0))}</td>
+                    </tr>
+                `;
+            }).join('');
+
+            const printableHtml = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="utf-8" />
+                    <title>Receipt #${this.escapeForPrint(String(receipt.order_id || 0).padStart(4, '0'))}</title>
+                    <style>
+                        body { font-family: Arial, sans-serif; color: #1f2937; padding: 24px; }
+                        h1 { margin: 0 0 12px; font-size: 20px; }
+                        .meta { margin-bottom: 16px; }
+                        .meta p { margin: 4px 0; font-size: 13px; }
+                        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+                        th, td { border: 1px solid #e5e7eb; padding: 8px; font-size: 12px; text-align: left; }
+                        th { background: #f9fafb; }
+                        .total { margin-top: 12px; font-weight: 700; font-size: 14px; }
+                    </style>
+                </head>
+                <body>
+                    <h1>Purchased Order Receipt</h1>
+                    <div class="meta">
+                        <p><strong>Truck Name:</strong> ${this.escapeForPrint(receipt.truck_name || 'Food Truck')}</p>
+                        <p><strong>Order ID:</strong> #${this.escapeForPrint(String(receipt.order_id || 0).padStart(4, '0'))}</p>
+                        <p><strong>Payment Method:</strong> ${this.escapeForPrint(paymentMethod)}</p>
+                        <p><strong>Payment Time:</strong> ${this.escapeForPrint(paymentTime)}</p>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Order Name</th>
+                                <th>Base Price</th>
+                                <th>Quantity</th>
+                                <th>Total Final Price</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${rows}
+                        </tbody>
+                    </table>
+                    <p class="total">Total Final Price: ${this.escapeForPrint(total)}</p>
+                </body>
+                </html>
+            `;
+
+            const printWindow = window.open('', '_blank', 'width=900,height=700');
+            if (!printWindow) return;
+
+            printWindow.document.open();
+            printWindow.document.write(printableHtml);
+            printWindow.document.close();
+            printWindow.focus();
+            setTimeout(() => {
+                printWindow.print();
+            }, 200);
         },
     };
 }
 </script>
 
 <div x-data="customerDashboardPage()" class="p-6">
+    <div x-show="showWelcomeModal"
+         style="display:none"
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-150"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         class="fixed inset-0 z-[98] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+
+        <div @click.away="showWelcomeModal = false"
+             x-transition:enter="transition ease-out duration-200"
+             x-transition:enter-start="opacity-0 scale-95 translate-y-4"
+             x-transition:enter-end="opacity-100 scale-100 translate-y-0"
+             class="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden">
+
+            <div class="p-6 text-center">
+                <div class="w-14 h-14 rounded-2xl bg-amber-50 flex items-center justify-center mx-auto mb-4">
+                    <i class="fas fa-hand-sparkles text-amber-500 text-xl"></i>
+                </div>
+                <h2 class="text-xl font-black text-gray-900 mb-2">{{ $welcomeModalTitle }}</h2>
+                <p class="text-sm text-gray-500 leading-relaxed">{{ $welcomeModalMessage }}</p>
+            </div>
+
+            <div class="px-6 pb-6 flex justify-center">
+                <button @click="showWelcomeModal = false"
+                        class="px-6 py-2.5 bg-slate-900 hover:bg-amber-500 text-white font-black text-xs rounded-xl transition-all">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
+
     <div class="max-w-full mx-auto space-y-5">
 
         <!-- Welcome -->
@@ -162,6 +338,41 @@ function customerDashboardPage() {
             </div>
         </div>
 
+        @if (count($rejectedOrderNotices) > 0)
+            <div class="bg-white rounded-2xl shadow-sm border border-rose-100 overflow-hidden">
+                <div class="p-5 border-b border-rose-100 flex items-center justify-between gap-3">
+                    <div>
+                        <h3 class="font-bold text-gray-800 uppercase text-xs tracking-widest">Rejected Orders & Refund Notice</h3>
+                        <p class="text-[11px] text-gray-500 mt-1">These orders were rejected after the food truck was deactivated by system administration.</p>
+                    </div>
+                    <span class="text-[10px] font-black uppercase tracking-wide bg-rose-100 text-rose-700 px-2.5 py-1 rounded-full whitespace-nowrap">
+                        {{ count($rejectedOrderNotices) }} {{ count($rejectedOrderNotices) > 1 ? 'orders' : 'order' }}
+                    </span>
+                </div>
+
+                <div class="p-5 space-y-3">
+                    @foreach ($rejectedOrderNotices as $notice)
+                        <div class="rounded-xl border border-rose-200 bg-rose-50 p-4">
+                            <div class="flex flex-wrap items-start justify-between gap-2">
+                                <div>
+                                    <p class="text-sm font-black text-gray-900">Order #{{ str_pad((string) $notice['order_id'], 4, '0', STR_PAD_LEFT) }}</p>
+                                    <p class="text-[11px] text-gray-600 mt-0.5">{{ $notice['truck_name'] }} @if($notice['created_at']) • {{ $notice['created_at'] }} @endif</p>
+                                </div>
+                                <span class="text-[10px] font-black uppercase tracking-wide bg-rose-100 text-rose-700 px-2.5 py-1 rounded-full whitespace-nowrap">Rejected</span>
+                            </div>
+
+                            <div class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-gray-700">
+                                <p><span class="font-black text-gray-600">Amount:</span> RM {{ number_format($notice['total'], 2) }}</p>
+                                <p><span class="font-black text-gray-600">Payment Method:</span> {{ $notice['payment_method'] }}</p>
+                            </div>
+
+                            <p class="mt-3 text-xs font-semibold text-rose-700 leading-relaxed">{{ $notice['refund_message'] }}</p>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+        @endif
+
         <!-- Call to Action -->
         <div class="bg-[#0f172a] rounded-2xl shadow-xl overflow-hidden">
             <div class="px-8 py-10 md:flex items-center justify-between">
@@ -176,16 +387,62 @@ function customerDashboardPage() {
             </div>
         </div>
 
-        <!-- Recent Orders -->
+        <!-- Purchased Orders -->
         <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-            <div class="p-5 border-b border-gray-100 flex justify-between items-center">
-                <h3 class="font-bold text-gray-800 uppercase text-xs tracking-widest">Recent Orders</h3>
-                <a href="#" class="text-blue-600 hover:text-blue-800 text-xs font-semibold">View All</a>
+            <div class="p-5 border-b border-gray-100 flex items-center justify-between gap-3">
+                <div>
+                    <h3 class="font-bold text-gray-800 uppercase text-xs tracking-widest">Purchased Orders</h3>
+                    <p class="text-[11px] text-gray-500 mt-1">All paid orders with downloadable-style receipt details.</p>
+                </div>
+                <span class="text-[10px] font-black uppercase tracking-wide bg-gray-100 text-gray-700 px-2.5 py-1 rounded-full whitespace-nowrap">
+                    {{ count($purchasedOrderGroups) }} {{ count($purchasedOrderGroups) > 1 ? 'orders' : 'order' }}
+                </span>
             </div>
-            <div class="p-12 text-center text-gray-400">
-                <i class="fas fa-receipt text-4xl mb-3 opacity-20"></i>
-                <p class="text-sm">No recent orders yet. Time to grab some lunch!</p>
-            </div>
+
+            @if (count($purchasedOrderGroups) === 0)
+                <div class="p-12 text-center text-gray-400">
+                    <i class="fas fa-receipt text-4xl mb-3 opacity-20"></i>
+                    <p class="text-sm">No purchased orders yet.</p>
+                </div>
+            @else
+                <div class="overflow-x-auto">
+                    <table class="w-full text-xs">
+                        <thead class="bg-gray-50 text-gray-500 uppercase tracking-wide border-b border-gray-100">
+                            <tr>
+                                <th class="px-3 py-3 text-left font-black">Order ID</th>
+                                <th class="px-3 py-3 text-left font-black">Truck Name</th>
+                                <th class="px-3 py-3 text-left font-black">Total Final Price</th>
+                                <th class="px-3 py-3 text-left font-black">Payment Method</th>
+                                <th class="px-3 py-3 text-left font-black">Payment Time</th>
+                                <th class="px-3 py-3 text-left font-black">Status</th>
+                                <th class="px-3 py-3 text-left font-black">Receipt</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-100">
+                            @foreach ($purchasedOrderGroups as $group)
+                                <tr class="hover:bg-gray-50/70 transition-colors">
+                                    <td class="px-3 py-3 text-gray-800 font-bold">#{{ str_pad((string) $group['order_id'], 4, '0', STR_PAD_LEFT) }}</td>
+                                    <td class="px-3 py-3 text-gray-700">{{ $group['truck_name'] }}</td>
+                                    <td class="px-3 py-3 text-gray-700 whitespace-nowrap">RM {{ number_format($group['total'], 2) }}</td>
+                                    <td class="px-3 py-3 text-gray-700">{{ $group['payment_method'] === 'cash' ? 'Cash' : ($group['payment_method'] ?? '-') }}</td>
+                                    <td class="px-3 py-3 text-gray-700 whitespace-nowrap">{{ $group['created_at'] ? \Carbon\Carbon::parse($group['created_at'])->format('d M Y, h:i A') : '-' }}</td>
+                                    <td class="px-3 py-3">
+                                        <span class="text-[10px] font-black uppercase tracking-wide px-2.5 py-1 rounded-full whitespace-nowrap {{ $group['status_class'] }}">
+                                            {{ $group['status_label'] }}
+                                        </span>
+                                    </td>
+                                    <td class="px-3 py-3">
+                                        <button @click="viewOrderReceipt(@json($group))"
+                                                class="px-3 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-700 font-black text-[10px] rounded-lg transition-all whitespace-nowrap">
+                                            <i class="fas fa-receipt mr-1"></i>Show Receipt
+                                        </button>
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            @endif
         </div>
 
     </div>
@@ -289,6 +546,101 @@ function customerDashboardPage() {
                 </button>
             </div>
 
+        </div>
+    </div>
+
+    <div x-show="showOrderReceiptModal"
+         style="display:none"
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-150"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         class="fixed inset-0 z-[95] flex items-end sm:items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+
+        <div @click.away="showOrderReceiptModal = false"
+             x-transition:enter="transition ease-out duration-200"
+             x-transition:enter-start="opacity-0 scale-95 translate-y-4"
+             x-transition:enter-end="opacity-100 scale-100 translate-y-0"
+             class="bg-white w-full max-w-5xl rounded-3xl shadow-2xl overflow-hidden">
+
+            <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+                <div>
+                    <h3 class="font-black text-gray-900 text-base">Purchased Order Receipt</h3>
+                    <p class="text-xs text-gray-400 mt-0.5">Payment and order details from your completed checkout.</p>
+                </div>
+                <button @click="showOrderReceiptModal = false"
+                        class="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-gray-100 text-gray-400 transition-all">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <div class="px-6 py-5 max-h-[75vh] overflow-y-auto space-y-4">
+                <template x-if="selectedReceipt">
+                    <div class="space-y-4">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div class="bg-gray-50 rounded-xl px-4 py-3 border border-gray-100">
+                                <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Truck Name</p>
+                                <p class="text-sm font-black text-gray-800" x-text="selectedReceipt.truck_name || 'Food Truck'"></p>
+                            </div>
+                            <div class="bg-gray-50 rounded-xl px-4 py-3 border border-gray-100">
+                                <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Order ID</p>
+                                <p class="text-sm font-black text-gray-800" x-text="'#' + String(selectedReceipt.order_id || 0).padStart(4, '0')"></p>
+                            </div>
+                            <div class="bg-gray-50 rounded-xl px-4 py-3 border border-gray-100">
+                                <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Payment Method</p>
+                                <p class="text-sm font-black text-gray-800" x-text="paymentMethodLabel(selectedReceipt.payment_method)"></p>
+                            </div>
+                            <div class="bg-gray-50 rounded-xl px-4 py-3 border border-gray-100">
+                                <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Payment Time</p>
+                                <p class="text-sm font-black text-gray-800" x-text="formatDateTime(selectedReceipt.created_at)"></p>
+                            </div>
+                        </div>
+
+                        <div class="overflow-x-auto rounded-2xl border border-gray-100">
+                            <table class="w-full text-xs">
+                                <thead class="bg-gray-50 text-gray-500 uppercase tracking-wide border-b border-gray-100">
+                                    <tr>
+                                        <th class="px-3 py-3 text-left font-black">Order Name</th>
+                                        <th class="px-3 py-3 text-left font-black">Base Price</th>
+                                        <th class="px-3 py-3 text-left font-black">Quantity</th>
+                                        <th class="px-3 py-3 text-left font-black">Total Final Price</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-gray-100">
+                                    <template x-for="(item, idx) in (selectedReceipt.items || [])" :key="idx">
+                                        <tr class="bg-white">
+                                            <td class="px-3 py-3 text-gray-800 font-bold" x-text="item.menu_name || 'Menu Item'"></td>
+                                            <td class="px-3 py-3 text-gray-700 whitespace-nowrap" x-text="parseFloat(item.base_price || 0) > 0 ? formatCurrency(item.base_price) : '-' "></td>
+                                            <td class="px-3 py-3 text-gray-700" x-text="item.quantity || 1"></td>
+                                            <td class="px-3 py-3 text-gray-700 whitespace-nowrap" x-text="formatCurrency(item.item_total)"></td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div class="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3 border border-gray-100">
+                            <span class="text-xs font-black text-gray-500 uppercase tracking-widest">Total Final Price</span>
+                            <span class="text-lg font-black text-gray-900" x-text="formatCurrency(selectedReceipt.total)"></span>
+                        </div>
+                    </div>
+                </template>
+            </div>
+
+            <div class="px-6 py-4 border-t border-gray-100 flex items-center justify-between">
+                <button @click="printSelectedReceipt()"
+                        class="inline-flex items-center gap-1.5 px-3.5 py-2 border border-gray-200 hover:border-amber-300 hover:bg-amber-50 text-gray-700 font-black text-[11px] rounded-lg transition-all">
+                    <i class="fas fa-print"></i>
+                    Print Receipt
+                </button>
+
+                <button @click="showOrderReceiptModal = false"
+                        class="px-5 py-2.5 bg-slate-900 hover:bg-amber-500 text-white font-black text-xs rounded-xl transition-all">
+                    Close
+                </button>
+            </div>
         </div>
     </div>
 </div>
