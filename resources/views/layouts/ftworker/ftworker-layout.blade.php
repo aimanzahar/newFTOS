@@ -26,6 +26,44 @@
   </style>
 </head>
 <body class="font-sans antialiased text-slate-900 bg-gray-50">
+  @php
+    $layoutUser = Auth::user();
+    $layoutTruck = $layoutUser?->foodTruck;
+    $layoutOwner = $layoutTruck?->owner;
+    $layoutWorkerBlocked = $layoutUser && in_array($layoutUser->status, ['deactivated', 'fired'], true);
+    $layoutOwnerBlockedBySystemAdmin = $layoutOwner
+      && in_array($layoutOwner->status, ['deactivated', 'fired'], true)
+      && (bool) ($layoutOwner->status_locked_by_system_admin ?? false);
+
+    $layoutCanTrackOperational = $layoutUser
+      && (int) $layoutUser->role === 3
+      && !$layoutWorkerBlocked
+      && !$layoutOwnerBlockedBySystemAdmin
+      && $layoutTruck
+      && $layoutTruck->status === 'approved';
+
+    $layoutInitialTruckOffline = $layoutCanTrackOperational
+      ? !(bool) $layoutTruck->is_operational
+      : false;
+  @endphp
+
+  @if($layoutCanTrackOperational)
+    <div id="truckOperationalOverlay" class="fixed inset-0 z-[90] flex items-center justify-center bg-slate-900/50 backdrop-blur-md {{ $layoutInitialTruckOffline ? '' : 'hidden' }}">
+      <div class="bg-white rounded-3xl shadow-2xl max-w-sm w-full mx-4 overflow-hidden">
+          <div class="h-1.5 w-full bg-red-500"></div>
+          <div class="p-8 text-center">
+              <div class="w-16 h-16 bg-red-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <i class="fas fa-power-off text-2xl text-red-500"></i>
+              </div>
+              <h2 class="text-xl font-black text-gray-900 mb-2">Truck Is Currently Offline</h2>
+              <p class="text-sm text-gray-500 leading-relaxed">
+                  Your food truck admin has set the truck to offline. Please wait until the admin turns it back on before you can continue working.
+              </p>
+          </div>
+      </div>
+    </div>
+  @endif
+
   <div class="flex h-screen overflow-hidden">
 
     <!-- Sidebar -->
@@ -51,6 +89,55 @@
           sidebar.classList.toggle('sidebar-hidden');
         });
       }
+
+      const shouldTrackOperational = @json($layoutCanTrackOperational);
+      const statusEndpoint = @json(route('ftworker.truck-operational-status'));
+      const operationalOverlay = document.getElementById('truckOperationalOverlay');
+
+      const setOperationalOverlay = (isOffline) => {
+        if (!operationalOverlay) return;
+        operationalOverlay.classList.toggle('hidden', !isOffline);
+      };
+
+      if (!shouldTrackOperational || !operationalOverlay) {
+        return;
+      }
+
+      let fetchingOperationalStatus = false;
+
+      const loadOperationalStatus = async () => {
+        if (fetchingOperationalStatus) return;
+        fetchingOperationalStatus = true;
+
+        try {
+          const response = await fetch(statusEndpoint, {
+            method: 'GET',
+            headers: {
+              'Accept': 'application/json',
+              'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content,
+            },
+          });
+
+          const data = await response.json().catch(() => ({}));
+          if (!response.ok || !data.success) return;
+
+          const isApproved = String(data.truck_status || '') === 'approved';
+          const isOperational = Boolean(data.is_operational);
+
+          setOperationalOverlay(isApproved && !isOperational);
+        } catch (error) {
+          console.error(error);
+        } finally {
+          fetchingOperationalStatus = false;
+        }
+      };
+
+      loadOperationalStatus();
+      const operationalPollingTimer = setInterval(loadOperationalStatus, 1000);
+
+      window.addEventListener('beforeunload', () => {
+        clearInterval(operationalPollingTimer);
+      });
     });
   </script>
 </body>

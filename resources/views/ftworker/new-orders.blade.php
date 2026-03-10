@@ -102,7 +102,7 @@
                             <thead>
                                 <tr class="border-b border-gray-100 bg-gray-50/80">
                                     <th class="text-left px-4 py-3 text-[10px] font-black uppercase tracking-widest text-gray-400">Order #</th>
-                                    <th class="text-left px-4 py-3 text-[10px] font-black uppercase tracking-widest text-gray-400">Items</th>
+                                    <th class="text-left px-4 py-3 text-[10px] font-black uppercase tracking-widest text-gray-400">Order Details</th>
                                     <th class="text-left px-4 py-3 text-[10px] font-black uppercase tracking-widest text-gray-400">Total</th>
                                     <th class="text-left px-4 py-3 text-[10px] font-black uppercase tracking-widest text-gray-400">Type</th>
                                     <th class="text-left px-4 py-3 text-[10px] font-black uppercase tracking-widest text-gray-400">Time</th>
@@ -110,21 +110,29 @@
                             </thead>
                             <tbody class="divide-y divide-gray-50">
                                 <template x-for="order in pendingOrders" :key="order.id">
-                                    <tr class="hover:bg-gray-50/60 transition-colors cursor-pointer"
+                                    <tr class="hover:bg-gray-50/60 transition-colors cursor-pointer align-top"
                                         @click="openAcceptModal(order)">
 
                                         <!-- Order # -->
-                                        <td class="px-4 py-3">
+                                        <td class="px-4 py-3 align-top">
                                             <span class="font-black text-gray-800 text-sm"
                                                   x-text="'#' + String(order.id).padStart(4, '0')"></span>
                                         </td>
 
-                                        <!-- Items -->
-                                        <td class="px-4 py-3 max-w-[140px]">
-                                            <div class="space-y-0.5">
-                                                <template x-for="(item, idx) in order.items" :key="idx">
-                                                    <div class="text-xs text-gray-600 truncate"
-                                                         x-text="typeof item === 'string' ? item : (item.quantity + '× ' + item.name)"></div>
+                                        <!-- Order Details -->
+                                        <td class="px-4 py-3 min-w-[330px]">
+                                            <div class="space-y-2">
+                                                <template x-for="(item, idx) in normalizeItems(order.items)" :key="idx">
+                                                    <div class="bg-gray-50 border border-gray-100 rounded-xl px-3 py-2">
+                                                        <p class="text-xs font-bold text-gray-700"
+                                                           x-text="(item.quantity || 1) + '× ' + (item.name || 'Item')"></p>
+                                                        <p class="text-[11px] text-gray-500 mt-0.5"
+                                                           x-text="'Unit: RM ' + calcUnitPrice(item).toFixed(2) + ' · Line: RM ' + calcLineTotal(item).toFixed(2)"></p>
+                                                        <template x-if="choiceSummary(item)">
+                                                            <p class="text-[10px] text-purple-600 font-medium mt-1"
+                                                               x-text="choiceSummary(item)"></p>
+                                                        </template>
+                                                    </div>
                                                 </template>
                                             </div>
                                         </td>
@@ -209,11 +217,18 @@
 
                     <!-- Active Table -->
                     <div x-show="activityTab === 'active' && activeOrders.length > 0" class="flex-1 min-h-0 overflow-auto">
-                        <table class="w-full text-sm">
+                        <table class="w-full table-fixed text-sm">
+                            <colgroup>
+                                <col class="w-[14%]">
+                                <col class="w-[38%]">
+                                <col class="w-[16%]">
+                                <col class="w-[20%]">
+                                <col class="w-[12%]">
+                            </colgroup>
                             <thead>
                                 <tr class="border-b border-gray-100 bg-gray-50/80">
                                     <th class="text-left px-4 py-3 text-[10px] font-black uppercase tracking-widest text-gray-400">Order #</th>
-                                    <th class="text-left px-4 py-3 text-[10px] font-black uppercase tracking-widest text-gray-400">Items</th>
+                                    <th class="text-left px-4 py-3 text-[10px] font-black uppercase tracking-widest text-gray-400">Order Details</th>
                                     <th class="text-left px-4 py-3 text-[10px] font-black uppercase tracking-widest text-gray-400">Total</th>
                                     <th class="text-left px-4 py-3 text-[10px] font-black uppercase tracking-widest text-gray-400">Status</th>
                                     <th class="text-left px-4 py-3 text-[10px] font-black uppercase tracking-widest text-gray-400">Update Status</th>
@@ -221,20 +236,28 @@
                             </thead>
                             <tbody class="divide-y divide-gray-50">
                                 <template x-for="order in activeOrders" :key="order.id">
-                                    <tr class="hover:bg-gray-50/60 transition-colors">
+                                    <tr class="hover:bg-gray-50/60 transition-colors align-top">
 
                                         <!-- Order # -->
-                                        <td class="px-4 py-3">
+                                        <td class="px-4 py-3 align-top">
                                             <span class="font-black text-gray-800 text-sm"
                                                   x-text="'#' + String(order.id).padStart(4, '0')"></span>
                                         </td>
 
-                                        <!-- Items -->
-                                        <td class="px-4 py-3 max-w-[140px]">
-                                            <div class="space-y-0.5">
+                                        <!-- Order Details -->
+                                        <td class="px-4 py-3 min-w-[330px]">
+                                            <div class="space-y-2">
                                                 <template x-for="(item, idx) in normalizeItems(order.items)" :key="idx">
-                                                    <div class="text-xs text-gray-600 truncate"
-                                                         x-text="typeof item === 'string' ? item : (item.quantity + '× ' + item.name)"></div>
+                                                    <div class="bg-gray-50 border border-gray-100 rounded-xl px-3 py-2">
+                                                        <p class="text-xs font-bold text-gray-700"
+                                                           x-text="(item.quantity || 1) + '× ' + (item.name || 'Item')"></p>
+                                                        <p class="text-[11px] text-gray-500 mt-0.5"
+                                                           x-text="'Unit: RM ' + calcUnitPrice(item).toFixed(2) + ' · Line: RM ' + calcLineTotal(item).toFixed(2)"></p>
+                                                        <template x-if="choiceSummary(item)">
+                                                            <p class="text-[10px] text-purple-600 font-medium mt-1"
+                                                               x-text="choiceSummary(item)"></p>
+                                                        </template>
+                                                    </div>
                                                 </template>
                                             </div>
                                         </td>
@@ -247,13 +270,13 @@
 
                                         <!-- Status Badge -->
                                         <td class="px-4 py-3">
-                                            <span class="inline-flex items-center px-2.5 py-1 rounded-xl text-[10px] font-black uppercase tracking-wide whitespace-nowrap"
+                                            <span class="inline-flex w-36 justify-center items-center px-2.5 py-1 rounded-xl text-[10px] font-black uppercase tracking-wide whitespace-nowrap"
                                                   :class="statusBadgeClass(order.status)"
                                                   x-text="statusLabel(order.status)"></span>
                                         </td>
 
                                         <!-- Action Menu -->
-                                        <td class="px-4 py-3">
+                                        <td class="px-4 py-3 text-center">
                                             <div class="relative inline-block">
                                                 <button type="button"
                                                         @click.stop="activeStatusActionMenu = activeStatusActionMenu === order.id ? null : order.id"

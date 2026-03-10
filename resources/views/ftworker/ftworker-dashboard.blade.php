@@ -97,31 +97,6 @@
             </div>
         </div>
     </div>
-
-{{-- TRUCK OFFLINE OVERLAY --}}
-@elseif($user->foodTruck && !$user->foodTruck->is_operational)
-    <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-md">
-        <div class="bg-white rounded-3xl shadow-2xl max-w-sm w-full mx-4 overflow-hidden">
-            <div class="h-1.5 w-full bg-red-500"></div>
-            <div class="p-8 text-center">
-                <div class="w-16 h-16 bg-red-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                    <i class="fas fa-power-off text-2xl text-red-500"></i>
-                </div>
-                <h2 class="text-xl font-black text-gray-900 mb-2">Truck Is Currently Offline</h2>
-                <p class="text-sm text-gray-500 leading-relaxed mb-6">
-                    Your food truck admin has set the truck to offline. Please wait until the admin turns it back on before you can start working.
-                </p>
-                <form method="POST" action="{{ route('logout') }}">
-                    @csrf
-                    <button type="submit"
-                            class="w-full py-3 px-6 bg-slate-900 hover:bg-red-600 text-white font-black rounded-2xl transition-all text-sm flex items-center justify-center gap-2">
-                        <i class="fas fa-power-off"></i>
-                        Logout
-                    </button>
-                </form>
-            </div>
-        </div>
-    </div>
 @endif
 
 <div class="flex flex-col h-full">

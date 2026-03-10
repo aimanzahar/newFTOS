@@ -49,6 +49,14 @@ class OrderController extends Controller
     {
         $user = $request->user();
 
+        if (!$this->isTruckOperationalForOrderActions($user)) {
+            return response()->json([
+                'success' => false,
+                'code' => 'truck_offline',
+                'message' => 'This truck is currently offline. Orders cannot be accepted right now.',
+            ], 403);
+        }
+
         if ((int) $user->role === User::ROLE_FOOD_TRUCK_WORKER) {
             $hasActivePunchCard = WorkerPunchCard::query()
                 ->where('user_id', $user->id)
@@ -98,6 +106,14 @@ class OrderController extends Controller
     {
         $user = $request->user();
 
+        if (!$this->isTruckOperationalForOrderActions($user)) {
+            return response()->json([
+                'success' => false,
+                'code' => 'truck_offline',
+                'message' => 'This truck is currently offline. Order status updates are temporarily unavailable.',
+            ], 403);
+        }
+
         $order = Order::where('id', $id)
             ->where('accepted_by', $user->id)
             ->first();
@@ -117,5 +133,16 @@ class OrderController extends Controller
         $order->save();
 
         return response()->json(['success' => true, 'order' => $order]);
+    }
+
+    private function isTruckOperationalForOrderActions(User $user): bool
+    {
+        $truck = $user->foodTruck()->select('status', 'is_operational')->first();
+
+        if (!$truck) {
+            return false;
+        }
+
+        return (string) $truck->status === 'approved' && (bool) $truck->is_operational;
     }
 }

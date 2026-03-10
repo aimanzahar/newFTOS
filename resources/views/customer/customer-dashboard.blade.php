@@ -25,6 +25,19 @@
         ->latest()
         ->get();
 
+    $orderSnapshotToken = sha1(
+        $orders
+            ->map(function ($order) {
+                return implode('|', [
+                    (string) $order->id,
+                    (string) ($order->status ?? ''),
+                    (string) optional($order->updated_at)->toIso8601String(),
+                    (string) ($order->notes ?? ''),
+                ]);
+            })
+            ->implode(';')
+    );
+
     $purchasedOrderGroups = [];
     foreach ($orders as $order) {
         $menuRows = [];
@@ -114,6 +127,7 @@
             'total' => (float) ($order->total ?? 0),
             'payment_method' => $paymentMethodLabel,
             'created_at' => $order->created_at?->format('d M Y, h:i A'),
+            'reason_message' => trim((string) ($order->notes ?? '')),
             'refund_message' => $isCashRefund
                 ? "Please show your order receipt at our food truck to receive your cash refund of RM {$formattedTotal}."
                 : "Your payment of RM {$formattedTotal} via {$paymentMethodLabel} will be refunded to the same payment method. Please allow a short processing period.",
@@ -128,6 +142,42 @@ function customerDashboardPage() {
         showActiveOrdersModal: false,
         showOrderReceiptModal: false,
         selectedReceipt: null,
+        orderSnapshotToken: @json($orderSnapshotToken),
+        orderSnapshotPollingTimer: null,
+
+        initLiveRefresh() {
+            this.checkOrderSnapshot();
+            this.orderSnapshotPollingTimer = setInterval(() => {
+                this.checkOrderSnapshot();
+            }, 1000);
+
+            window.addEventListener('beforeunload', () => {
+                if (this.orderSnapshotPollingTimer) {
+                    clearInterval(this.orderSnapshotPollingTimer);
+                }
+            });
+        },
+
+        async checkOrderSnapshot() {
+            try {
+                const res = await fetch('{{ route('customer.order-status-snapshot') }}', {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content,
+                    },
+                });
+
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok || !data.success || !data.snapshot_token) return;
+
+                if (data.snapshot_token !== this.orderSnapshotToken) {
+                    window.location.reload();
+                }
+            } catch (error) {
+                console.error(error);
+            }
+        },
 
         viewOrderReceipt(group) {
             this.selectedReceipt = group;
@@ -259,7 +309,7 @@ function customerDashboardPage() {
 }
 </script>
 
-<div x-data="customerDashboardPage()" class="p-6">
+<div x-data="customerDashboardPage()" x-init="initLiveRefresh()" class="p-6">
     <div x-show="showWelcomeModal"
          style="display:none"
          x-transition:enter="transition ease-out duration-200"
@@ -343,7 +393,7 @@ function customerDashboardPage() {
                 <div class="p-5 border-b border-rose-100 flex items-center justify-between gap-3">
                     <div>
                         <h3 class="font-bold text-gray-800 uppercase text-xs tracking-widest">Rejected Orders & Refund Notice</h3>
-                        <p class="text-[11px] text-gray-500 mt-1">These orders were rejected after the food truck was deactivated by system administration.</p>
+                        <p class="text-[11px] text-gray-500 mt-1">These orders were rejected and are now in refund handling.</p>
                     </div>
                     <span class="text-[10px] font-black uppercase tracking-wide bg-rose-100 text-rose-700 px-2.5 py-1 rounded-full whitespace-nowrap">
                         {{ count($rejectedOrderNotices) }} {{ count($rejectedOrderNotices) > 1 ? 'orders' : 'order' }}
@@ -366,7 +416,10 @@ function customerDashboardPage() {
                                 <p><span class="font-black text-gray-600">Payment Method:</span> {{ $notice['payment_method'] }}</p>
                             </div>
 
-                            <p class="mt-3 text-xs font-semibold text-rose-700 leading-relaxed">{{ $notice['refund_message'] }}</p>
+                            @if (!empty($notice['reason_message']))
+                                <p class="mt-3 text-xs font-semibold text-rose-800 leading-relaxed">{{ $notice['reason_message'] }}</p>
+                            @endif
+                            <p class="mt-2 text-xs font-semibold text-rose-700 leading-relaxed">{{ $notice['refund_message'] }}</p>
                         </div>
                     @endforeach
                 </div>

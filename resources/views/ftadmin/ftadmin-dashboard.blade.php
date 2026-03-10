@@ -34,6 +34,8 @@ function ftadminDashboard() {
         revenueModalView: 'completed',
         revenuePolling: false,
         revenuePollingTimer: null,
+        staffPolling: false,
+        staffPollingTimer: null,
         completedRevenueRows,
         totalRevenueAmount,
         completedOrdersCount,
@@ -83,6 +85,58 @@ function ftadminDashboard() {
             window.addEventListener('beforeunload', () => {
                 if (this.revenuePollingTimer) clearInterval(this.revenuePollingTimer);
             });
+        },
+        async loadStaffDirectory() {
+            if (this.staffPolling) return;
+            this.staffPolling = true;
+
+            try {
+                const res = await fetch('/ftadmin/staff-directory-summary', {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content,
+                    }
+                });
+
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok || !data.success) return;
+
+                this.workers = Array.isArray(data.workers) ? data.workers : [];
+
+                if (this.selectedStaff) {
+                    const selectedStaffId = Number(this.selectedStaff.id);
+                    const latestStaff = this.workers.find(worker => Number(worker.id) === selectedStaffId);
+
+                    if (latestStaff) {
+                        this.selectedStaff = {
+                            ...this.selectedStaff,
+                            ...latestStaff,
+                        };
+                    }
+                }
+            } catch (e) {
+                console.error(e);
+            } finally {
+                this.staffPolling = false;
+            }
+        },
+        async refreshStaffDirectory() {
+            await this.loadStaffDirectory();
+        },
+        startStaffAutoRefresh() {
+            this.refreshStaffDirectory();
+
+            if (this.staffPollingTimer) clearInterval(this.staffPollingTimer);
+            this.staffPollingTimer = setInterval(() => {
+                this.refreshStaffDirectory();
+            }, 1000);
+        },
+        stopStaffAutoRefresh() {
+            if (this.staffPollingTimer) {
+                clearInterval(this.staffPollingTimer);
+                this.staffPollingTimer = null;
+            }
         },
         async toggleOperational() {
             if (this.operationalSaving) return;
@@ -625,8 +679,10 @@ function ftadminDashboard() {
                 this.suppressStaffModalClose = false;
             }, 0);
         },
-        async loadStaffDetails(staffId, range = 'all') {
+        async loadStaffDetails(staffId, range = 'all', options = {}) {
             if (!staffId) return;
+
+            const silent = options.silent ?? false;
 
             this.staffDetailsLoading = true;
 
@@ -637,7 +693,9 @@ function ftadminDashboard() {
 
                 const data = await res.json();
                 if (!res.ok || !data.success) {
-                    alert(data.message || 'Unable to load staff details right now.');
+                    if (!silent) {
+                        alert(data.message || 'Unable to load staff details right now.');
+                    }
                     return;
                 }
 
@@ -661,10 +719,12 @@ function ftadminDashboard() {
                 }
             } catch (error) {
                 console.error(error);
-                alert('Unable to load staff details right now.');
+                if (!silent) {
+                    alert('Unable to load staff details right now.');
+                }
+            } finally {
+                this.staffDetailsLoading = false;
             }
-
-            this.staffDetailsLoading = false;
         },
         async changeStaffDetailsPunchRange(range) {
             if (!this.selectedStaff) return;
@@ -811,6 +871,9 @@ function ftadminDashboard() {
         },
         get filteredCount() {
             return this.workers.filter(w => this.matches(w)).length;
+        },
+        get liveActiveWorkersCount() {
+            return this.workers.filter(worker => worker.status === 'active' && worker.shift_status === 'active').length;
         },
         get menuFilteredCount() {
             return this.menuItems.filter(i => this.menuMatches(i)).length;
@@ -1396,6 +1459,11 @@ function ftadminDashboard() {
             this.loadCategories();
             this.loadTruckProfile();
             this.startRevenueAutoRefresh();
+            this.startStaffAutoRefresh();
+
+            window.addEventListener('beforeunload', () => {
+                this.stopStaffAutoRefresh();
+            });
 
             const saved = localStorage.getItem('ftos_addMenuForm');
             if (saved) {
@@ -1569,7 +1637,7 @@ function ftadminDashboard() {
                                 <i class="fas fa-expand-alt text-gray-300 text-sm group-hover:text-orange-500 transition-colors"></i>
                             </div>
                             <h3 class="text-sm font-bold text-gray-400 uppercase tracking-widest mb-2">Active Staff</h3>
-                            <p class="text-5xl font-black text-gray-900">{{ $activeWorkersCount }}</p>
+                            <p class="text-5xl font-black text-gray-900" x-text="liveActiveWorkersCount">{{ $activeWorkersCount }}</p>
                         </div>
                         <span class="text-xs font-bold text-orange-500 uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity">Manage Staff</span>
                     </button>
@@ -2286,14 +2354,7 @@ function ftadminDashboard() {
             </div>
 
             <div class="flex-1 overflow-y-auto p-6">
-                <div x-show="staffDetailsLoading && staffDetailsTab !== 'punch'" class="h-full flex items-center justify-center">
-                    <div class="text-center">
-                        <div class="w-11 h-11 rounded-full border-4 border-blue-100 border-t-blue-500 animate-spin mx-auto mb-3"></div>
-                        <p class="text-xs font-bold text-gray-400 uppercase tracking-wider">Loading staff details...</p>
-                    </div>
-                </div>
-
-                <div x-show="!staffDetailsLoading && staffDetailsTab === 'activities'" class="space-y-4">
+                <div x-show="staffDetailsTab === 'activities'" class="space-y-4">
                     <template x-if="selectedStaffActiveOrders.length === 0">
                         <div class="text-center py-16">
                             <div class="w-14 h-14 rounded-2xl bg-gray-50 flex items-center justify-center mx-auto mb-3">
@@ -2361,14 +2422,7 @@ function ftadminDashboard() {
                         </button>
                     </div>
 
-                    <div x-show="staffDetailsLoading" class="py-12">
-                        <div class="text-center">
-                            <div class="w-10 h-10 rounded-full border-4 border-blue-100 border-t-blue-500 animate-spin mx-auto mb-3"></div>
-                            <p class="text-xs font-bold text-gray-400 uppercase tracking-wider">Loading punch card logs...</p>
-                        </div>
-                    </div>
-
-                    <template x-if="!staffDetailsLoading && selectedStaffPunchLogs.length === 0">
+                    <template x-if="selectedStaffPunchLogs.length === 0">
                         <div class="text-center py-16">
                             <div class="w-14 h-14 rounded-2xl bg-gray-50 flex items-center justify-center mx-auto mb-3">
                                 <i class="fas fa-id-card text-xl text-gray-300"></i>
@@ -2378,7 +2432,7 @@ function ftadminDashboard() {
                         </div>
                     </template>
 
-                    <div x-show="!staffDetailsLoading && selectedStaffPunchLogs.length > 0" class="overflow-x-auto border border-gray-100 rounded-2xl">
+                    <div x-show="selectedStaffPunchLogs.length > 0" class="overflow-x-auto border border-gray-100 rounded-2xl">
                         <table class="w-full text-sm">
                             <thead class="bg-gray-50/80 border-b border-gray-100">
                                 <tr>

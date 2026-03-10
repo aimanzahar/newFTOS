@@ -13,6 +13,7 @@ use App\Models\Order;
 use App\Models\User;
 use App\Models\WorkerPunchCard;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 Route::get('/', function () {
     return view('welcome');
@@ -38,6 +39,34 @@ Route::middleware(['auth', 'role:1'])->prefix('customer')->name('customer.')->gr
     Route::get('/dashboard', function () {
         return view('customer.customer-dashboard');
     })->name('dashboard');
+
+    Route::get('/order-status-snapshot', function () {
+        $user = Auth::user();
+
+        $orders = Order::query()
+            ->where('customer_id', $user->id)
+            ->latest()
+            ->get(['id', 'status', 'updated_at', 'notes']);
+
+        $snapshotToken = sha1(
+            $orders
+                ->map(function ($order) {
+                    return implode('|', [
+                        (string) $order->id,
+                        (string) ($order->status ?? ''),
+                        (string) optional($order->updated_at)->toIso8601String(),
+                        (string) ($order->notes ?? ''),
+                    ]);
+                })
+                ->implode(';')
+        );
+
+        return response()->json([
+            'success' => true,
+            'snapshot_token' => $snapshotToken,
+        ]);
+    })->name('order-status-snapshot');
+
     Route::get('/browse', [CustomerController::class, 'browse'])->name('browse');
     Route::get('/truck/{id}', [CustomerController::class, 'truckMenu'])->name('truck-menu');
     Route::post('/orders', [CustomerController::class, 'placeOrder'])->name('place-order');
@@ -132,19 +161,17 @@ Route::middleware(['auth', 'role:2', 'ftadmin.status'])->prefix('ftadmin')->name
             'completedOrdersCount' => $completedOrdersCount,
         ];
     };
-    
-    // FT Admin Dashboard
-    Route::get('/dashboard', function () use ($buildRevenueSummary) {
-        $user = Auth::user();
-        $truck = $user->foodTruck;
-        $rawFtworkers = \App\Models\User::where('role', 3)
-            ->where('foodtruck_id', $user->foodtruck_id)
+
+    $buildStaffDirectorySummary = function ($foodtruckId) {
+        $rawFtworkers = User::query()
+            ->where('role', User::ROLE_FOOD_TRUCK_WORKER)
+            ->where('foodtruck_id', $foodtruckId)
             ->orderBy('full_name', 'asc')
             ->get();
 
         $workerIds = $rawFtworkers->pluck('id');
         $activePunchCardsByWorkerId = WorkerPunchCard::query()
-            ->where('foodtruck_id', $user->foodtruck_id)
+            ->where('foodtruck_id', $foodtruckId)
             ->whereIn('user_id', $workerIds)
             ->whereNull('punched_out_at')
             ->orderByDesc('punched_in_at')
@@ -152,7 +179,7 @@ Route::middleware(['auth', 'role:2', 'ftadmin.status'])->prefix('ftadmin')->name
             ->groupBy('user_id')
             ->map(fn ($cards) => $cards->first());
 
-        $ftworkers = $rawFtworkers->map(function ($worker) use ($activePunchCardsByWorkerId) {
+        $workers = $rawFtworkers->map(function ($worker) use ($activePunchCardsByWorkerId) {
             $activeCard = $activePunchCardsByWorkerId->get($worker->id);
 
             return [
@@ -167,10 +194,25 @@ Route::middleware(['auth', 'role:2', 'ftadmin.status'])->prefix('ftadmin')->name
             ];
         })->values();
 
-        $activeWorkersCount = $ftworkers
+        $activeWorkersCount = $workers
             ->where('status', 'active')
             ->where('shift_status', 'active')
             ->count();
+
+        return [
+            'workers' => $workers,
+            'activeWorkersCount' => $activeWorkersCount,
+        ];
+    };
+    
+    // FT Admin Dashboard
+    Route::get('/dashboard', function () use ($buildRevenueSummary, $buildStaffDirectorySummary) {
+        $user = Auth::user();
+        $truck = $user->foodTruck;
+
+        $staffSummary = $buildStaffDirectorySummary($user->foodtruck_id);
+        $ftworkers = $staffSummary['workers'];
+        $activeWorkersCount = $staffSummary['activeWorkersCount'];
 
         $menuItems = \App\Models\Menu::with('optionGroups.choices')
             ->where('foodtruck_id', $user->foodtruck_id)
@@ -233,6 +275,17 @@ Route::middleware(['auth', 'role:2', 'ftadmin.status'])->prefix('ftadmin')->name
         ]);
     })->name('revenue-summary');
 
+    Route::get('/staff-directory-summary', function () use ($buildStaffDirectorySummary) {
+        $user = Auth::user();
+        $staffSummary = $buildStaffDirectorySummary($user->foodtruck_id);
+
+        return response()->json([
+            'success' => true,
+            'workers' => $staffSummary['workers'],
+            'active_workers_count' => $staffSummary['activeWorkersCount'],
+        ]);
+    })->name('staff-directory-summary');
+
     // Manage Menus
     Route::get('/menus', function () {
         $user = Auth::user();
@@ -273,9 +326,37 @@ Route::middleware(['auth', 'role:2', 'ftadmin.status'])->prefix('ftadmin')->name
             ], 403);
         }
 
-        $truck->is_operational = !$truck->is_operational;
-        $truck->save();
-        return response()->json(['success' => true, 'is_operational' => $truck->is_operational]);
+        $updatedOperational = null;
+        $autoRejectedCount = 0;
+
+        DB::transaction(function () use ($truck, &$updatedOperational, &$autoRejectedCount) {
+            $truck->is_operational = !$truck->is_operational;
+            $truck->save();
+            $updatedOperational = (bool) $truck->is_operational;
+
+            if ($updatedOperational) {
+                return;
+            }
+
+            $offlineRefundNote = 'Truck is currently offline. Your paid order was rejected and refund processing has started.';
+            $rejectableStatuses = ['pending', 'accepted', 'preparing', 'prepared', 'ready_for_pickup', 'delivery'];
+
+            $autoRejectedCount = Order::query()
+                ->where('foodtruck_id', $truck->id)
+                ->whereIn('status', $rejectableStatuses)
+                ->update([
+                    'status' => 'rejected',
+                    'accepted_by' => null,
+                    'notes' => $offlineRefundNote,
+                    'updated_at' => now(),
+                ]);
+        });
+
+        return response()->json([
+            'success' => true,
+            'is_operational' => (bool) $updatedOperational,
+            'auto_rejected_orders' => (int) $autoRejectedCount,
+        ]);
     })->name('toggle-operational');
 
     // Truck Profile
@@ -349,6 +430,24 @@ Route::middleware(['auth', 'role:2', 'ftadmin.status'])->prefix('ftadmin')->name
  * Food Truck Worker Routes (ftworker)
  */
 Route::middleware(['auth', 'role:3', 'ftworker.status'])->prefix('ftworker')->name('ftworker.')->group(function () {
+    Route::get('/truck-operational-status', function () {
+        $user = Auth::user();
+        $truck = $user?->foodTruck()->select('id', 'status', 'is_operational')->first();
+
+        if (!$truck) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Truck not found.',
+            ], 404);
+        }
+
+        return response()->json([
+            'success' => true,
+            'truck_status' => $truck->status,
+            'is_operational' => (bool) $truck->is_operational,
+        ]);
+    })->name('truck-operational-status');
+
     Route::get('/dashboard', function () {
         $user = Auth::user();
 
