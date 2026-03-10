@@ -200,6 +200,30 @@ class StaffController extends Controller
             ->limit(120)
             ->get();
 
+        $serializedPunchLogs = $punchLogs
+            ->map(function (WorkerPunchCard $log) use ($admin, $staff) {
+                $windowStart = $log->punched_in_at;
+                $windowEnd = $log->punched_out_at;
+
+                $completedOrdersQuery = Order::query()
+                    ->where('foodtruck_id', $admin->foodtruck_id)
+                    ->where('accepted_by', $staff->id)
+                    ->where('status', 'done')
+                    ->where('updated_at', '>=', $windowStart);
+
+                if ($windowEnd) {
+                    $completedOrdersQuery->where('updated_at', '<=', $windowEnd);
+                }
+
+                return [
+                    'id' => $log->id,
+                    'punched_in_at' => $windowStart?->toIso8601String(),
+                    'punched_out_at' => $windowEnd?->toIso8601String(),
+                    'total_completed_orders' => $completedOrdersQuery->count(),
+                ];
+            })
+            ->values();
+
         $activePunchCard = WorkerPunchCard::query()
             ->where('foodtruck_id', $admin->foodtruck_id)
             ->where('user_id', $staff->id)
@@ -220,7 +244,7 @@ class StaffController extends Controller
                 'active_punched_in_at' => $activePunchCard?->punched_in_at?->toIso8601String(),
             ],
             'active_orders' => $activeOrders,
-            'punch_logs' => $punchLogs,
+            'punch_logs' => $serializedPunchLogs,
             'range' => $range,
         ]);
     }

@@ -20,6 +20,7 @@ function ftadminDashboard() {
     return {
         showStaffModal: false,
         showStaffDetailsModal: false,
+        suppressStaffModalClose: false,
         showMenuModal: false,
         showOperationalModal: false,
         isOperational: {{ json_encode($isOperational) }},
@@ -88,6 +89,11 @@ function ftadminDashboard() {
         truckName: '',
         businessLicense: '',
         truckDescription: '',
+        truckProfileEditMode: {
+            truckName: false,
+            businessLicense: false,
+            description: false,
+        },
         truckProfileSaving: false,
         truckProfileLoading: false,
         
@@ -110,11 +116,40 @@ function ftadminDashboard() {
         },
         
         openTruckProfileModal() {
+            this.cancelTruckProfileEditMode();
             this.loadTruckProfile();
             this.showTruckProfileModal = true;
         },
+
+        isTruckProfileEditing() {
+            return this.truckProfileEditMode.truckName
+                || this.truckProfileEditMode.businessLicense
+                || this.truckProfileEditMode.description;
+        },
+
+        toggleTruckProfileEditMode(field) {
+            if (!Object.prototype.hasOwnProperty.call(this.truckProfileEditMode, field)) return;
+            this.truckProfileEditMode[field] = !this.truckProfileEditMode[field];
+        },
+
+        cancelTruckProfileEditMode() {
+            this.truckProfileEditMode = {
+                truckName: false,
+                businessLicense: false,
+                description: false,
+            };
+
+            this.truckName = this.truckProfile?.foodtruck_name || '';
+            this.businessLicense = this.truckProfile?.business_license_no || '';
+            this.truckDescription = this.truckProfile?.foodtruck_desc || '';
+        },
         
         closeTruckProfileModal() {
+            this.truckProfileEditMode = {
+                truckName: false,
+                businessLicense: false,
+                description: false,
+            };
             this.showTruckProfileModal = false;
             this.truckName = '';
             this.businessLicense = '';
@@ -144,6 +179,8 @@ function ftadminDashboard() {
                 });
                 const data = await res.json();
                 if (data.success) {
+                    this.truckProfile = data.truck || this.truckProfile;
+                    this.cancelTruckProfileEditMode();
                     alert('Truck profile updated successfully!');
                     this.closeTruckProfileModal();
                 } else {
@@ -247,7 +284,7 @@ function ftadminDashboard() {
             this.searchQuery = '';
             this.staffFilter = '';
             this.showStaffFilter = false;
-            this.closeStaffDetails();
+            this.closeStaffDetails({ keepStaffModalOpen: false });
         },
         resetMenuForm() {
             this.formData = { name: '', category: '', base_price: '', quantity: '', description: '' };
@@ -459,7 +496,10 @@ function ftadminDashboard() {
 
             await this.loadStaffDetails(worker.id, 'all');
         },
-        closeStaffDetails() {
+        closeStaffDetails(options = {}) {
+            const keepStaffModalOpen = options.keepStaffModalOpen ?? true;
+
+            this.suppressStaffModalClose = true;
             this.showStaffDetailsModal = false;
             this.selectedStaff = null;
             this.selectedStaffActiveOrders = [];
@@ -467,6 +507,14 @@ function ftadminDashboard() {
             this.staffDetailsLoading = false;
             this.staffDetailsTab = 'activities';
             this.staffDetailsPunchRange = 'all';
+
+            if (keepStaffModalOpen) {
+                this.showStaffModal = true;
+            }
+
+            setTimeout(() => {
+                this.suppressStaffModalClose = false;
+            }, 0);
         },
         async loadStaffDetails(staffId, range = 'all') {
             if (!staffId) return;
@@ -566,18 +614,45 @@ function ftadminDashboard() {
                 minute: '2-digit',
             });
         },
+        formatDateOnly(dateTime) {
+            if (!dateTime) return '-';
+            const parsed = new Date(dateTime);
+            if (Number.isNaN(parsed.getTime())) return '-';
+
+            return parsed.toLocaleDateString('en-MY', {
+                day: '2-digit',
+                month: 'short',
+                year: 'numeric',
+            });
+        },
+        formatTimeOnly(dateTime) {
+            if (!dateTime) return '-';
+            const parsed = new Date(dateTime);
+            if (Number.isNaN(parsed.getTime())) return '-';
+
+            const formatted = parsed.toLocaleTimeString('en-MY', {
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true,
+            }).replace(/\s+/g, ' ').trim();
+
+            return formatted.replace(/\b(am|pm)\b/i, token => token.toUpperCase());
+        },
         durationMinutes(start, end) {
-            if (!start) return 0;
+            if (!start || !end) return null;
 
             const startAt = new Date(start);
-            const endAt = end ? new Date(end) : new Date();
+            const endAt = new Date(end);
 
-            if (Number.isNaN(startAt.getTime()) || Number.isNaN(endAt.getTime())) return 0;
+            if (Number.isNaN(startAt.getTime()) || Number.isNaN(endAt.getTime())) return null;
 
-            return Math.max(0, Math.floor((endAt.getTime() - startAt.getTime()) / 60000));
+            const totalMinutes = Math.floor((endAt.getTime() - startAt.getTime()) / 60000);
+            return totalMinutes >= 0 ? totalMinutes : null;
         },
         formatDuration(totalMinutes) {
-            const safeMinutes = Number(totalMinutes) || 0;
+            const safeMinutes = Number(totalMinutes);
+            if (!Number.isFinite(safeMinutes) || safeMinutes < 0) return '-';
+
             const hours = Math.floor(safeMinutes / 60);
             const minutes = safeMinutes % 60;
             return `${hours}h ${minutes}m`;
@@ -1499,9 +1574,9 @@ function ftadminDashboard() {
          x-transition:enter="transition ease-out duration-300"
          x-transition:enter-start="opacity-0 scale-95"
          x-transition:enter-end="opacity-100 scale-100"
-         @keydown.escape.window="showStaffModal = false; resetForm()">
+         @keydown.escape.window="if (!showStaffDetailsModal && !suppressStaffModalClose) { showStaffModal = false; resetForm(); }">
         
-        <div @click.away="showStaffModal = false; resetForm()" 
+        <div @click.away="if (!showStaffDetailsModal && !suppressStaffModalClose) { showStaffModal = false; resetForm(); }" 
              class="bg-white w-full max-w-4xl rounded-3xl shadow-2xl overflow-hidden flex flex-col h-[85vh] max-h-[750px] border border-white/20">
             
             <!-- Modal Header (Fixed) -->
@@ -1844,7 +1919,7 @@ function ftadminDashboard() {
                     </div>
                 </div>
 
-                <button @click="closeStaffDetails()"
+                <button @click.stop="closeStaffDetails()"
                         class="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-red-50 text-gray-400 hover:text-red-500 transition-all">
                     <i class="fas fa-times"></i>
                 </button>
@@ -1866,7 +1941,7 @@ function ftadminDashboard() {
             </div>
 
             <div class="flex-1 overflow-y-auto p-6">
-                <div x-show="staffDetailsLoading" class="h-full flex items-center justify-center">
+                <div x-show="staffDetailsLoading && staffDetailsTab !== 'punch'" class="h-full flex items-center justify-center">
                     <div class="text-center">
                         <div class="w-11 h-11 rounded-full border-4 border-blue-100 border-t-blue-500 animate-spin mx-auto mb-3"></div>
                         <p class="text-xs font-bold text-gray-400 uppercase tracking-wider">Loading staff details...</p>
@@ -1916,29 +1991,39 @@ function ftadminDashboard() {
                     </div>
                 </div>
 
-                <div x-show="!staffDetailsLoading && staffDetailsTab === 'punch'" class="space-y-4">
+                <div x-show="staffDetailsTab === 'punch'" class="space-y-4">
                     <div class="flex items-center gap-2">
                         <button type="button"
                                 @click="changeStaffDetailsPunchRange('today')"
+                                :disabled="staffDetailsLoading"
                                 class="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wide transition-all"
-                                :class="staffDetailsPunchRange === 'today' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'">
+                                :class="staffDetailsPunchRange === 'today' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200 disabled:hover:bg-gray-100 disabled:hover:text-gray-500'">
                             Today
                         </button>
                         <button type="button"
                                 @click="changeStaffDetailsPunchRange('week')"
+                                :disabled="staffDetailsLoading"
                                 class="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wide transition-all"
-                                :class="staffDetailsPunchRange === 'week' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'">
+                                :class="staffDetailsPunchRange === 'week' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200 disabled:hover:bg-gray-100 disabled:hover:text-gray-500'">
                             This Week
                         </button>
                         <button type="button"
                                 @click="changeStaffDetailsPunchRange('all')"
+                                :disabled="staffDetailsLoading"
                                 class="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wide transition-all"
-                                :class="staffDetailsPunchRange === 'all' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'">
+                                :class="staffDetailsPunchRange === 'all' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200 disabled:hover:bg-gray-100 disabled:hover:text-gray-500'">
                             All
                         </button>
                     </div>
 
-                    <template x-if="selectedStaffPunchLogs.length === 0">
+                    <div x-show="staffDetailsLoading" class="py-12">
+                        <div class="text-center">
+                            <div class="w-10 h-10 rounded-full border-4 border-blue-100 border-t-blue-500 animate-spin mx-auto mb-3"></div>
+                            <p class="text-xs font-bold text-gray-400 uppercase tracking-wider">Loading punch card logs...</p>
+                        </div>
+                    </div>
+
+                    <template x-if="!staffDetailsLoading && selectedStaffPunchLogs.length === 0">
                         <div class="text-center py-16">
                             <div class="w-14 h-14 rounded-2xl bg-gray-50 flex items-center justify-center mx-auto mb-3">
                                 <i class="fas fa-id-card text-xl text-gray-300"></i>
@@ -1948,24 +2033,32 @@ function ftadminDashboard() {
                         </div>
                     </template>
 
-                    <div x-show="selectedStaffPunchLogs.length > 0" class="overflow-x-auto border border-gray-100 rounded-2xl">
+                    <div x-show="!staffDetailsLoading && selectedStaffPunchLogs.length > 0" class="overflow-x-auto border border-gray-100 rounded-2xl">
                         <table class="w-full text-sm">
                             <thead class="bg-gray-50/80 border-b border-gray-100">
                                 <tr>
                                     <th class="text-left px-4 py-3 text-[10px] font-black uppercase tracking-widest text-gray-400">Punch In</th>
                                     <th class="text-left px-4 py-3 text-[10px] font-black uppercase tracking-widest text-gray-400">Punch Out</th>
                                     <th class="text-left px-4 py-3 text-[10px] font-black uppercase tracking-widest text-gray-400">Duration</th>
-                                    <th class="text-left px-4 py-3 text-[10px] font-black uppercase tracking-widest text-gray-400">Shift State</th>
+                                    <th class="text-left px-4 py-3 text-[10px] font-black uppercase tracking-widest text-gray-400">Total Completed Orders</th>
                                     <th class="text-left px-4 py-3 text-[10px] font-black uppercase tracking-widest text-gray-400">Date</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-gray-50">
                                 <template x-for="log in selectedStaffPunchLogs" :key="log.id">
                                     <tr class="hover:bg-gray-50/60 transition-colors">
-                                        <td class="px-4 py-3 text-xs font-semibold text-gray-700" x-text="formatDateTime(log.punched_in_at)"></td>
+                                        <td class="px-4 py-3 text-xs font-semibold text-gray-700">
+                                            <div class="leading-tight">
+                                                <p x-text="formatDateOnly(log.punched_in_at)"></p>
+                                                <p class="mt-1 font-black text-gray-500" x-text="formatTimeOnly(log.punched_in_at)"></p>
+                                            </div>
+                                        </td>
                                         <td class="px-4 py-3 text-xs font-semibold text-gray-700">
                                             <template x-if="log.punched_out_at">
-                                                <span x-text="formatDateTime(log.punched_out_at)"></span>
+                                                <div class="leading-tight">
+                                                    <p x-text="formatDateOnly(log.punched_out_at)"></p>
+                                                    <p class="mt-1 font-black text-gray-500" x-text="formatTimeOnly(log.punched_out_at)"></p>
+                                                </div>
                                             </template>
                                             <template x-if="!log.punched_out_at">
                                                 <span class="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-emerald-50 text-emerald-600 text-[10px] font-black uppercase tracking-wide">
@@ -1976,13 +2069,10 @@ function ftadminDashboard() {
                                         </td>
                                         <td class="px-4 py-3 text-xs font-black text-gray-700"
                                             x-text="formatDuration(durationMinutes(log.punched_in_at, log.punched_out_at))"></td>
-                                        <td class="px-4 py-3 text-xs">
-                                            <span class="inline-flex items-center px-2 py-1 rounded-full text-[10px] font-black uppercase"
-                                                  :class="log.punched_out_at ? 'bg-gray-50 text-gray-600 border border-gray-200' : 'bg-emerald-50 text-emerald-600 border border-emerald-100'"
-                                                  x-text="log.punched_out_at ? 'Closed' : 'Open'"></span>
-                                        </td>
+                                        <td class="px-4 py-3 text-xs font-black text-gray-700"
+                                            x-text="Number(log.total_completed_orders || 0)"></td>
                                         <td class="px-4 py-3 text-xs text-gray-500 font-semibold"
-                                            x-text="log.punched_in_at ? formatDateTime(log.punched_in_at).split(',')[0] : '-'">
+                                            x-text="formatDateOnly(log.punched_in_at)">
                                         </td>
                                     </tr>
                                 </template>
@@ -1993,7 +2083,7 @@ function ftadminDashboard() {
             </div>
 
             <div class="px-6 py-4 border-t border-gray-100 bg-gray-50/70 flex items-center justify-end flex-shrink-0">
-                <button @click="closeStaffDetails()"
+                <button @click.stop="closeStaffDetails()"
                         class="px-5 py-2.5 border-2 border-gray-200 rounded-xl text-xs font-black text-gray-600 hover:bg-white hover:border-gray-300 transition-all uppercase tracking-wide">
                     Close
                 </button>
@@ -2010,9 +2100,9 @@ function ftadminDashboard() {
 
         <div @click.away="closeTruckProfileModal()"
              x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 scale-95 translate-y-2" x-transition:enter-end="opacity-100 scale-100 translate-y-0"
-             class="bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden border border-white/20 flex flex-col h-[75vh] max-h-[600px]">
+             class="bg-white w-full max-w-4xl rounded-3xl shadow-2xl overflow-hidden border border-white/20 flex flex-col h-[85vh] max-h-[750px]">
 
-            <!-- Header (Fixed) -->
+            <!-- Modal Header (Fixed) -->
             <div class="px-8 py-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/50 flex-shrink-0">
                 <div class="flex items-center space-x-4">
                     <div class="bg-teal-600 text-white p-3 rounded-2xl shadow-lg shadow-teal-100">
@@ -2023,70 +2113,115 @@ function ftadminDashboard() {
                         <p class="text-xs text-gray-400 font-bold uppercase tracking-widest mt-0.5">Update your food truck details</p>
                     </div>
                 </div>
-                <button @click="closeTruckProfileModal()" class="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-red-50 text-gray-400 hover:text-red-500 transition-all">
+                <button @click="closeTruckProfileModal()"
+                        class="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-red-50 text-gray-400 hover:text-red-500 transition-all">
                     <i class="fas fa-times"></i>
                 </button>
             </div>
 
-            <!-- Body (Scrollable) -->
-            <div class="flex-1 overflow-y-auto px-8 py-8">
-                
-                <div x-show="truckProfileLoading" class="flex items-center justify-center h-full">
-                    <div class="text-center">
-                        <div class="w-12 h-12 rounded-full border-4 border-teal-100 border-t-teal-500 animate-spin mx-auto mb-4"></div>
-                        <p class="text-sm font-bold text-gray-400">Loading truck profile...</p>
-                    </div>
-                </div>
-
-                <div x-show="!truckProfileLoading" class="space-y-6 max-w-xl">
-                    <!-- Truck Name -->
-                    <div class="space-y-2">
-                        <label class="text-[11px] font-black uppercase tracking-widest text-gray-400 ml-1">Truck Name <span class="text-red-500">*</span></label>
-                        <div class="relative group">
-                            <i class="fas fa-truck absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-teal-500 transition-colors"></i>
-                            <input type="text" x-model="truckName" placeholder="Enter truck name"
-                                   class="w-full pl-11 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl focus:bg-white focus:ring-4 focus:ring-teal-500/10 focus:border-teal-500 transition-all outline-none text-sm font-bold placeholder:text-gray-300">
+            <!-- Modal Body -->
+            <div class="flex-1 overflow-hidden flex flex-col">
+                <div class="flex-1 overflow-y-auto px-8 py-8">
+                    <div x-show="truckProfileLoading" class="h-full min-h-[240px] flex items-center justify-center">
+                        <div class="text-center">
+                            <div class="w-12 h-12 rounded-full border-4 border-teal-100 border-t-teal-500 animate-spin mx-auto mb-4"></div>
+                            <p class="text-sm font-bold text-gray-400">Loading truck profile...</p>
                         </div>
                     </div>
 
-                    <!-- Business License -->
-                    <div class="space-y-2">
-                        <label class="text-[11px] font-black uppercase tracking-widest text-gray-400 ml-1">Business License Number <span class="text-red-500">*</span></label>
-                        <div class="relative group">
-                            <i class="fas fa-certificate absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-teal-500 transition-colors"></i>
-                            <input type="text" x-model="businessLicense" placeholder="Enter business license number"
-                                   class="w-full pl-11 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl focus:bg-white focus:ring-4 focus:ring-teal-500/10 focus:border-teal-500 transition-all outline-none text-sm font-bold placeholder:text-gray-300">
+                    <div x-show="!truckProfileLoading" class="space-y-4 max-w-3xl">
+                        <div>
+                            <label class="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1.5 block">Truck Name</label>
+                            <div class="flex items-center gap-2">
+                                <div x-show="!truckProfileEditMode.truckName" class="flex-1 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl">
+                                    <p class="text-sm font-bold text-gray-800" x-text="truckName || '-'"></p>
+                                </div>
+                                <input x-show="truckProfileEditMode.truckName" type="text" x-model="truckName"
+                                       class="flex-1 px-4 py-2.5 bg-white border border-blue-300 rounded-xl text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none"
+                                       placeholder="Enter truck name">
+                                <button @click="toggleTruckProfileEditMode('truckName')"
+                                        class="px-3 py-2.5 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-xl transition-all flex-shrink-0"
+                                        title="Edit truck name">
+                                    <i class="fas fa-pen text-sm"></i>
+                                </button>
+                            </div>
                         </div>
-                    </div>
 
-                    <!-- Description -->
-                    <div class="space-y-2">
-                        <label class="text-[11px] font-black uppercase tracking-widest text-gray-400 ml-1">Truck Description</label>
-                        <div class="relative group">
-                            <textarea x-model="truckDescription" placeholder="Enter a description about your food truck"
-                                      rows="4"
-                                      class="w-full px-4 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl focus:bg-white focus:ring-4 focus:ring-teal-500/10 focus:border-teal-500 transition-all outline-none text-sm font-bold placeholder:text-gray-300 resize-none"></textarea>
+                        <div>
+                            <label class="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1.5 block">Business License Number</label>
+                            <div class="flex items-center gap-2">
+                                <div x-show="!truckProfileEditMode.businessLicense" class="flex-1 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl">
+                                    <p class="text-sm font-bold font-mono text-gray-700" x-text="businessLicense || '-'"></p>
+                                </div>
+                                <input x-show="truckProfileEditMode.businessLicense" type="text" x-model="businessLicense"
+                                       class="flex-1 px-4 py-2.5 bg-white border border-blue-300 rounded-xl text-sm font-bold font-mono focus:ring-2 focus:ring-blue-500 outline-none"
+                                       placeholder="Enter business license number">
+                                <button @click="toggleTruckProfileEditMode('businessLicense')"
+                                        class="px-3 py-2.5 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-xl transition-all flex-shrink-0"
+                                        title="Edit business license number">
+                                    <i class="fas fa-pen text-sm"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1.5 block">Truck Description</label>
+                            <div class="flex items-start gap-2">
+                                <div x-show="!truckProfileEditMode.description" class="flex-1 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl">
+                                    <p class="text-sm font-medium text-gray-700 leading-relaxed whitespace-pre-line" x-text="truckDescription || '-'"></p>
+                                </div>
+                                <textarea x-show="truckProfileEditMode.description" x-model="truckDescription"
+                                          class="flex-1 px-4 py-2.5 bg-white border border-blue-300 rounded-xl text-sm font-medium resize-none focus:ring-2 focus:ring-blue-500 outline-none"
+                                          rows="4"
+                                          placeholder="Enter a description about your food truck"></textarea>
+                                <button @click="toggleTruckProfileEditMode('description')"
+                                        class="px-3 py-2.5 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-xl transition-all flex-shrink-0 mt-1"
+                                        title="Edit description">
+                                    <i class="fas fa-pen text-sm"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1.5 block">Operational Status</label>
+                            <div class="px-4 py-3 rounded-xl border flex items-center gap-3"
+                                 :class="isOperational ? 'bg-emerald-50 border-emerald-100' : 'bg-red-50 border-red-100'">
+                                <span class="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                                      :class="isOperational ? 'bg-emerald-500' : 'bg-red-500'"></span>
+                                <span class="text-sm font-bold"
+                                      :class="isOperational ? 'text-emerald-700' : 'text-red-600'"
+                                      x-text="isOperational ? 'Online' : 'Offline'"></span>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Footer (Fixed) -->
+            <!-- Modal Footer (Fixed) -->
             <div class="px-8 py-6 bg-gray-50/80 border-t border-gray-100 flex items-center justify-between flex-shrink-0">
                 <p class="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Authorized Access Only</p>
-                <div class="flex gap-3">
-                    <button @click="closeTruckProfileModal()"
+                <div class="flex items-center gap-3">
+                    <button x-show="!isTruckProfileEditing()"
+                            @click="closeTruckProfileModal()"
+                            class="text-sm font-bold text-gray-500 hover:text-gray-800 transition-colors">
+                        Close Management Tools
+                    </button>
+                    <button x-show="isTruckProfileEditing()"
+                            @click="cancelTruckProfileEditMode()"
                             class="px-6 py-3 border-2 border-gray-200 rounded-2xl text-sm font-black text-gray-600 hover:border-gray-300 hover:bg-white transition-all active:scale-[0.98]">
                         Cancel
                     </button>
-                    <button @click="saveTruckProfile()"
+                    <button x-show="isTruckProfileEditing()"
+                            @click="saveTruckProfile()"
                             :disabled="truckProfileSaving || truckProfileLoading"
-                            class="px-6 py-3 bg-teal-600 text-white rounded-2xl text-sm font-black hover:bg-teal-700 shadow-lg shadow-teal-200 hover:shadow-teal-300 transition-all active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed">
-                        <span x-show="!truckProfileSaving">Save Changes</span>
-                        <span x-show="truckProfileSaving" class="flex items-center gap-2">
-                            <i class="fas fa-spinner animate-spin"></i>
-                            Saving...
-                        </span>
+                            class="px-6 py-3 bg-slate-900 text-white rounded-2xl text-sm font-black hover:bg-teal-600 shadow-xl shadow-slate-200 hover:shadow-teal-200 transition-all active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center gap-2">
+                        <template x-if="!truckProfileSaving">
+                            <i class="fas fa-save text-sm"></i>
+                        </template>
+                        <template x-if="truckProfileSaving">
+                            <i class="fas fa-spinner fa-spin text-sm"></i>
+                        </template>
+                        <span x-text="truckProfileSaving ? 'Updating...' : 'Update' "></span>
                     </button>
                 </div>
             </div>
