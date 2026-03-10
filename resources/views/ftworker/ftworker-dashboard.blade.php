@@ -3,6 +3,11 @@
 @php
     $user = Auth::user();
     $owner = $user?->foodTruck?->owner;
+    $pendingOrdersCount = $pendingOrdersCount ?? 0;
+    $completedTodayCount = $completedTodayCount ?? 0;
+    $activePunchCard = $activePunchCard ?? null;
+    $latestPunchCard = $latestPunchCard ?? null;
+    $isShiftActive = (bool) $activePunchCard;
     $restrictionOverlay = null;
 
     if (
@@ -168,15 +173,27 @@
                 </div>
             </div>
 
+            @if(session('success'))
+                <div class="bg-emerald-50 border border-emerald-100 text-emerald-700 px-4 py-3 rounded-2xl text-sm font-semibold">
+                    {{ session('success') }}
+                </div>
+            @endif
+
+            @if(session('error'))
+                <div class="bg-red-50 border border-red-100 text-red-700 px-4 py-3 rounded-2xl text-sm font-semibold">
+                    {{ session('error') }}
+                </div>
+            @endif
+
             <!-- Quick Stats -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-5">
                 <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4">
                     <div class="p-4 bg-blue-50 text-blue-600 rounded-2xl flex-shrink-0">
                         <i class="fas fa-clipboard-list text-xl"></i>
                     </div>
                     <div>
                         <p class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">New Orders</p>
-                        <p class="text-3xl font-black text-gray-900">0</p>
+                        <p class="text-3xl font-black text-gray-900">{{ $pendingOrdersCount }}</p>
                     </div>
                 </div>
 
@@ -186,22 +203,76 @@
                     </div>
                     <div>
                         <p class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Completed Today</p>
-                        <p class="text-3xl font-black text-gray-900">0</p>
+                        <p class="text-3xl font-black text-gray-900">{{ $completedTodayCount }}</p>
+                    </div>
+                </div>
+
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4">
+                    <div class="p-4 {{ $isShiftActive ? 'bg-emerald-50 text-emerald-600' : 'bg-orange-50 text-orange-600' }} rounded-2xl flex-shrink-0">
+                        <i class="fas fa-id-card text-xl"></i>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <p class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Punch Card</p>
+                        <p class="text-lg font-black {{ $isShiftActive ? 'text-emerald-600' : 'text-orange-500' }}">
+                            {{ $isShiftActive ? 'Punched In' : 'Punched Out' }}
+                        </p>
+                        <p class="text-[11px] text-gray-400 font-medium mt-0.5 truncate">
+                            @if($isShiftActive)
+                                In: {{ $activePunchCard?->punched_in_at?->format('d M Y, h:i A') }}
+                            @elseif($latestPunchCard && $latestPunchCard->punched_out_at)
+                                Last Out: {{ $latestPunchCard->punched_out_at->format('d M Y, h:i A') }}
+                            @else
+                                No punch record yet
+                            @endif
+                        </p>
+
+                        @if($isShiftActive)
+                            <form method="POST" action="{{ route('ftworker.punch-card.out') }}" class="mt-2">
+                                @csrf
+                                <button type="submit"
+                                        class="px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white text-[10px] font-black rounded-lg transition-all uppercase tracking-wide">
+                                    Punch Out
+                                </button>
+                            </form>
+                        @else
+                            <form method="POST" action="{{ route('ftworker.punch-card.in') }}" class="mt-2">
+                                @csrf
+                                <button type="submit"
+                                        class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-black rounded-lg transition-all uppercase tracking-wide">
+                                    Punch In
+                                </button>
+                            </form>
+                        @endif
                     </div>
                 </div>
             </div>
 
             <!-- Shift Status -->
             <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex items-center gap-4">
-                <span class="w-3 h-3 rounded-full bg-emerald-500 animate-pulse flex-shrink-0"></span>
+                <span class="w-3 h-3 rounded-full flex-shrink-0 {{ $isShiftActive ? 'bg-emerald-500 animate-pulse' : 'bg-orange-400' }}"></span>
                 <div>
-                    <p class="text-sm font-black text-gray-800">Shift Active</p>
-                    <p class="text-xs text-gray-400 font-medium mt-0.5">You are currently clocked in. Head to New Orders to manage incoming orders.</p>
+                    <p class="text-sm font-black text-gray-800">{{ $isShiftActive ? 'Shift Active' : 'Shift Not Started' }}</p>
+                    <p class="text-xs text-gray-400 font-medium mt-0.5">
+                        {{ $isShiftActive
+                            ? 'You are currently punched in. Head to New Orders to manage incoming orders.'
+                            : 'Please punch in using Punch Card before accepting orders.' }}
+                    </p>
                 </div>
-                <a href="{{ route('ftworker.new-orders') }}"
-                   class="ml-auto flex-shrink-0 px-4 py-2 bg-slate-900 hover:bg-blue-600 text-white text-xs font-black rounded-xl transition-all">
-                    View Orders
-                </a>
+
+                @if($isShiftActive)
+                    <a href="{{ route('ftworker.new-orders') }}"
+                       class="ml-auto flex-shrink-0 px-4 py-2 bg-slate-900 hover:bg-blue-600 text-white text-xs font-black rounded-xl transition-all">
+                        View Orders
+                    </a>
+                @else
+                    <form method="POST" action="{{ route('ftworker.punch-card.in') }}" class="ml-auto flex-shrink-0">
+                        @csrf
+                        <button type="submit"
+                                class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl transition-all">
+                            Punch In
+                        </button>
+                    </form>
+                @endif
             </div>
 
         </div>

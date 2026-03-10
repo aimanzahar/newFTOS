@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
@@ -66,5 +67,10 @@ class User extends Authenticatable
     public function foodTruck(): BelongsTo
     {
         return $this->belongsTo(FoodTruck::class, 'foodtruck_id');
+    }
+
+    public function punchCards(): HasMany
+    {
+        return $this->hasMany(WorkerPunchCard::class, 'user_id');
     }
 }

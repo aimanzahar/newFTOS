@@ -57,6 +57,13 @@
                 </div>
             </div>
 
+            @if(!($isPunchedIn ?? false))
+                <div class="bg-orange-50 border border-orange-100 text-orange-700 px-4 py-3 rounded-2xl text-sm font-semibold flex items-center gap-2">
+                    <i class="fas fa-id-card text-orange-500"></i>
+                    You are currently punched out. Please punch in from Dashboard before accepting new orders.
+                </div>
+            @endif
+
             <!-- Two-Panel Grid -->
             <div class="grid grid-cols-1 xl:grid-cols-2 gap-5 items-start">
 
@@ -184,26 +191,39 @@
                 </div>
 
                 <!-- ═══════════════════════════════════════ -->
-                <!-- RIGHT PANEL — My Order Activity         -->
+                <!-- RIGHT PANEL — My Orders                 -->
                 <!-- ═══════════════════════════════════════ -->
                 <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col">
 
                     <!-- Panel Header -->
                     <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
                         <div>
-                            <h2 class="text-base font-black text-gray-900">My Order Activity</h2>
-                            <p class="text-xs text-gray-400 font-medium mt-0.5">Orders you've accepted — update their status below</p>
+                            <h2 class="text-base font-black text-gray-900">My Orders</h2>
+                            <p class="text-xs text-gray-400 font-medium mt-0.5">Track active work and completed orders</p>
                         </div>
                         <div class="flex items-center gap-2 bg-gray-50 rounded-xl px-3 py-1.5">
                             <span class="w-2 h-2 rounded-full flex-shrink-0"
-                                  :class="myOrders.length > 0 ? 'bg-emerald-400 animate-pulse' : 'bg-gray-300'"></span>
+                                  :class="activeOrders.length > 0 ? 'bg-emerald-400 animate-pulse' : 'bg-gray-300'"></span>
                             <span class="text-xs font-black text-gray-600"
-                                  x-text="myOrders.length + ' active'"></span>
+                                  x-text="activeOrders.length + ' active'"></span>
                         </div>
                     </div>
 
-                    <!-- Empty State -->
-                    <div x-show="myOrders.length === 0"
+                    <div class="px-5 py-3 border-b border-gray-100 flex items-center gap-2">
+                        <button @click="activityTab = 'active'"
+                                class="px-3 py-1.5 text-[11px] font-black uppercase tracking-wide rounded-lg transition-all"
+                                :class="activityTab === 'active' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'">
+                            Order Activity
+                        </button>
+                        <button @click="activityTab = 'completed'"
+                                class="px-3 py-1.5 text-[11px] font-black uppercase tracking-wide rounded-lg transition-all"
+                                :class="activityTab === 'completed' ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'">
+                            Completed Orders
+                        </button>
+                    </div>
+
+                    <!-- Active Empty State -->
+                    <div x-show="activityTab === 'active' && activeOrders.length === 0"
                          class="flex flex-col items-center justify-center py-14 text-center px-6">
                         <div class="w-14 h-14 rounded-2xl bg-gray-50 flex items-center justify-center mb-3">
                             <i class="fas fa-clipboard-check text-xl text-gray-300"></i>
@@ -212,8 +232,8 @@
                         <p class="text-xs text-gray-400 mt-1">Accept a pending order from the left to start working on it.</p>
                     </div>
 
-                    <!-- Table -->
-                    <div x-show="myOrders.length > 0" class="overflow-x-auto">
+                    <!-- Active Table -->
+                    <div x-show="activityTab === 'active' && activeOrders.length > 0" class="overflow-x-auto">
                         <table class="w-full text-sm">
                             <thead>
                                 <tr class="border-b border-gray-100 bg-gray-50/80">
@@ -226,7 +246,7 @@
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-gray-50">
-                                <template x-for="order in myOrders" :key="order.id">
+                                <template x-for="order in activeOrders" :key="order.id">
                                     <tr class="hover:bg-gray-50/60 transition-colors">
 
                                         <!-- Order # -->
@@ -247,7 +267,7 @@
                                         <!-- Items -->
                                         <td class="px-4 py-3 max-w-[140px]">
                                             <div class="space-y-0.5">
-                                                <template x-for="(item, idx) in order.items" :key="idx">
+                                                <template x-for="(item, idx) in normalizeItems(order.items)" :key="idx">
                                                     <div class="text-xs text-gray-600 truncate"
                                                          x-text="typeof item === 'string' ? item : (item.quantity + '× ' + item.name)"></div>
                                                 </template>
@@ -346,12 +366,101 @@
                         </table>
                     </div>
 
+                    <!-- Completed Empty State -->
+                    <div x-show="activityTab === 'completed' && completedOrders.length === 0"
+                         class="flex flex-col items-center justify-center py-14 text-center px-6">
+                        <div class="w-14 h-14 rounded-2xl bg-gray-50 flex items-center justify-center mb-3">
+                            <i class="fas fa-flag-checkered text-xl text-gray-300"></i>
+                        </div>
+                        <p class="text-sm font-bold text-gray-500">No completed orders yet</p>
+                        <p class="text-xs text-gray-400 mt-1">Orders marked as done will appear here with full details.</p>
+                    </div>
+
+                    <!-- Completed Table -->
+                    <div x-show="activityTab === 'completed' && completedOrders.length > 0" class="overflow-x-auto">
+                        <table class="w-full text-sm">
+                            <thead>
+                                <tr class="border-b border-gray-100 bg-gray-50/80">
+                                    <th class="text-left px-4 py-3 text-[10px] font-black uppercase tracking-widest text-gray-400">Order #</th>
+                                    <th class="text-left px-4 py-3 text-[10px] font-black uppercase tracking-widest text-gray-400">Completed At</th>
+                                    <th class="text-left px-4 py-3 text-[10px] font-black uppercase tracking-widest text-gray-400">Order Details</th>
+                                    <th class="text-left px-4 py-3 text-[10px] font-black uppercase tracking-widest text-gray-400">Total</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-50">
+                                <template x-for="order in completedOrders" :key="order.id">
+                                    <tr class="hover:bg-gray-50/60 transition-colors align-top">
+                                        <td class="px-4 py-3">
+                                            <span class="font-black text-gray-800 text-sm"
+                                                  x-text="'#' + String(order.id).padStart(4, '0')"></span>
+                                        </td>
+
+                                        <td class="px-4 py-3">
+                                            <span class="text-xs text-gray-500 font-semibold"
+                                                  x-text="formatDateTime(order.updated_at)"></span>
+                                        </td>
+
+                                        <td class="px-4 py-3 min-w-[330px]">
+                                            <div class="space-y-2">
+                                                <template x-for="(item, idx) in normalizeItems(order.items)" :key="idx">
+                                                    <div class="bg-gray-50 border border-gray-100 rounded-xl px-3 py-2">
+                                                        <p class="text-xs font-bold text-gray-700"
+                                                           x-text="(item.quantity || 1) + '× ' + (item.name || 'Item')"></p>
+                                                        <p class="text-[11px] text-gray-500 mt-0.5"
+                                                           x-text="'Unit: RM ' + calcUnitPrice(item).toFixed(2) + ' · Line: RM ' + calcLineTotal(item).toFixed(2)"></p>
+                                                        <template x-if="choiceSummary(item)">
+                                                            <p class="text-[10px] text-purple-600 font-medium mt-1"
+                                                               x-text="choiceSummary(item)"></p>
+                                                        </template>
+                                                    </div>
+                                                </template>
+                                            </div>
+                                        </td>
+
+                                        <td class="px-4 py-3">
+                                            <span class="font-black text-gray-900 text-sm"
+                                                  x-text="'RM ' + parseFloat(order.total).toFixed(2)"></span>
+                                        </td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+
                 </div>
                 <!-- end right panel -->
 
             </div>
         </div>
     </div>
+
+    <div x-show="showInfoModal"
+     style="display:none;"
+     class="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm"
+     x-transition:enter="transition ease-out duration-200"
+     x-transition:enter-start="opacity-0"
+     x-transition:enter-end="opacity-100"
+     x-transition:leave="transition ease-in duration-150"
+     x-transition:leave-start="opacity-100"
+     x-transition:leave-end="opacity-0">
+
+    <div class="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden border border-gray-100"
+         @click.away="showInfoModal = false">
+        <div class="h-1.5 w-full bg-orange-400"></div>
+        <div class="p-6">
+            <div class="w-12 h-12 rounded-2xl bg-orange-50 text-orange-500 flex items-center justify-center mb-4">
+                <i class="fas fa-id-card text-lg"></i>
+            </div>
+            <h3 class="text-base font-black text-gray-900 mb-2" x-text="infoModalTitle"></h3>
+            <p class="text-sm text-gray-500 leading-relaxed" x-text="infoModalMessage"></p>
+            <button @click="showInfoModal = false"
+                    class="mt-5 w-full py-2.5 px-4 bg-slate-900 hover:bg-blue-600 text-white font-black text-xs rounded-xl transition-all uppercase tracking-wide">
+                Understood
+            </button>
+        </div>
+    </div>
+
+</div>
 
 </div>
 
@@ -360,8 +469,20 @@ function newOrdersPage() {
     return {
         pendingOrders: [],
         myOrders: [],
+        activityTab: 'active',
         accepting: null,
         updatingStatus: null,
+        showInfoModal: false,
+        infoModalTitle: '',
+        infoModalMessage: '',
+
+        get activeOrders() {
+            return this.myOrders.filter(order => order.status !== 'done');
+        },
+
+        get completedOrders() {
+            return this.myOrders.filter(order => order.status === 'done');
+        },
 
         async init() {
             await Promise.all([this.loadPending(), this.loadMyActivity()]);
@@ -408,6 +529,14 @@ function newOrdersPage() {
                     },
                 });
                 if (res.status === 403) {
+                    const denied = await res.json().catch(() => ({}));
+                    if (denied.code === 'punch_card_required') {
+                        this.openInfoModal(
+                            'Punch Card Required',
+                            denied.message || 'Please punch in before accepting new orders to begin your shift.'
+                        );
+                        return;
+                    }
                     this.redirectToRestrictedDashboard();
                     return;
                 }
@@ -422,6 +551,12 @@ function newOrdersPage() {
                 }
             } catch (e) { console.error(e); }
             this.accepting = null;
+        },
+
+        openInfoModal(title, message) {
+            this.infoModalTitle = title;
+            this.infoModalMessage = message;
+            this.showInfoModal = true;
         },
 
         async setStatus(order, status) {
@@ -472,10 +607,69 @@ function newOrdersPage() {
             return map[status] ?? status;
         },
 
+        normalizeItems(items) {
+            return Array.isArray(items) ? items : [];
+        },
+
+        calcUnitPrice(item) {
+            if (!item || typeof item === 'string') return 0;
+
+            const basePrice = Number(item.base_price ?? 0) || 0;
+            const selectedChoices = Array.isArray(item.selected_choices) ? item.selected_choices : [];
+            const choiceTotal = selectedChoices.reduce((total, choice) => {
+                return total + (Number(choice?.price ?? 0) || 0);
+            }, 0);
+
+            return basePrice + choiceTotal;
+        },
+
+        calcLineTotal(item) {
+            if (!item || typeof item === 'string') return 0;
+
+            const storedTotal = Number(item.item_total);
+            if (Number.isFinite(storedTotal)) {
+                return storedTotal;
+            }
+
+            const qty = Number(item.quantity ?? 1) || 1;
+            return this.calcUnitPrice(item) * qty;
+        },
+
+        choiceSummary(item) {
+            if (!item || typeof item === 'string') return '';
+
+            const selectedChoices = Array.isArray(item.selected_choices) ? item.selected_choices : [];
+            if (selectedChoices.length === 0) return '';
+
+            const labels = selectedChoices
+                .map(choice => {
+                    const groupName = choice?.group_name || 'Option';
+                    const choiceName = choice?.choice_name || '';
+                    const extra = Number(choice?.price ?? 0) || 0;
+                    const extraLabel = extra > 0 ? ` (+RM ${extra.toFixed(2)})` : '';
+                    return `${groupName}: ${choiceName}${extraLabel}`;
+                })
+                .filter(Boolean);
+
+            return labels.length ? `Options: ${labels.join(', ')}` : '';
+        },
+
         formatTime(datetime) {
             if (!datetime) return '';
             const d = new Date(datetime);
             return d.toLocaleTimeString('en-MY', { hour: '2-digit', minute: '2-digit' });
+        },
+
+        formatDateTime(datetime) {
+            if (!datetime) return '';
+            const d = new Date(datetime);
+            return d.toLocaleString('en-MY', {
+                day: '2-digit',
+                month: 'short',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+            });
         },
     };
 }

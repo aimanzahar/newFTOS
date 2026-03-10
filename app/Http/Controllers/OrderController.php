@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Order;
+use App\Models\User;
+use App\Models\WorkerPunchCard;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -46,6 +48,23 @@ class OrderController extends Controller
     public function accept(Request $request, $id)
     {
         $user = $request->user();
+
+        if ((int) $user->role === User::ROLE_FOOD_TRUCK_WORKER) {
+            $hasActivePunchCard = WorkerPunchCard::query()
+                ->where('user_id', $user->id)
+                ->where('foodtruck_id', $user->foodtruck_id)
+                ->whereNull('punched_out_at')
+                ->exists();
+
+            if (!$hasActivePunchCard) {
+                return response()->json([
+                    'success' => false,
+                    'code' => 'punch_card_required',
+                    'message' => 'Please punch in before accepting new orders to start your shift.',
+                ], 403);
+            }
+        }
+
         $order = null;
 
         DB::transaction(function () use ($id, $user, &$order) {

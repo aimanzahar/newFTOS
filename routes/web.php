@@ -8,7 +8,10 @@ use App\Http\Controllers\StaffController;
 use App\Http\Controllers\MenuController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\CustomerController;
+use App\Http\Controllers\WorkerPunchCardController;
+use App\Models\Order;
 use App\Models\User;
+use App\Models\WorkerPunchCard;
 use Illuminate\Support\Facades\Auth;
 
 Route::get('/', function () {
@@ -76,9 +79,41 @@ Route::middleware(['auth', 'role:2', 'ftadmin.status'])->prefix('ftadmin')->name
     Route::get('/dashboard', function () {
         $user = Auth::user();
         $truck = $user->foodTruck;
-        $ftworkers = \App\Models\User::where('role', 3)
+        $rawFtworkers = \App\Models\User::where('role', 3)
             ->where('foodtruck_id', $user->foodtruck_id)
+            ->orderBy('full_name', 'asc')
             ->get();
+
+        $workerIds = $rawFtworkers->pluck('id');
+        $activePunchCardsByWorkerId = WorkerPunchCard::query()
+            ->where('foodtruck_id', $user->foodtruck_id)
+            ->whereIn('user_id', $workerIds)
+            ->whereNull('punched_out_at')
+            ->orderByDesc('punched_in_at')
+            ->get()
+            ->groupBy('user_id')
+            ->map(fn ($cards) => $cards->first());
+
+        $ftworkers = $rawFtworkers->map(function ($worker) use ($activePunchCardsByWorkerId) {
+            $activeCard = $activePunchCardsByWorkerId->get($worker->id);
+
+            return [
+                'id' => $worker->id,
+                'full_name' => $worker->full_name,
+                'email' => $worker->email,
+                'phone_no' => $worker->phone_no,
+                'status' => $worker->status,
+                'status_locked_by_system_admin' => (bool) ($worker->status_locked_by_system_admin ?? false),
+                'shift_status' => $activeCard ? 'active' : 'inactive',
+                'active_punched_in_at' => $activeCard?->punched_in_at?->toIso8601String(),
+            ];
+        })->values();
+
+        $activeWorkersCount = $ftworkers
+            ->where('status', 'active')
+            ->where('shift_status', 'active')
+            ->count();
+
         $menuItems = \App\Models\Menu::with('optionGroups.choices')
             ->where('foodtruck_id', $user->foodtruck_id)
             ->orderBy('category', 'asc')
@@ -91,7 +126,33 @@ Route::middleware(['auth', 'role:2', 'ftadmin.status'])->prefix('ftadmin')->name
             ? (bool) $truck->is_operational
             : false;
 
-        return view('ftadmin.ftadmin-dashboard', compact('ftworkers', 'menuItems', 'isOperational'));
+        $punchLogRange = request()->query('punch_log_range', 'all');
+        $punchLogsQuery = WorkerPunchCard::query()
+            ->with('worker:id,full_name,email')
+            ->where('foodtruck_id', $user->foodtruck_id);
+
+        if ($punchLogRange === 'today') {
+            $punchLogsQuery->whereDate('punched_in_at', now()->toDateString());
+        } elseif ($punchLogRange === 'week') {
+            $punchLogsQuery->whereBetween('punched_in_at', [
+                now()->copy()->startOfWeek(),
+                now()->copy()->endOfWeek(),
+            ]);
+        }
+
+        $punchCardLogs = $punchLogsQuery
+            ->orderByDesc('punched_in_at')
+            ->limit(100)
+            ->get();
+
+        return view('ftadmin.ftadmin-dashboard', compact(
+            'ftworkers',
+            'menuItems',
+            'isOperational',
+            'punchCardLogs',
+            'punchLogRange',
+            'activeWorkersCount'
+        ));
     })->name('dashboard');
 
     // Manage Menus
@@ -177,6 +238,7 @@ Route::middleware(['auth', 'role:2', 'ftadmin.status'])->prefix('ftadmin')->name
 
     // Staff Management
     Route::post('/register-staff', [StaffController::class, 'store'])->name('register.staff');
+    Route::get('/staff/{id}/details', [StaffController::class, 'details'])->name('staff.details');
     Route::post('/staff/{id}/deactivate', [StaffController::class, 'deactivate'])->name('staff.deactivate');
     Route::post('/staff/{id}/fire', [StaffController::class, 'fire'])->name('staff.fire');
     Route::delete('/staff/{id}', [StaffController::class, 'delete'])->name('staff.delete');
@@ -205,12 +267,50 @@ Route::middleware(['auth', 'role:2', 'ftadmin.status'])->prefix('ftadmin')->name
  */
 Route::middleware(['auth', 'role:3', 'ftworker.status'])->prefix('ftworker')->name('ftworker.')->group(function () {
     Route::get('/dashboard', function () {
-        return view('ftworker.ftworker-dashboard');
+        $user = Auth::user();
+
+        $pendingOrdersCount = Order::query()
+            ->where('foodtruck_id', $user->foodtruck_id)
+            ->where('status', 'pending')
+            ->count();
+
+        $completedTodayCount = Order::query()
+            ->where('accepted_by', $user->id)
+            ->where('status', 'done')
+            ->whereDate('updated_at', now()->toDateString())
+            ->count();
+
+        $activePunchCard = WorkerPunchCard::query()
+            ->where('user_id', $user->id)
+            ->whereNull('punched_out_at')
+            ->latest('punched_in_at')
+            ->first();
+
+        $latestPunchCard = WorkerPunchCard::query()
+            ->where('user_id', $user->id)
+            ->latest('punched_in_at')
+            ->first();
+
+        return view('ftworker.ftworker-dashboard', compact(
+            'pendingOrdersCount',
+            'completedTodayCount',
+            'activePunchCard',
+            'latestPunchCard'
+        ));
     })->name('dashboard');
 
     Route::get('/new-orders', function () {
-        return view('ftworker.new-orders');
+        $user = Auth::user();
+        $isPunchedIn = WorkerPunchCard::query()
+            ->where('user_id', $user->id)
+            ->whereNull('punched_out_at')
+            ->exists();
+
+        return view('ftworker.new-orders', compact('isPunchedIn'));
     })->name('new-orders');
+
+    Route::post('/punch-card/in', [WorkerPunchCardController::class, 'punchIn'])->name('punch-card.in');
+    Route::post('/punch-card/out', [WorkerPunchCardController::class, 'punchOut'])->name('punch-card.out');
 });
 
 /**

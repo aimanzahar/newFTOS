@@ -6,19 +6,30 @@
     $role = $user->role;
     $adminFoodTruckId = $user->foodtruck_id;
     $workers = $ftworkers ?? [];
-    $activeWorkersCount = collect($workers)->where('status', 'active')->count();
+    $activeWorkersCount = $activeWorkersCount ?? collect($workers)->where('status', 'active')->count();
     $menus = $menuItems ?? [];
+    $punchLogs = $punchCardLogs ?? collect();
+    $selectedPunchLogRange = $punchLogRange ?? 'all';
 @endphp
 
 <script>
 function ftadminDashboard() {
     const workers   = @json($workers);
     const menuItems = @json($menus);
+    const initialPunchLogRange = @json($selectedPunchLogRange);
     return {
         showStaffModal: false,
+        showStaffDetailsModal: false,
         showMenuModal: false,
         showOperationalModal: false,
         isOperational: {{ json_encode($isOperational) }},
+        selectedStaff: null,
+        selectedStaffActiveOrders: [],
+        selectedStaffPunchLogs: [],
+        staffDetailsLoading: false,
+        staffDetailsTab: 'activities',
+        staffDetailsPunchRange: 'all',
+        punchLogRange: initialPunchLogRange,
         operationalSaving: false,
         async toggleOperational() {
             if (this.operationalSaving) return;
@@ -236,6 +247,7 @@ function ftadminDashboard() {
             this.searchQuery = '';
             this.staffFilter = '';
             this.showStaffFilter = false;
+            this.closeStaffDetails();
         },
         resetMenuForm() {
             this.formData = { name: '', category: '', base_price: '', quantity: '', description: '' };
@@ -393,8 +405,194 @@ function ftadminDashboard() {
             }
         },
         
+        workerDisplayStatusLabel(worker) {
+            if (!worker) return 'Inactive';
+
+            if (worker.status === 'fired') return 'Fired';
+            if (worker.status === 'deactivated') return 'Deactivated';
+
+            return worker.shift_status === 'active' ? 'Active' : 'Inactive';
+        },
+        workerDisplayStatusClass(worker) {
+            if (!worker) return 'bg-gray-50 text-gray-500 border border-gray-100';
+
+            if (worker.status === 'fired') {
+                return 'bg-red-50 text-red-500 border border-red-100';
+            }
+
+            if (worker.status === 'deactivated') {
+                return 'bg-orange-50 text-orange-500 border border-orange-100';
+            }
+
+            return worker.shift_status === 'active'
+                ? 'bg-emerald-50 text-emerald-600 border border-emerald-100'
+                : 'bg-gray-50 text-gray-600 border border-gray-200';
+        },
+        workerSubStatusLabel(worker) {
+            if (!worker) return '';
+
+            if (worker.status === 'fired') {
+                return worker.status_locked_by_system_admin
+                    ? 'Status locked by system admin'
+                    : 'Account access removed';
+            }
+
+            if (worker.status === 'deactivated') {
+                return worker.status_locked_by_system_admin
+                    ? 'Deactivated by system admin'
+                    : 'Deactivated by truck admin';
+            }
+
+            return worker.shift_status === 'active'
+                ? 'Punched in'
+                : 'Punched out / not punched in';
+        },
+        async openStaffDetails(worker) {
+            if (!worker || this.showCreateForm) return;
+
+            this.selectedStaff = worker;
+            this.selectedStaffActiveOrders = [];
+            this.selectedStaffPunchLogs = [];
+            this.staffDetailsTab = 'activities';
+            this.staffDetailsPunchRange = 'all';
+            this.showStaffDetailsModal = true;
+
+            await this.loadStaffDetails(worker.id, 'all');
+        },
+        closeStaffDetails() {
+            this.showStaffDetailsModal = false;
+            this.selectedStaff = null;
+            this.selectedStaffActiveOrders = [];
+            this.selectedStaffPunchLogs = [];
+            this.staffDetailsLoading = false;
+            this.staffDetailsTab = 'activities';
+            this.staffDetailsPunchRange = 'all';
+        },
+        async loadStaffDetails(staffId, range = 'all') {
+            if (!staffId) return;
+
+            this.staffDetailsLoading = true;
+
+            try {
+                const res = await fetch(`/ftadmin/staff/${staffId}/details?range=${encodeURIComponent(range)}`, {
+                    headers: { 'Accept': 'application/json' }
+                });
+
+                const data = await res.json();
+                if (!res.ok || !data.success) {
+                    alert(data.message || 'Unable to load staff details right now.');
+                    return;
+                }
+
+                this.selectedStaff = {
+                    ...(this.selectedStaff || {}),
+                    ...(data.staff || {}),
+                };
+
+                this.selectedStaffActiveOrders = Array.isArray(data.active_orders) ? data.active_orders : [];
+                this.selectedStaffPunchLogs = Array.isArray(data.punch_logs) ? data.punch_logs : [];
+                this.staffDetailsPunchRange = data.range || range;
+
+                const selectedStaffId = Number(data.staff?.id ?? staffId);
+                const workerIndex = this.workers.findIndex(worker => Number(worker.id) === selectedStaffId);
+
+                if (workerIndex >= 0 && data.staff) {
+                    this.workers[workerIndex] = {
+                        ...this.workers[workerIndex],
+                        ...data.staff,
+                    };
+                }
+            } catch (error) {
+                console.error(error);
+                alert('Unable to load staff details right now.');
+            }
+
+            this.staffDetailsLoading = false;
+        },
+        async changeStaffDetailsPunchRange(range) {
+            if (!this.selectedStaff) return;
+            this.staffDetailsPunchRange = range;
+            await this.loadStaffDetails(this.selectedStaff.id, range);
+        },
+        activeOrderItems(order) {
+            return Array.isArray(order?.items) ? order.items : [];
+        },
+        orderItemSummary(item) {
+            if (typeof item === 'string') return item;
+            if (!item) return '-';
+
+            const quantity = Number(item.quantity ?? 1) || 1;
+            const name = item.name || 'Item';
+            return `${quantity}× ${name}`;
+        },
+        orderStatusLabel(status) {
+            const labels = {
+                accepted: 'Accepted',
+                preparing: 'Preparing',
+                prepared: 'Prepared',
+                ready_for_pickup: 'Ready for Pickup',
+                delivery: 'Delivery',
+                done: 'Done',
+                pending: 'Pending',
+                rejected: 'Rejected',
+            };
+
+            return labels[status] || status || 'Unknown';
+        },
+        orderStatusBadgeClass(status) {
+            const classes = {
+                accepted: 'bg-blue-50 text-blue-600 border border-blue-100',
+                preparing: 'bg-amber-50 text-amber-600 border border-amber-100',
+                prepared: 'bg-emerald-50 text-emerald-600 border border-emerald-100',
+                ready_for_pickup: 'bg-purple-50 text-purple-600 border border-purple-100',
+                delivery: 'bg-cyan-50 text-cyan-600 border border-cyan-100',
+                done: 'bg-slate-100 text-slate-700 border border-slate-200',
+                pending: 'bg-gray-50 text-gray-600 border border-gray-200',
+                rejected: 'bg-red-50 text-red-600 border border-red-100',
+            };
+
+            return classes[status] || 'bg-gray-50 text-gray-600 border border-gray-200';
+        },
+        formatDateTime(dateTime) {
+            if (!dateTime) return '-';
+            const parsed = new Date(dateTime);
+            if (Number.isNaN(parsed.getTime())) return '-';
+
+            return parsed.toLocaleString('en-MY', {
+                day: '2-digit',
+                month: 'short',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+            });
+        },
+        durationMinutes(start, end) {
+            if (!start) return 0;
+
+            const startAt = new Date(start);
+            const endAt = end ? new Date(end) : new Date();
+
+            if (Number.isNaN(startAt.getTime()) || Number.isNaN(endAt.getTime())) return 0;
+
+            return Math.max(0, Math.floor((endAt.getTime() - startAt.getTime()) / 60000));
+        },
+        formatDuration(totalMinutes) {
+            const safeMinutes = Number(totalMinutes) || 0;
+            const hours = Math.floor(safeMinutes / 60);
+            const minutes = safeMinutes % 60;
+            return `${hours}h ${minutes}m`;
+        },
         matches(worker) {
-            if (this.staffFilter && worker.status !== this.staffFilter) return false;
+            if (this.staffFilter) {
+                if (this.staffFilter === 'active') {
+                    if (!(worker.status === 'active' && worker.shift_status === 'active')) return false;
+                } else if (this.staffFilter === 'inactive') {
+                    if (!(worker.status === 'active' && worker.shift_status !== 'active')) return false;
+                } else if (worker.status !== this.staffFilter) {
+                    return false;
+                }
+            }
+
             if (!this.searchQuery) return true;
             const query = this.searchQuery.toLowerCase();
             return (
@@ -516,7 +714,10 @@ function ftadminDashboard() {
                 });
                 const data = await res.json();
                 if (data.success) {
-                    this.workers.unshift(data.user);
+                    const user = data.user || {};
+                    user.shift_status = 'inactive';
+                    user.active_punched_in_at = null;
+                    this.workers.unshift(user);
                     this.showCreateForm = false;
                     if (this.$refs.staffForm) this.$refs.staffForm.reset();
                     this.searchQuery = '';
@@ -541,7 +742,14 @@ function ftadminDashboard() {
                 }
 
                 const w = this.workers.find(w => w.id === id);
-                if (w) w.status = data.status;
+                if (w) {
+                    w.status = data.status;
+                    if (data.status !== 'active') {
+                        w.shift_status = 'inactive';
+                    } else if (!w.shift_status) {
+                        w.shift_status = 'inactive';
+                    }
+                }
             } catch (e) {
                 console.error(e);
                 alert('Unable to update staff status right now.');
@@ -603,7 +811,12 @@ function ftadminDashboard() {
                 }
 
                 const w = this.workers.find(w => w.id === id);
-                if (w) w.status = data.status;
+                if (w) {
+                    w.status = data.status;
+                    if (data.status !== 'active') {
+                        w.shift_status = 'inactive';
+                    }
+                }
             } catch (e) {
                 console.error(e);
                 alert('Unable to update staff status right now.');
@@ -1109,6 +1322,92 @@ function ftadminDashboard() {
                     </button>
 
                 </div>
+
+                <div class="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
+                    <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+                        <div>
+                            <h3 class="text-sm font-black text-gray-900 uppercase tracking-widest">Staff Punch Card Logs</h3>
+                            <p class="text-xs text-gray-400 font-medium mt-1">Latest punch in/out records for your workers.</p>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <a href="{{ route('ftadmin.dashboard', ['punch_log_range' => 'today']) }}"
+                               class="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wide transition-all {{ $selectedPunchLogRange === 'today' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200' }}">
+                                Today
+                            </a>
+                            <a href="{{ route('ftadmin.dashboard', ['punch_log_range' => 'week']) }}"
+                               class="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wide transition-all {{ $selectedPunchLogRange === 'week' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200' }}">
+                                This Week
+                            </a>
+                            <a href="{{ route('ftadmin.dashboard', ['punch_log_range' => 'all']) }}"
+                               class="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wide transition-all {{ $selectedPunchLogRange === 'all' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200' }}">
+                                All
+                            </a>
+                            <span class="text-xs font-black text-gray-500 bg-gray-50 px-3 py-1 rounded-lg ml-1">
+                                {{ count($punchLogs) }} records
+                            </span>
+                        </div>
+                    </div>
+
+                    @if(count($punchLogs) === 0)
+                        <div class="py-12 text-center">
+                            <div class="w-14 h-14 rounded-2xl bg-gray-50 flex items-center justify-center mx-auto mb-3">
+                                <i class="fas fa-id-card text-xl text-gray-300"></i>
+                            </div>
+                            <p class="text-sm font-bold text-gray-500">No punch card records yet</p>
+                            <p class="text-xs text-gray-400 mt-1">Worker punch activity will appear here once shifts start.</p>
+                        </div>
+                    @else
+                        <div class="overflow-x-auto max-h-[320px]">
+                            <table class="w-full text-sm">
+                                <thead class="sticky top-0 bg-gray-50/95 z-10">
+                                    <tr class="border-b border-gray-100">
+                                        <th class="text-left px-4 py-3 text-[10px] font-black uppercase tracking-widest text-gray-400">Worker</th>
+                                        <th class="text-left px-4 py-3 text-[10px] font-black uppercase tracking-widest text-gray-400">Punch In</th>
+                                        <th class="text-left px-4 py-3 text-[10px] font-black uppercase tracking-widest text-gray-400">Punch Out</th>
+                                        <th class="text-left px-4 py-3 text-[10px] font-black uppercase tracking-widest text-gray-400">Duration</th>
+                                        <th class="text-left px-4 py-3 text-[10px] font-black uppercase tracking-widest text-gray-400">Date</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-gray-50">
+                                    @foreach($punchLogs as $log)
+                                        @php
+                                            $durationMinutes = $log->punched_in_at
+                                                ? $log->punched_in_at->diffInMinutes($log->punched_out_at ?? now())
+                                                : 0;
+                                            $durationHours = intdiv($durationMinutes, 60);
+                                            $durationRemainder = $durationMinutes % 60;
+                                        @endphp
+                                        <tr class="hover:bg-gray-50/60 transition-colors">
+                                            <td class="px-4 py-3">
+                                                <p class="text-xs font-bold text-gray-800">{{ $log->worker?->full_name ?? 'Unknown Worker' }}</p>
+                                                <p class="text-[11px] text-gray-400">{{ $log->worker?->email ?? 'N/A' }}</p>
+                                            </td>
+                                            <td class="px-4 py-3 text-xs font-semibold text-gray-700">
+                                                {{ $log->punched_in_at?->format('d M Y, h:i A') ?? '-' }}
+                                            </td>
+                                            <td class="px-4 py-3 text-xs font-semibold text-gray-700">
+                                                @if($log->punched_out_at)
+                                                    {{ $log->punched_out_at->format('d M Y, h:i A') }}
+                                                @else
+                                                    <span class="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-emerald-50 text-emerald-600 text-[10px] font-black uppercase tracking-wide">
+                                                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                                        Active Shift
+                                                    </span>
+                                                @endif
+                                            </td>
+                                            <td class="px-4 py-3 text-xs font-bold text-gray-700">
+                                                {{ $durationHours }}h {{ $durationRemainder }}m
+                                            </td>
+                                            <td class="px-4 py-3 text-xs text-gray-500 font-medium">
+                                                {{ $log->punched_in_at?->format('d M Y') ?? '-' }}
+                                            </td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    @endif
+                </div>
             </div>
         </div>
     </div>
@@ -1244,12 +1543,15 @@ function ftadminDashboard() {
                         <div class="relative flex-shrink-0">
                             <button type="button" @click.stop="showStaffFilter = !showStaffFilter"
                                     :class="staffFilter === 'active'      ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' :
+                                            staffFilter === 'inactive'    ? 'bg-gray-50 text-gray-600 border border-gray-200' :
                                             staffFilter === 'deactivated' ? 'bg-orange-50 text-orange-500 border border-orange-200' :
                                             staffFilter === 'fired'       ? 'bg-red-50 text-red-500 border border-red-200' :
                                                                             'bg-gray-100 text-gray-500 border border-transparent hover:bg-gray-200'"
                                     class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all">
                                 <i class="fas fa-filter text-xs"></i>
-                                <span x-text="staffFilter ? staffFilter.charAt(0).toUpperCase() + staffFilter.slice(1) : 'Filter'"></span>
+                                <span x-text="staffFilter === 'inactive'
+                                    ? 'Inactive'
+                                    : (staffFilter ? staffFilter.charAt(0).toUpperCase() + staffFilter.slice(1) : 'Filter')"></span>
                                 <i class="fas fa-chevron-down text-[10px] transition-transform duration-200" :class="showStaffFilter ? 'rotate-180' : ''"></i>
                             </button>
 
@@ -1276,6 +1578,14 @@ function ftadminDashboard() {
                                         class="w-full text-left px-4 py-2 text-xs font-bold flex items-center gap-2.5 transition-colors">
                                     <span class="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0"></span>
                                     Active
+                                </button>
+
+                                <!-- Inactive -->
+                                <button type="button" @click.stop="staffFilter = 'inactive'; showStaffFilter = false"
+                                        :class="staffFilter === 'inactive' ? 'bg-gray-50 font-black text-gray-600' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'"
+                                        class="w-full text-left px-4 py-2 text-xs font-bold flex items-center gap-2.5 transition-colors">
+                                    <span class="w-2 h-2 rounded-full bg-gray-400 flex-shrink-0"></span>
+                                    Inactive
                                 </button>
 
                                 <!-- Deactivated -->
@@ -1317,7 +1627,9 @@ function ftadminDashboard() {
                                 </thead>
                                 <tbody class="divide-y divide-gray-50">
                                     <template x-for="worker in workers" :key="worker.id">
-                                        <tr x-show="matches(worker)" class="hover:bg-blue-50/30 transition-colors group">
+                                        <tr x-show="matches(worker)"
+                                            @click="openStaffDetails(worker)"
+                                            class="hover:bg-blue-50/30 transition-colors group cursor-pointer">
                                             <td class="py-5 px-6">
                                                 <div class="flex items-center">
                                                     <div class="w-10 h-10 rounded-xl bg-slate-800 text-white flex items-center justify-center font-black text-sm mr-4 shadow-sm group-hover:scale-110 transition-transform" x-text="worker.full_name.charAt(0)"></div>
@@ -1332,13 +1644,11 @@ function ftadminDashboard() {
                                             </td>
                                             <td class="py-5 px-6 w-36 whitespace-nowrap">
                                                 <span class="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black uppercase"
-                                                      :class="worker.status === 'fired'
-                                                          ? 'bg-red-50 text-red-500 border border-red-100'
-                                                          : worker.status === 'deactivated'
-                                                              ? 'bg-orange-50 text-orange-500 border border-orange-100'
-                                                              : 'bg-emerald-50 text-emerald-600 border border-emerald-100'"
-                                                      x-text="worker.status === 'fired' ? 'Fired' : worker.status === 'deactivated' ? 'Deactivated' : 'Active'">
+                                                      :class="workerDisplayStatusClass(worker)"
+                                                      x-text="workerDisplayStatusLabel(worker)">
                                                 </span>
+                                                <p class="text-[10px] text-gray-400 font-bold mt-1 uppercase tracking-wide"
+                                                   x-text="workerSubStatusLabel(worker)"></p>
                                             </td>
                                             <td class="py-5 px-6 w-24 text-center">
                                                 <button type="button"
@@ -1375,15 +1685,18 @@ function ftadminDashboard() {
                                             <div class="flex flex-col items-center">
                                                 <div class="w-16 h-16 rounded-full flex items-center justify-center mb-4"
                                                      :class="staffFilter === 'active'      ? 'bg-emerald-50' :
+                                                             staffFilter === 'inactive'    ? 'bg-gray-100'   :
                                                              staffFilter === 'deactivated' ? 'bg-orange-50'  : 'bg-red-50'">
                                                     <i class="text-2xl"
                                                        :class="staffFilter === 'active'      ? 'fas fa-user-check text-emerald-300' :
+                                                             staffFilter === 'inactive'    ? 'fas fa-user-clock text-gray-400'    :
                                                                staffFilter === 'deactivated' ? 'fas fa-user-slash text-orange-300'  :
                                                                                                'fas fa-user-times text-red-300'"></i>
                                                 </div>
                                                 <h3 class="text-base font-black text-gray-800">
                                                     No Staff For
                                                     <span :class="staffFilter === 'active'      ? 'text-emerald-600' :
+                                                                   staffFilter === 'inactive'    ? 'text-gray-600'    :
                                                                    staffFilter === 'deactivated' ? 'text-orange-500'  : 'text-red-500'"
                                                           x-text="staffFilter.charAt(0).toUpperCase() + staffFilter.slice(1)"></span>
                                                     Status
@@ -1497,6 +1810,192 @@ function ftadminDashboard() {
                 <p class="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Authorized Access Only</p>
                 <button @click="showStaffModal = false; resetForm()" class="text-sm font-bold text-gray-500 hover:text-gray-800 transition-colors">
                     Close Management Tools
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- STAFF DETAILS MODAL -->
+    <div x-show="showStaffDetailsModal"
+         style="display:none;"
+         x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
+         class="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+
+        <div @click.away="closeStaffDetails()"
+             x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 scale-95 translate-y-2" x-transition:enter-end="opacity-100 scale-100 translate-y-0"
+             class="bg-white w-full max-w-4xl rounded-3xl shadow-2xl overflow-hidden border border-white/20 flex flex-col h-[82vh] max-h-[760px]">
+
+            <div class="px-6 py-5 border-b border-gray-100 flex items-center justify-between bg-gray-50/50 flex-shrink-0">
+                <div class="flex items-center gap-4 min-w-0">
+                    <div class="w-12 h-12 rounded-2xl bg-slate-800 text-white flex items-center justify-center text-base font-black flex-shrink-0"
+                         x-text="selectedStaff?.full_name ? selectedStaff.full_name.charAt(0) : '?'">
+                    </div>
+                    <div class="min-w-0">
+                        <h3 class="text-lg font-black text-gray-900 truncate" x-text="selectedStaff?.full_name || 'Staff Details'"></h3>
+                        <p class="text-xs text-gray-400 font-semibold truncate" x-text="selectedStaff?.email || ''"></p>
+                        <div class="flex items-center gap-2 mt-1">
+                            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-black uppercase"
+                                  :class="workerDisplayStatusClass(selectedStaff)"
+                                  x-text="workerDisplayStatusLabel(selectedStaff)"></span>
+                            <span class="text-[10px] text-gray-400 font-bold uppercase tracking-wide"
+                                  x-text="workerSubStatusLabel(selectedStaff)"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <button @click="closeStaffDetails()"
+                        class="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-red-50 text-gray-400 hover:text-red-500 transition-all">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <div class="px-6 py-3 border-b border-gray-100 bg-white flex items-center gap-2 flex-shrink-0">
+                <button type="button"
+                        @click="staffDetailsTab = 'activities'"
+                        class="px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-wide transition-all"
+                        :class="staffDetailsTab === 'activities' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'">
+                    Activities
+                </button>
+                <button type="button"
+                        @click="staffDetailsTab = 'punch'"
+                        class="px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-wide transition-all"
+                        :class="staffDetailsTab === 'punch' ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'">
+                    Punch Card Log
+                </button>
+            </div>
+
+            <div class="flex-1 overflow-y-auto p-6">
+                <div x-show="staffDetailsLoading" class="h-full flex items-center justify-center">
+                    <div class="text-center">
+                        <div class="w-11 h-11 rounded-full border-4 border-blue-100 border-t-blue-500 animate-spin mx-auto mb-3"></div>
+                        <p class="text-xs font-bold text-gray-400 uppercase tracking-wider">Loading staff details...</p>
+                    </div>
+                </div>
+
+                <div x-show="!staffDetailsLoading && staffDetailsTab === 'activities'" class="space-y-4">
+                    <template x-if="selectedStaffActiveOrders.length === 0">
+                        <div class="text-center py-16">
+                            <div class="w-14 h-14 rounded-2xl bg-gray-50 flex items-center justify-center mx-auto mb-3">
+                                <i class="fas fa-clipboard-check text-xl text-gray-300"></i>
+                            </div>
+                            <p class="text-sm font-bold text-gray-500">No active assigned orders</p>
+                            <p class="text-xs text-gray-400 mt-1">This staff currently has no accepted orders in progress.</p>
+                        </div>
+                    </template>
+
+                    <div class="space-y-3" x-show="selectedStaffActiveOrders.length > 0">
+                        <template x-for="order in selectedStaffActiveOrders" :key="order.id">
+                            <div class="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
+                                <div class="flex items-start justify-between gap-3 mb-3">
+                                    <div>
+                                        <p class="text-sm font-black text-gray-800" x-text="'#' + String(order.id).padStart(4, '0')"></p>
+                                        <p class="text-[11px] text-gray-400 font-semibold mt-0.5" x-text="'Updated: ' + formatDateTime(order.updated_at)"></p>
+                                    </div>
+                                    <div class="text-right">
+                                        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-black uppercase"
+                                              :class="orderStatusBadgeClass(order.status)"
+                                              x-text="orderStatusLabel(order.status)"></span>
+                                        <p class="text-xs font-black text-gray-800 mt-1" x-text="'RM ' + Number(order.total || 0).toFixed(2)"></p>
+                                    </div>
+                                </div>
+
+                                <div class="space-y-1.5">
+                                    <template x-for="(item, index) in activeOrderItems(order)" :key="index">
+                                        <div class="bg-gray-50 border border-gray-100 rounded-xl px-3 py-2">
+                                            <p class="text-xs font-bold text-gray-700" x-text="orderItemSummary(item)"></p>
+                                            <template x-if="typeof item !== 'string' && Number(item.item_total || 0) > 0">
+                                                <p class="text-[11px] text-gray-500 font-semibold mt-0.5"
+                                                   x-text="'Line Total: RM ' + Number(item.item_total || 0).toFixed(2)"></p>
+                                            </template>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                <div x-show="!staffDetailsLoading && staffDetailsTab === 'punch'" class="space-y-4">
+                    <div class="flex items-center gap-2">
+                        <button type="button"
+                                @click="changeStaffDetailsPunchRange('today')"
+                                class="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wide transition-all"
+                                :class="staffDetailsPunchRange === 'today' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'">
+                            Today
+                        </button>
+                        <button type="button"
+                                @click="changeStaffDetailsPunchRange('week')"
+                                class="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wide transition-all"
+                                :class="staffDetailsPunchRange === 'week' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'">
+                            This Week
+                        </button>
+                        <button type="button"
+                                @click="changeStaffDetailsPunchRange('all')"
+                                class="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wide transition-all"
+                                :class="staffDetailsPunchRange === 'all' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'">
+                            All
+                        </button>
+                    </div>
+
+                    <template x-if="selectedStaffPunchLogs.length === 0">
+                        <div class="text-center py-16">
+                            <div class="w-14 h-14 rounded-2xl bg-gray-50 flex items-center justify-center mx-auto mb-3">
+                                <i class="fas fa-id-card text-xl text-gray-300"></i>
+                            </div>
+                            <p class="text-sm font-bold text-gray-500">No punch card records found</p>
+                            <p class="text-xs text-gray-400 mt-1">No shift attendance records for the selected range.</p>
+                        </div>
+                    </template>
+
+                    <div x-show="selectedStaffPunchLogs.length > 0" class="overflow-x-auto border border-gray-100 rounded-2xl">
+                        <table class="w-full text-sm">
+                            <thead class="bg-gray-50/80 border-b border-gray-100">
+                                <tr>
+                                    <th class="text-left px-4 py-3 text-[10px] font-black uppercase tracking-widest text-gray-400">Punch In</th>
+                                    <th class="text-left px-4 py-3 text-[10px] font-black uppercase tracking-widest text-gray-400">Punch Out</th>
+                                    <th class="text-left px-4 py-3 text-[10px] font-black uppercase tracking-widest text-gray-400">Duration</th>
+                                    <th class="text-left px-4 py-3 text-[10px] font-black uppercase tracking-widest text-gray-400">Shift State</th>
+                                    <th class="text-left px-4 py-3 text-[10px] font-black uppercase tracking-widest text-gray-400">Date</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-50">
+                                <template x-for="log in selectedStaffPunchLogs" :key="log.id">
+                                    <tr class="hover:bg-gray-50/60 transition-colors">
+                                        <td class="px-4 py-3 text-xs font-semibold text-gray-700" x-text="formatDateTime(log.punched_in_at)"></td>
+                                        <td class="px-4 py-3 text-xs font-semibold text-gray-700">
+                                            <template x-if="log.punched_out_at">
+                                                <span x-text="formatDateTime(log.punched_out_at)"></span>
+                                            </template>
+                                            <template x-if="!log.punched_out_at">
+                                                <span class="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-emerald-50 text-emerald-600 text-[10px] font-black uppercase tracking-wide">
+                                                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                                    Active Shift
+                                                </span>
+                                            </template>
+                                        </td>
+                                        <td class="px-4 py-3 text-xs font-black text-gray-700"
+                                            x-text="formatDuration(durationMinutes(log.punched_in_at, log.punched_out_at))"></td>
+                                        <td class="px-4 py-3 text-xs">
+                                            <span class="inline-flex items-center px-2 py-1 rounded-full text-[10px] font-black uppercase"
+                                                  :class="log.punched_out_at ? 'bg-gray-50 text-gray-600 border border-gray-200' : 'bg-emerald-50 text-emerald-600 border border-emerald-100'"
+                                                  x-text="log.punched_out_at ? 'Closed' : 'Open'"></span>
+                                        </td>
+                                        <td class="px-4 py-3 text-xs text-gray-500 font-semibold"
+                                            x-text="log.punched_in_at ? formatDateTime(log.punched_in_at).split(',')[0] : '-'">
+                                        </td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="px-6 py-4 border-t border-gray-100 bg-gray-50/70 flex items-center justify-end flex-shrink-0">
+                <button @click="closeStaffDetails()"
+                        class="px-5 py-2.5 border-2 border-gray-200 rounded-xl text-xs font-black text-gray-600 hover:bg-white hover:border-gray-300 transition-all uppercase tracking-wide">
+                    Close
                 </button>
             </div>
         </div>

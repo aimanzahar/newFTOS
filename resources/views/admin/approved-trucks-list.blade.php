@@ -357,7 +357,7 @@
                                     <i class="fas fa-users text-emerald-500"></i> Workers / Staff
                                 </p>
 
-                                <div id="detail-staff-list" class="space-y-3 flex-1 min-h-0 overflow-y-auto pr-1"></div>
+                                <div id="detail-staff-list" class="grid grid-cols-1 sm:grid-cols-2 gap-3 content-start flex-1 min-h-0 overflow-y-auto pr-1"></div>
 
                                 <div id="detail-staff-empty" class="text-center py-10 bg-gray-50 border border-gray-200 rounded-2xl" style="display:none;">
                                     <i class="fas fa-users text-2xl text-gray-300 mb-2 block"></i>
@@ -964,7 +964,7 @@
                 staffList.style.display  = 'none';
                 staffEmpty.style.display = 'block';
             } else {
-                staffList.style.display  = 'block';
+                staffList.style.display  = 'grid';
                 staffEmpty.style.display = 'none';
                 workers.forEach(function(w) {
                     var initial = (w.full_name || '?').charAt(0).toUpperCase();

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Order;
 use App\Models\User;
+use App\Models\WorkerPunchCard;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -158,6 +159,70 @@ class StaffController extends Controller
         $staff->delete();
 
         return response()->json(['success' => true]);
+    }
+
+    /**
+     * Return staff activity + punch card details for ftadmin modal.
+     */
+    public function details(Request $request, $id)
+    {
+        $admin = Auth::user();
+
+        $staff = User::where('id', $id)
+            ->where('foodtruck_id', $admin->foodtruck_id)
+            ->where('role', 3)
+            ->firstOrFail();
+
+        $activeOrderStatuses = ['accepted', 'preparing', 'prepared', 'ready_for_pickup', 'delivery'];
+        $activeOrders = Order::query()
+            ->where('foodtruck_id', $admin->foodtruck_id)
+            ->where('accepted_by', $staff->id)
+            ->whereIn('status', $activeOrderStatuses)
+            ->orderByDesc('updated_at')
+            ->get();
+
+        $range = $request->query('range', 'all');
+        $punchLogsQuery = WorkerPunchCard::query()
+            ->where('foodtruck_id', $admin->foodtruck_id)
+            ->where('user_id', $staff->id);
+
+        if ($range === 'today') {
+            $punchLogsQuery->whereDate('punched_in_at', now()->toDateString());
+        } elseif ($range === 'week') {
+            $punchLogsQuery->whereBetween('punched_in_at', [
+                now()->copy()->startOfWeek(),
+                now()->copy()->endOfWeek(),
+            ]);
+        }
+
+        $punchLogs = $punchLogsQuery
+            ->orderByDesc('punched_in_at')
+            ->limit(120)
+            ->get();
+
+        $activePunchCard = WorkerPunchCard::query()
+            ->where('foodtruck_id', $admin->foodtruck_id)
+            ->where('user_id', $staff->id)
+            ->whereNull('punched_out_at')
+            ->latest('punched_in_at')
+            ->first();
+
+        return response()->json([
+            'success' => true,
+            'staff' => [
+                'id' => $staff->id,
+                'full_name' => $staff->full_name,
+                'email' => $staff->email,
+                'phone_no' => $staff->phone_no,
+                'status' => $staff->status,
+                'status_locked_by_system_admin' => (bool) ($staff->status_locked_by_system_admin ?? false),
+                'shift_status' => $activePunchCard ? 'active' : 'inactive',
+                'active_punched_in_at' => $activePunchCard?->punched_in_at?->toIso8601String(),
+            ],
+            'active_orders' => $activeOrders,
+            'punch_logs' => $punchLogs,
+            'range' => $range,
+        ]);
     }
 
     /**
