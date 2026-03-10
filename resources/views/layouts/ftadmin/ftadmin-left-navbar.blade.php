@@ -41,10 +41,10 @@ class="sidebar-hidden fixed md:static inset-y-0 left-0 z-50 w-64 bg-[#0f172a] sh
 
         
 
-        <a href="{{ route('ftadmin.orders') }}"
-           class="flex items-center py-2.5 px-4 rounded-xl transition duration-200 {{ request()->routeIs('ftadmin.orders') ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-800 hover:text-white' }}">
+        <a href="{{ route('ftadmin.new-orders') }}"
+           class="flex items-center py-2.5 px-4 rounded-xl transition duration-200 {{ request()->routeIs('ftadmin.orders') || request()->routeIs('ftadmin.new-orders') ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-800 hover:text-white' }}">
             <i class="fas fa-receipt w-6 text-sm"></i>
-            <span class="text-sm font-medium">Orders Tracking</span>
+            <span class="text-sm font-medium">New Orders</span>
         </a>
 
         <!-- FEEDBACK SECTION -->

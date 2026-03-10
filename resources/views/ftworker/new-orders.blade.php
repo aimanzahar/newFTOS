@@ -70,7 +70,7 @@
                 <!-- ═══════════════════════════════════════ -->
                 <!-- LEFT PANEL — Pending Orders             -->
                 <!-- ═══════════════════════════════════════ -->
-                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col">
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-[72vh] min-h-[560px]">
 
                     <!-- Panel Header -->
                     <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
@@ -88,7 +88,7 @@
 
                     <!-- Empty State -->
                     <div x-show="pendingOrders.length === 0"
-                         class="flex flex-col items-center justify-center py-14 text-center px-6">
+                        class="flex-1 min-h-0 flex flex-col items-center justify-center py-14 text-center px-6">
                         <div class="w-14 h-14 rounded-2xl bg-gray-50 flex items-center justify-center mb-3">
                             <i class="fas fa-clock text-xl text-gray-300"></i>
                         </div>
@@ -97,7 +97,7 @@
                     </div>
 
                     <!-- Table -->
-                    <div x-show="pendingOrders.length > 0" class="overflow-x-auto">
+                    <div x-show="pendingOrders.length > 0" class="flex-1 min-h-0 overflow-auto">
                         <table class="w-full text-sm">
                             <thead>
                                 <tr class="border-b border-gray-100 bg-gray-50/80">
@@ -193,7 +193,7 @@
                 <!-- ═══════════════════════════════════════ -->
                 <!-- RIGHT PANEL — My Orders                 -->
                 <!-- ═══════════════════════════════════════ -->
-                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col">
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-[72vh] min-h-[560px]">
 
                     <!-- Panel Header -->
                     <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
@@ -224,7 +224,7 @@
 
                     <!-- Active Empty State -->
                     <div x-show="activityTab === 'active' && activeOrders.length === 0"
-                         class="flex flex-col items-center justify-center py-14 text-center px-6">
+                        class="flex-1 min-h-0 flex flex-col items-center justify-center py-14 text-center px-6">
                         <div class="w-14 h-14 rounded-2xl bg-gray-50 flex items-center justify-center mb-3">
                             <i class="fas fa-clipboard-check text-xl text-gray-300"></i>
                         </div>
@@ -233,7 +233,7 @@
                     </div>
 
                     <!-- Active Table -->
-                    <div x-show="activityTab === 'active' && activeOrders.length > 0" class="overflow-x-auto">
+                    <div x-show="activityTab === 'active' && activeOrders.length > 0" class="flex-1 min-h-0 overflow-auto">
                         <table class="w-full text-sm">
                             <thead>
                                 <tr class="border-b border-gray-100 bg-gray-50/80">
@@ -368,7 +368,7 @@
 
                     <!-- Completed Empty State -->
                     <div x-show="activityTab === 'completed' && completedOrders.length === 0"
-                         class="flex flex-col items-center justify-center py-14 text-center px-6">
+                        class="flex-1 min-h-0 flex flex-col items-center justify-center py-14 text-center px-6">
                         <div class="w-14 h-14 rounded-2xl bg-gray-50 flex items-center justify-center mb-3">
                             <i class="fas fa-flag-checkered text-xl text-gray-300"></i>
                         </div>
@@ -377,7 +377,7 @@
                     </div>
 
                     <!-- Completed Table -->
-                    <div x-show="activityTab === 'completed' && completedOrders.length > 0" class="overflow-x-auto">
+                    <div x-show="activityTab === 'completed' && completedOrders.length > 0" class="flex-1 min-h-0 overflow-auto">
                         <table class="w-full text-sm">
                             <thead>
                                 <tr class="border-b border-gray-100 bg-gray-50/80">
@@ -486,9 +486,11 @@ function newOrdersPage() {
 
         async init() {
             await Promise.all([this.loadPending(), this.loadMyActivity()]);
-            // Poll every 5 seconds
-            setInterval(() => this.loadPending(), 5000);
-            setInterval(() => this.loadMyActivity(), 5000);
+            // Poll every 1 second
+            setInterval(() => {
+                this.loadPending();
+                this.loadMyActivity();
+            }, 1000);
         },
 
         redirectToRestrictedDashboard() {

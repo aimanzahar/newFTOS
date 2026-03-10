@@ -166,7 +166,12 @@ Route::middleware(['auth', 'role:2', 'ftadmin.status'])->prefix('ftadmin')->name
         return view('ftadmin.manage-menus', compact('menuItems'));
     })->name('menus');
 
-    // Order Tracking
+    // New Orders
+    Route::get('/new-orders', function () {
+        return view('ftadmin.order-tracking');
+    })->name('new-orders');
+
+    // Order Tracking (legacy path)
     Route::get('/orders', function () {
         return view('ftadmin.order-tracking');
     })->name('orders');
