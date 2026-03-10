@@ -17,7 +17,10 @@ class TruckApprovalController extends Controller
     {
         $truck = FoodTruck::with('owner')->findOrFail($id);
 
-        $truck->update(['status' => 'approved']);
+        $truck->update([
+            'status' => 'approved',
+            'is_operational' => false,
+        ]);
 
         // Clear the pending status on the owner's user account so the
         // overlay in ftadmin-layout no longer appears after approval.

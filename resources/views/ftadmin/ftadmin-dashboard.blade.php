@@ -182,7 +182,7 @@ function ftadminDashboard() {
         },
         submitEditMenuForm() {
             // Validate pricing: either base_price OR all choice prices must be filled
-            if (!this.hasValidPricing(this.editPrice, this.editOptionGroups)) {
+            if (!this.hasValidPricing(this.editBasePrice, this.editOptionGroups)) {
                 alert('Please provide pricing:\n- Fill the Base Price in Section 1, OR\n- Fill the Price for all choices in Section 2');
                 return;
             }
@@ -193,8 +193,20 @@ function ftadminDashboard() {
             if (this.$refs.editMenuForm) this.$refs.editMenuForm.submit();
         },
         hasValidPricing(basePrice, optionGroups) {
+            const hasNumericValue = (value) => {
+                if (value === '' || value === null || value === undefined) return false;
+                const normalized = String(value).trim();
+                if (normalized === '') return false;
+                return !isNaN(Number(normalized));
+            };
+
             // Check if base_price is filled
-            const hasBasePrice = basePrice && basePrice !== '' && !isNaN(Number(basePrice));
+            const hasBasePrice = hasNumericValue(basePrice);
+
+            // Check if there is at least one named choice
+            const hasNamedChoices = (optionGroups || []).some(group =>
+                (group.choices || []).some(choice => choice.name && choice.name.trim() !== '')
+            );
             
             // Check if all named choices have prices filled
             const hasPricesInChoices = (optionGroups || []).every(group => {
@@ -202,12 +214,12 @@ function ftadminDashboard() {
                     // If choice has no name, it's not required
                     if (!choice.name || choice.name.trim() === '') return true;
                     // If choice has a name, it must have a price
-                    return choice.price && choice.price !== '' && !isNaN(Number(choice.price));
+                    return hasNumericValue(choice.price);
                 });
             });
             
-            // Valid if either base_price is filled OR all choice prices are filled
-            return hasBasePrice || hasPricesInChoices;
+            // Valid if either base_price is filled OR named choices exist and all have prices
+            return hasBasePrice || (hasNamedChoices && hasPricesInChoices);
         },
         hasMissingChoiceQuantities(groups) {
             return (groups || []).some(group =>

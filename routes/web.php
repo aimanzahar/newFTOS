@@ -75,6 +75,7 @@ Route::middleware(['auth', 'role:2', 'ftadmin.status'])->prefix('ftadmin')->name
     // FT Admin Dashboard
     Route::get('/dashboard', function () {
         $user = Auth::user();
+        $truck = $user->foodTruck;
         $ftworkers = \App\Models\User::where('role', 3)
             ->where('foodtruck_id', $user->foodtruck_id)
             ->get();
@@ -84,7 +85,12 @@ Route::middleware(['auth', 'role:2', 'ftadmin.status'])->prefix('ftadmin')->name
             ->orderBy('name', 'asc')
             ->get();
 
-        $isOperational = $user->foodTruck ? (bool) $user->foodTruck->is_operational : true;
+        $isAccountActive = ($user->status ?? null) === 'active';
+        $isTruckApproved = $truck && ($truck->status ?? null) === 'approved';
+        $isOperational = ($isAccountActive && $isTruckApproved)
+            ? (bool) $truck->is_operational
+            : false;
+
         return view('ftadmin.ftadmin-dashboard', compact('ftworkers', 'menuItems', 'isOperational'));
     })->name('dashboard');
 
@@ -114,6 +120,15 @@ Route::middleware(['auth', 'role:2', 'ftadmin.status'])->prefix('ftadmin')->name
         $user = Auth::user();
         $truck = \App\Models\FoodTruck::find($user->foodtruck_id);
         if (!$truck) return response()->json(['success' => false], 404);
+
+        if (($user->status ?? null) !== 'active' || ($truck->status ?? null) !== 'approved') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Truck operational status can only be changed after approval.',
+                'is_operational' => false,
+            ], 403);
+        }
+
         $truck->is_operational = !$truck->is_operational;
         $truck->save();
         return response()->json(['success' => true, 'is_operational' => $truck->is_operational]);

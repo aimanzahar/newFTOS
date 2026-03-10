@@ -85,6 +85,7 @@ class RegisteredUserController extends Controller
                     'business_license_no' => $request->business_license_no,
                     'foodtruck_desc'      => $request->foodtruck_desc,
                     'status'              => 'pending',
+                    'is_operational'      => false,
                 ]);
                 
                 // Link the admin to their newly created truck

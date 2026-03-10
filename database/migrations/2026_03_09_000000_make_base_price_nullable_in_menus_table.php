@@ -1,18 +1,25 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
     public function up(): void
     {
-        DB::statement('ALTER TABLE menus MODIFY base_price DECIMAL(8,2) NULL');
+        Schema::table('menus', function (Blueprint $table) {
+            $table->decimal('base_price', 8, 2)->nullable()->change();
+        });
     }
 
     public function down(): void
     {
-        DB::statement('UPDATE menus SET base_price = 0 WHERE base_price IS NULL');
-        DB::statement('ALTER TABLE menus MODIFY base_price DECIMAL(8,2) NOT NULL');
+        DB::table('menus')->whereNull('base_price')->update(['base_price' => 0]);
+
+        Schema::table('menus', function (Blueprint $table) {
+            $table->decimal('base_price', 8, 2)->default(0)->change();
+        });
     }
 };

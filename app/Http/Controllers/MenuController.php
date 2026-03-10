@@ -135,11 +135,12 @@ class MenuController extends Controller
                     if (empty($choiceData['name'])) continue;
                     $choiceQtyRaw = $choiceData['quantity'] ?? '';
                     $choiceQty = ($choiceQtyRaw !== '' && $choiceQtyRaw !== null) ? (int) $choiceQtyRaw : null;
+                    $choiceStatusInput = $choiceData['status'] ?? 'available';
                     // Only set unavailable if quantity is explicitly 0, not if it's empty
                     $choiceStatus = ($choiceQty !== null && $choiceQty <= 0)
                         ? 'unavailable'
-                        : (in_array($choiceData['status'] ?? 'available', ['available', 'unavailable'])
-                            ? $choiceData['status']
+                        : (in_array($choiceStatusInput, ['available', 'unavailable'])
+                            ? $choiceStatusInput
                             : 'available');
                     $group->choices()->create([
                         'name'       => $choiceData['name'],
@@ -237,11 +238,12 @@ class MenuController extends Controller
                     if (empty($choiceData['name'])) continue;
                     $choiceQtyRaw = $choiceData['quantity'] ?? '';
                     $choiceQty = ($choiceQtyRaw !== '' && $choiceQtyRaw !== null) ? (int) $choiceQtyRaw : null;
+                    $choiceStatusInput = $choiceData['status'] ?? 'available';
                     // Only set unavailable if quantity is explicitly 0, not if it's empty
                     $choiceStatus = ($choiceQty !== null && $choiceQty <= 0)
                         ? 'unavailable'
-                        : (in_array($choiceData['status'] ?? 'available', ['available', 'unavailable'])
-                            ? $choiceData['status']
+                        : (in_array($choiceStatusInput, ['available', 'unavailable'])
+                            ? $choiceStatusInput
                             : 'available');
                     $group->choices()->create([
                         'name'       => $choiceData['name'],
@@ -351,11 +353,12 @@ class MenuController extends Controller
                 if (empty($choiceData['name'])) continue;
                 $choiceQtyRaw = $choiceData['quantity'] ?? '';
                 $choiceQty = ($choiceQtyRaw !== '' && $choiceQtyRaw !== null) ? (int) $choiceQtyRaw : null;
+                $choiceStatusInput = $choiceData['status'] ?? 'available';
                 // Only set unavailable if quantity is explicitly 0, not if it's empty
                 $choiceStatus = ($choiceQty !== null && $choiceQty <= 0)
                     ? 'unavailable'
-                    : (in_array($choiceData['status'] ?? 'available', ['available', 'unavailable'])
-                        ? $choiceData['status']
+                    : (in_array($choiceStatusInput, ['available', 'unavailable'])
+                        ? $choiceStatusInput
                         : 'available');
                 $group->choices()->create([
                     'name'       => $choiceData['name'],
@@ -429,24 +432,28 @@ class MenuController extends Controller
     private function validatePricing($basePrice, array $optionGroups): ?string
     {
         // Check if base_price is filled
-        $hasBasePrice = !empty($basePrice) && is_numeric($basePrice);
+        $hasBasePrice = $basePrice !== null && $basePrice !== '' && is_numeric($basePrice);
         
-        // Check if all named choices have prices filled
+        // Check named choices and their prices
+        $hasNamedChoices = false;
         $hasPricesInChoices = true;
         foreach ($optionGroups as $groupData) {
             foreach (($groupData['choices'] ?? []) as $choiceData) {
                 // Skip unnamed choices
                 if (empty($choiceData['name'])) continue;
+
+                $hasNamedChoices = true;
                 // If choice has a name, it must have a price
-                if (empty($choiceData['price']) || !is_numeric($choiceData['price'])) {
+                $choicePrice = $choiceData['price'] ?? null;
+                if ($choicePrice === null || $choicePrice === '' || !is_numeric($choicePrice)) {
                     $hasPricesInChoices = false;
                     break 2;
                 }
             }
         }
         
-        // Valid if either base_price is filled OR all choice prices are filled
-        if (!$hasBasePrice && !$hasPricesInChoices) {
+        // Valid if either base_price is filled OR named choices exist and all have prices
+        if (!$hasBasePrice && !($hasNamedChoices && $hasPricesInChoices)) {
             return 'Please provide pricing: Fill the Base Price in Section 1, OR Fill the Price for all choices in Section 2.';
         }
         

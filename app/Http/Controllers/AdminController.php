@@ -246,6 +246,7 @@ class AdminController extends Controller
     {
         $truck = FoodTruck::findOrFail($id);
         $truck->status = 'approved';
+        $truck->is_operational = false;
         $truck->save();
 
         $user = User::find($truck->user_id);

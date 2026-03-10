@@ -4,9 +4,15 @@
     "type": "module",
     "scripts": {
         "build": "vite build",
-        "dev": "vite"
+        "dev": "vite",
+        "test:all": "php artisan test && npm run e2e",
+        "e2e:install": "npx playwright install chromium",
+        "e2e:seed": "php artisan e2e:seed-customer-flow",
+        "e2e": "npm run e2e:seed && playwright test",
+        "e2e:headed": "npm run e2e:seed && playwright test --headed"
     },
     "devDependencies": {
+        "@playwright/test": "^1.58.2",
         "@tailwindcss/forms": "^0.5.2",
         "@tailwindcss/vite": "^4.0.0",
         "alpinejs": "^3.4.2",

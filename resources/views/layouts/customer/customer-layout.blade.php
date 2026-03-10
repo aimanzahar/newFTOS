@@ -19,20 +19,41 @@
     Alpine.store('cart', {
       truckId:   null,
       truckName: '',
-      items:     [],   // { cartId, menu_id, name, image, base_price, quantity, selected_choices, item_total, checked }
+      items:     [],   // { cartId, truckId, truckName, menu_id, name, image, base_price, quantity, selected_choices, item_total, checked }
 
       init() {
         try {
           const saved = JSON.parse(localStorage.getItem('ftos_cart') || 'null');
           if (saved) {
-            this.truckId   = saved.truckId   || null;
-            this.truckName = saved.truckName || '';
-            this.items     = (saved.items || []).map(i => ({ ...i, checked: i.checked !== false }));
+            const fallbackTruckId = saved.truckId ?? null;
+            const fallbackTruckName = saved.truckName || 'Food Truck';
+
+            this.items = (saved.items || []).map(i => ({
+              ...i,
+              truckId: i.truckId ?? fallbackTruckId,
+              truckName: i.truckName || fallbackTruckName,
+              checked: i.checked !== false,
+            }));
+
+            this.syncTruckMeta();
           }
         } catch (e) {}
       },
 
+      syncTruckMeta() {
+        if (this.items.length === 0) {
+          this.truckId = null;
+          this.truckName = '';
+          return;
+        }
+
+        this.truckId = this.items[0].truckId ?? null;
+        this.truckName = this.items[0].truckName || '';
+      },
+
       save() {
+        this.syncTruckMeta();
+
         localStorage.setItem('ftos_cart', JSON.stringify({
           truckId:   this.truckId,
           truckName: this.truckName,
@@ -41,24 +62,29 @@
       },
 
       addItem(truckId, truckName, entry) {
-        this.truckId   = truckId;
-        this.truckName = truckName;
-        this.items.push({ ...entry, checked: true });
+        this.items.push({
+          ...entry,
+          truckId,
+          truckName,
+          checked: true,
+        });
+
         this.save();
       },
 
       updateItem(cartId, entry) {
         const idx = this.items.findIndex(i => i.cartId === cartId);
         if (idx !== -1) {
+          const truckId = this.items[idx].truckId ?? null;
+          const truckName = this.items[idx].truckName || 'Food Truck';
           const checked = this.items[idx].checked;
-          this.items.splice(idx, 1, { ...entry, checked });
+          this.items.splice(idx, 1, { ...entry, truckId, truckName, checked });
           this.save();
         }
       },
 
       removeItem(cartId) {
         this.items = this.items.filter(i => i.cartId !== cartId);
-        if (this.items.length === 0) { this.truckId = null; this.truckName = ''; }
         this.save();
       },
 
@@ -72,6 +98,18 @@
         this.save();
       },
 
+      toggleTruckItems(truckId, val) {
+        this.items
+          .filter(i => String(i.truckId) === String(truckId))
+          .forEach(i => { i.checked = val; });
+        this.save();
+      },
+
+      areAllItemsCheckedForTruck(truckId) {
+        const truckItems = this.items.filter(i => String(i.truckId) === String(truckId));
+        return truckItems.length > 0 && truckItems.every(i => i.checked);
+      },
+
       clearCart() {
         this.items     = [];
         this.truckId   = null;
@@ -81,6 +119,44 @@
 
       get allChecked() {
         return this.items.length > 0 && this.items.every(i => i.checked);
+      },
+
+      get groupedItems() {
+        const groups = new Map();
+
+        this.items.forEach(item => {
+          const key = String(item.truckId ?? '__unknown__');
+          if (!groups.has(key)) {
+            groups.set(key, {
+              truckId: item.truckId ?? null,
+              truckName: item.truckName || 'Food Truck',
+              items: [],
+            });
+          }
+
+          groups.get(key).items.push(item);
+        });
+
+        return Array.from(groups.values());
+      },
+
+      get checkedTruckIds() {
+        return [...new Set(
+          this.items
+            .filter(i => i.checked)
+            .map(i => i.truckId)
+            .filter(id => id !== null && id !== undefined && id !== '')
+        )];
+      },
+
+      get truckCount() {
+        return this.groupedItems.length;
+      },
+
+      get truckSummary() {
+        if (this.truckCount === 0) return '';
+        if (this.truckCount === 1) return this.groupedItems[0].truckName || 'Food Truck';
+        return `${this.truckCount} food trucks in cart`;
       },
 
       get checkedTotal() {
@@ -113,6 +189,16 @@
 
       get canCheckout() {
         return this.$store.cart.items.some(i => i.checked);
+      },
+
+      getCheckedTruckIds(checkedItems = null) {
+        const items = checkedItems || this.$store.cart.items.filter(i => i.checked);
+
+        return [...new Set(
+          items
+            .map(i => i.truckId)
+            .filter(id => id !== null && id !== undefined && id !== '')
+        )];
       },
 
       formatCurrency(amount) {
@@ -164,6 +250,13 @@
         }
         this.tableError      = false;
         if (!this.canCheckout) return;
+
+        const checkedTruckIds = this.getCheckedTruckIds();
+        if (checkedTruckIds.length > 1) {
+          this.orderError = 'Please select items from one food truck only before checkout.';
+          return;
+        }
+
         this.paymentStep     = 'choose';
         this.selectedPayment = null;
         this.orderError      = null;
@@ -203,6 +296,16 @@
 
         const store        = this.$store.cart;
         const checkedItems = store.items.filter(i => i.checked);
+        const checkedTruckIds = this.getCheckedTruckIds(checkedItems);
+
+        if (checkedTruckIds.length !== 1) {
+          this.orderError = 'Please select items from one food truck only before checkout.';
+          this.placing = false;
+          return;
+        }
+
+        const checkoutTruckId = checkedTruckIds[0];
+        const checkoutItems = checkedItems.filter(i => String(i.truckId) === String(checkoutTruckId));
 
         try {
           const res = await fetch('/customer/orders', {
@@ -213,11 +316,11 @@
               'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content,
             },
             body: JSON.stringify({
-              foodtruck_id: store.truckId,
+              foodtruck_id: checkoutTruckId,
               order_type:   this.orderType,
               table_number: this.orderType === 'table' ? parseInt(this.tableNumber) : null,
               payment_method: this.selectedPayment,
-              items: checkedItems.map(i => ({
+              items: checkoutItems.map(i => ({
                 menu_id:          i.menu_id,
                 quantity:         i.quantity,
                 selected_choices: i.selected_choices.map(c => c.choice_id),
@@ -229,7 +332,7 @@
             this.lastOrder   = data.order || null;
             this.lastOrderId = data.order ? data.order.id : null;
             this.showReceiptModal = false;
-            checkedItems.forEach(i => store.removeItem(i.cartId));
+            checkoutItems.forEach(i => store.removeItem(i.cartId));
             this.orderType   = 'self_pickup';
             this.tableNumber = '';
             this.selectedPayment = null;
@@ -347,7 +450,7 @@
                       x-text="$store.cart.itemCount + ' item' + ($store.cart.itemCount !== 1 ? 's' : '')"></span>
               </div>
             </div>
-            <p class="text-xs text-gray-400 font-medium mt-0.5" x-text="$store.cart.truckName"></p>
+            <p class="text-xs text-gray-400 font-medium mt-0.5" x-text="$store.cart.truckSummary"></p>
           </div>
 
           <!-- Order Success State -->
@@ -400,50 +503,63 @@
                 <span class="text-xs font-black text-gray-600 uppercase tracking-wide">Select All</span>
               </label>
 
-              <!-- Cart Items -->
-              <template x-for="item in $store.cart.items" :key="item.cartId">
-                <div class="bg-gray-50 rounded-xl p-3 border transition-colors"
-                     :class="item.checked ? 'border-amber-200' : 'border-transparent hover:border-gray-200'">
-                  <div class="flex items-start gap-2">
-                    <!-- Checkbox -->
-                    <input type="checkbox"
-                           :checked="item.checked"
-                           @change="$store.cart.toggleItem(item.cartId)"
-                           class="w-4 h-4 rounded accent-amber-400 cursor-pointer mt-0.5 flex-shrink-0">
+              <!-- Cart Items Grouped by Truck -->
+              <template x-for="group in $store.cart.groupedItems" :key="'truck-' + String(group.truckId ?? 'unknown')">
+                <div class="space-y-2">
+                  <div class="flex items-center justify-between px-1 pt-1">
+                    <label class="flex items-center gap-2 cursor-pointer select-none">
+                      <input type="checkbox"
+                             :checked="$store.cart.areAllItemsCheckedForTruck(group.truckId)"
+                             @change="$store.cart.toggleTruckItems(group.truckId, $event.target.checked)"
+                             class="w-4 h-4 rounded accent-amber-400 cursor-pointer">
+                      <span class="text-[11px] font-black text-gray-700 uppercase tracking-wide"
+                            x-text="group.truckName || 'Food Truck'"></span>
+                    </label>
+                    <span class="text-[10px] text-gray-400 font-bold"
+                          x-text="group.items.reduce((sum, i) => sum + (parseInt(i.quantity, 10) || 0), 0) + ' item' + (group.items.reduce((sum, i) => sum + (parseInt(i.quantity, 10) || 0), 0) !== 1 ? 's' : '')"></span>
+                  </div>
 
-                    <div class="flex-1 min-w-0">
-                      <!-- Name + price -->
-                      <div class="flex items-start justify-between gap-1 mb-1">
-                        <p class="text-xs font-black text-gray-800 leading-tight"
-                           x-text="item.quantity + '× ' + item.name"></p>
-                        <span class="text-xs font-black flex-shrink-0 transition-colors"
-                              :class="item.checked ? 'text-gray-900' : 'text-gray-400'"
-                              x-text="'RM ' + item.item_total.toFixed(2)"></span>
-                      </div>
+                  <template x-for="item in group.items" :key="item.cartId">
+                    <div class="bg-gray-50 rounded-xl p-3 border transition-colors"
+                         :class="item.checked ? 'border-amber-200' : 'border-transparent hover:border-gray-200'">
+                      <div class="flex items-start gap-2">
+                        <input type="checkbox"
+                               :checked="item.checked"
+                               @change="$store.cart.toggleItem(item.cartId)"
+                               class="w-4 h-4 rounded accent-amber-400 cursor-pointer mt-0.5 flex-shrink-0">
 
-                      <!-- Selected choices -->
-                      <template x-if="item.selected_choices && item.selected_choices.length > 0">
-                        <div class="mb-2 space-y-0.5 pl-2 border-l-2 border-amber-200">
-                          <template x-for="(c, ci) in item.selected_choices" :key="ci">
-                            <p class="text-[10px] text-gray-400 leading-tight"
-                               x-text="c.choice_name + (parseFloat(c.price) > 0 ? ' (+RM ' + parseFloat(c.price).toFixed(2) + ')' : '')"></p>
+                        <div class="flex-1 min-w-0">
+                          <div class="flex items-start justify-between gap-1 mb-1">
+                            <p class="text-xs font-black text-gray-800 leading-tight"
+                               x-text="item.quantity + '× ' + item.name"></p>
+                            <span class="text-xs font-black flex-shrink-0 transition-colors"
+                                  :class="item.checked ? 'text-gray-900' : 'text-gray-400'"
+                                  x-text="'RM ' + item.item_total.toFixed(2)"></span>
+                          </div>
+
+                          <template x-if="item.selected_choices && item.selected_choices.length > 0">
+                            <div class="mb-2 space-y-0.5 pl-2 border-l-2 border-amber-200">
+                              <template x-for="(c, ci) in item.selected_choices" :key="ci">
+                                <p class="text-[10px] text-gray-400 leading-tight"
+                                   x-text="c.choice_name + (parseFloat(c.price) > 0 ? ' (+RM ' + parseFloat(c.price).toFixed(2) + ')' : '')"></p>
+                              </template>
+                            </div>
                           </template>
-                        </div>
-                      </template>
 
-                      <!-- Edit / Remove -->
-                      <div class="flex items-center gap-1.5">
-                        <button @click="editItem(item.cartId)"
-                                class="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 text-[10px] font-black transition-colors">
-                          <i class="fas fa-pen text-[9px]"></i>Edit
-                        </button>
-                        <button @click="$store.cart.removeItem(item.cartId)"
-                                class="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-50 hover:bg-red-100 text-red-500 text-[10px] font-black transition-colors">
-                          <i class="fas fa-times text-[9px]"></i>Remove
-                        </button>
+                          <div class="flex items-center gap-1.5">
+                            <button @click="editItem(item.cartId)"
+                                    class="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 text-[10px] font-black transition-colors">
+                              <i class="fas fa-pen text-[9px]"></i>Edit
+                            </button>
+                            <button @click="$store.cart.removeItem(item.cartId)"
+                                    class="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-50 hover:bg-red-100 text-red-500 text-[10px] font-black transition-colors">
+                              <i class="fas fa-times text-[9px]"></i>Remove
+                            </button>
+                          </div>
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  </template>
                 </div>
               </template>
             </div>

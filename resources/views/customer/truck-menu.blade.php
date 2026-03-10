@@ -25,10 +25,6 @@ function truckMenuPage() {
         selectedChoices: {},
         editingCartId: null,   // non-null = edit mode
 
-        /* ── Truck Conflict Dialog ── */
-        showConflict: false,
-        pendingItem:  null,
-
         /* ─────────────── lifecycle ─────────────── */
         init() {
             // Listen for Edit requests from the cart sidebar
@@ -56,11 +52,17 @@ function truckMenuPage() {
                 if (!sel) continue;
                 if (group.selection_type === 'single') {
                     const c = group.choices.find(c => c.id == sel);
-                    if (c) extra += parseFloat(c.price);
+                    if (c) {
+                        const choicePrice = parseFloat(c.price);
+                        extra += isNaN(choicePrice) ? 0 : choicePrice;
+                    }
                 } else {
                     for (const cid of (sel || [])) {
                         const c = group.choices.find(c => c.id == cid);
-                        if (c) extra += parseFloat(c.price);
+                        if (c) {
+                            const choicePrice = parseFloat(c.price);
+                            extra += isNaN(choicePrice) ? 0 : choicePrice;
+                        }
                     }
                 }
             }
@@ -69,7 +71,21 @@ function truckMenuPage() {
 
         get modalItemTotal() {
             if (!this.selectedItem) return 0;
-            return (parseFloat(this.selectedItem.base_price) + this.modalChoiceExtra) * this.modalQty;
+            const basePrice = parseFloat(this.selectedItem.base_price);
+            const normalizedBasePrice = isNaN(basePrice) ? 0 : basePrice;
+            return (normalizedBasePrice + this.modalChoiceExtra) * this.modalQty;
+        },
+
+        get modalMaxQty() {
+            return this.getMaxSelectableQty();
+        },
+
+        get isOutOfStock() {
+            return this.modalMaxQty !== null && this.modalMaxQty <= 0;
+        },
+
+        get hasReachedModalMaxQty() {
+            return this.modalMaxQty !== null && this.modalQty >= this.modalMaxQty;
         },
 
         get missingRequiredChoices() {
@@ -86,27 +102,68 @@ function truckMenuPage() {
 
         /* ─────────────── methods ─────────────── */
 
-        /* Open modal for a NEW item — checks truck conflict first */
-        openCustomize(item) {
-            const store = this.$store.cart;
-            if (store.truckId !== null && store.truckId !== this.truckId && store.items.length > 0) {
-                this.pendingItem  = item;
-                this.showConflict = true;
+        getMenuStockLimit(item) {
+            if (!item) return null;
+
+            const rawQty = item.quantity;
+            if (rawQty === null || rawQty === '' || rawQty === undefined) {
+                return null;
+            }
+
+            const parsedQty = parseInt(rawQty, 10);
+            if (isNaN(parsedQty)) {
+                return null;
+            }
+
+            return Math.max(0, parsedQty);
+        },
+
+        getCartQtyForMenu(menuId, excludeCartId = null) {
+            return this.$store.cart.items
+                .filter(i => i.menu_id === menuId && i.cartId !== excludeCartId)
+                .reduce((sum, i) => sum + (parseInt(i.quantity, 10) || 0), 0);
+        },
+
+        getMaxSelectableQty(item = this.selectedItem) {
+            if (!item) return null;
+
+            const stockLimit = this.getMenuStockLimit(item);
+            if (stockLimit === null) {
+                return null;
+            }
+
+            const inCartQty = this.getCartQtyForMenu(item.id, this.editingCartId);
+            return Math.max(0, stockLimit - inCartQty);
+        },
+
+        normalizeModalQty() {
+            if (this.modalQty < 1 || isNaN(this.modalQty)) {
+                this.modalQty = 1;
+            }
+
+            const maxQty = this.modalMaxQty;
+            if (maxQty !== null && maxQty > 0 && this.modalQty > maxQty) {
+                this.modalQty = maxQty;
+            }
+        },
+
+        increaseModalQty() {
+            if (this.isOutOfStock || this.hasReachedModalMaxQty) {
                 return;
             }
+
+            this.modalQty++;
+        },
+
+        decreaseModalQty() {
+            if (this.modalQty > 1) {
+                this.modalQty--;
+            }
+        },
+
+        /* Open modal for a NEW item */
+        openCustomize(item) {
             this._openModal(item);
-        },
-
-        confirmConflict() {
-            this.$store.cart.clearCart();
-            this.showConflict = false;
-            this._openModal(this.pendingItem);
-            this.pendingItem = null;
-        },
-
-        cancelConflict() {
-            this.showConflict = false;
-            this.pendingItem  = null;
         },
 
         _openModal(item) {
@@ -115,7 +172,10 @@ function truckMenuPage() {
             this.selectedChoices = {};
             this.editingCartId   = null;
             this.showModal       = true;
-            this.$nextTick(() => { if (this.$refs.modalBody) this.$refs.modalBody.scrollTop = 0; });
+            this.$nextTick(() => {
+                this.normalizeModalQty();
+                if (this.$refs.modalBody) this.$refs.modalBody.scrollTop = 0;
+            });
         },
 
         /* Open modal to EDIT an existing cart item */
@@ -141,7 +201,10 @@ function truckMenuPage() {
                 }
             }
             this.showModal = true;
-            this.$nextTick(() => { if (this.$refs.modalBody) this.$refs.modalBody.scrollTop = 0; });
+            this.$nextTick(() => {
+                this.normalizeModalQty();
+                if (this.$refs.modalBody) this.$refs.modalBody.scrollTop = 0;
+            });
         },
 
         setChoice(group, choiceId) {
@@ -169,7 +232,15 @@ function truckMenuPage() {
                 const ids = group.selection_type === 'single' ? [sel] : (sel || []);
                 for (const cid of ids) {
                     const c = group.choices.find(c => c.id == cid);
-                    if (c) result.push({ choice_id: c.id, group_name: group.name, choice_name: c.name, price: parseFloat(c.price) });
+                    if (c) {
+                        const choicePrice = parseFloat(c.price);
+                        result.push({
+                            choice_id: c.id,
+                            group_name: group.name,
+                            choice_name: c.name,
+                            price: isNaN(choicePrice) ? 0 : choicePrice
+                        });
+                    }
                 }
             }
             return result;
@@ -177,13 +248,18 @@ function truckMenuPage() {
 
         /* Add new item OR update existing — saves to $store.cart */
         addToCart() {
-            if (!this.selectedItem || this.modalQty < 1) return;
+            if (!this.selectedItem || this.modalQty < 1 || this.isOutOfStock) return;
+
+            this.normalizeModalQty();
+            if (this.isOutOfStock) return;
+
+            const basePrice = parseFloat(this.selectedItem.base_price);
             const entry = {
                 cartId:           this.editingCartId || (Date.now() + Math.random()),
                 menu_id:          this.selectedItem.id,
                 name:             this.selectedItem.name,
                 image:            this.selectedItem.image,
-                base_price:       parseFloat(this.selectedItem.base_price),
+                base_price:       isNaN(basePrice) ? 0 : basePrice,
                 quantity:         this.modalQty,
                 selected_choices: this.collectChoices(),
                 item_total:       this.modalItemTotal,
@@ -330,44 +406,6 @@ function truckMenuPage() {
     </div>
 
     <!-- ═══════════════════════════════════════════════════ -->
-    <!-- TRUCK CONFLICT DIALOG                              -->
-    <!-- ═══════════════════════════════════════════════════ -->
-    <div x-show="showConflict"
-         style="display:none"
-         x-transition:enter="transition ease-out duration-150"
-         x-transition:enter-start="opacity-0"
-         x-transition:enter-end="opacity-100"
-         x-transition:leave="transition ease-in duration-100"
-         x-transition:leave-start="opacity-100"
-         x-transition:leave-end="opacity-0"
-         class="fixed inset-0 z-[90] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-
-        <div class="bg-white w-full max-w-sm rounded-3xl shadow-2xl p-6 text-center"
-             x-transition:enter="transition ease-out duration-150"
-             x-transition:enter-start="opacity-0 scale-95"
-             x-transition:enter-end="opacity-100 scale-100">
-            <div class="w-14 h-14 rounded-2xl bg-amber-50 flex items-center justify-center mx-auto mb-4">
-                <i class="fas fa-triangle-exclamation text-2xl text-amber-500"></i>
-            </div>
-            <h3 class="font-black text-gray-900 text-base mb-2">Different Food Truck</h3>
-            <p class="text-sm text-gray-500 mb-5 leading-relaxed">
-                Your cart has items from <span class="font-black text-gray-700" x-text="$store.cart.truckName"></span>.
-                Adding from this truck will clear your current cart.
-            </p>
-            <div class="flex gap-3">
-                <button @click="cancelConflict()"
-                        class="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-black text-gray-600 hover:bg-gray-50 transition-all">
-                    Keep Cart
-                </button>
-                <button @click="confirmConflict()"
-                        class="flex-1 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-500 text-amber-900 text-sm font-black transition-all shadow-sm">
-                    Clear & Add
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <!-- ═══════════════════════════════════════════════════ -->
     <!-- CUSTOMISE MODAL  (two-column)                      -->
     <!-- ═══════════════════════════════════════════════════ -->
     <div x-show="showModal"
@@ -439,17 +477,23 @@ function truckMenuPage() {
                     <div>
                         <p class="text-xs font-black text-gray-700 uppercase tracking-widest mb-2">Quantity</p>
                         <div class="flex items-center gap-3">
-                            <button @click="if(modalQty > 1) modalQty--"
+                            <button @click="decreaseModalQty()"
+                                    :disabled="modalQty <= 1"
+                                    :class="modalQty <= 1 ? 'opacity-40 cursor-not-allowed' : ''"
                                     class="w-9 h-9 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center font-black text-gray-700 transition-all">
                                 <i class="fas fa-minus text-xs"></i>
                             </button>
                             <span class="text-xl font-black text-gray-900 w-8 text-center"
                                   x-text="modalQty"></span>
-                            <button @click="modalQty++"
+                            <button @click="increaseModalQty()"
+                                    :disabled="isOutOfStock || hasReachedModalMaxQty"
+                                    :class="(isOutOfStock || hasReachedModalMaxQty) ? 'opacity-40 cursor-not-allowed' : ''"
                                     class="w-9 h-9 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center font-black text-gray-700 transition-all">
                                 <i class="fas fa-plus text-xs"></i>
                             </button>
                         </div>
+                        <p x-show="modalMaxQty !== null" class="text-[11px] text-gray-400 mt-2"
+                           x-text="isOutOfStock ? 'No stock left for this item.' : 'Available to add: ' + modalMaxQty"></p>
                     </div>
 
                     <!-- Option Groups -->
@@ -517,12 +561,12 @@ function truckMenuPage() {
                           x-text="'RM ' + modalItemTotal.toFixed(2)"></span>
                 </div>
                 <button @click="addToCart()"
-                        :disabled="missingRequiredChoices"
+                        :disabled="missingRequiredChoices || isOutOfStock"
                         class="w-full py-3.5 font-black text-sm rounded-2xl transition-all shadow-md flex items-center justify-center gap-2"
                         :class="{
-                            'bg-gray-300 text-gray-500 cursor-not-allowed': missingRequiredChoices,
-                            'bg-blue-600 hover:bg-blue-700 text-white': editingCartId && !missingRequiredChoices,
-                            'bg-amber-400 hover:bg-amber-500 text-amber-900': !editingCartId && !missingRequiredChoices
+                            'bg-gray-300 text-gray-500 cursor-not-allowed': missingRequiredChoices || isOutOfStock,
+                            'bg-blue-600 hover:bg-blue-700 text-white': editingCartId && !missingRequiredChoices && !isOutOfStock,
+                            'bg-amber-400 hover:bg-amber-500 text-amber-900': !editingCartId && !missingRequiredChoices && !isOutOfStock
                         }">
                     <template x-if="!editingCartId">
                         <span><i class="fas fa-shopping-bag mr-1.5"></i>Add to Cart</span>
@@ -531,7 +575,8 @@ function truckMenuPage() {
                         <span><i class="fas fa-check mr-1.5"></i>Update Cart</span>
                     </template>
                 </button>
-                <p x-show="missingRequiredChoices" class="text-red-500 text-xs text-center mt-2">Please make a selection for all required options.</p>
+                <p x-show="missingRequiredChoices && !isOutOfStock" class="text-red-500 text-xs text-center mt-2">Please make a selection for all required options.</p>
+                <p x-show="isOutOfStock" class="text-red-500 text-xs text-center mt-2">This item is currently out of stock.</p>
             </div>
 
         </div>
