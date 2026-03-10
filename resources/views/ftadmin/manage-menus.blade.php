@@ -575,7 +575,7 @@ function manageMenusPage() {
                                          x-transition:enter-start="opacity-0 scale-95"
                                          x-transition:enter-end="opacity-100 scale-100"
                                          style="display:none;"
-                                         class="absolute right-0 top-full mt-1 bg-white rounded-lg shadow-lg border border-gray-200 py-1 w-40 z-50">
+                                         class="absolute left-full top-0 ml-1 bg-white rounded-lg shadow-lg border border-gray-200 py-1 w-40 z-50">
                                         
                                         <!-- Rename option -->
                                         <button type="button" @click.stop="openEditCategoryModal(cat); activeCategoryActionMenu = null"

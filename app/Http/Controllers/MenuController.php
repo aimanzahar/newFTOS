@@ -188,12 +188,20 @@ class MenuController extends Controller
 
         $optionError = $this->validateOptionGroupQuantities($optionGroups);
         if ($optionError) {
+            if ($request->wantsJson()) {
+                return response()->json(['success' => false, 'message' => $optionError], 422);
+            }
+
             return redirect()->back()->withErrors(['option_groups' => $optionError])->withInput();
         }
 
         // Validate pricing: either base_price or choice prices must be filled
         $pricingError = $this->validatePricing($request->base_price, $optionGroups);
         if ($pricingError) {
+            if ($request->wantsJson()) {
+                return response()->json(['success' => false, 'message' => $pricingError], 422);
+            }
+
             return redirect()->back()->withErrors(['pricing' => $pricingError])->withInput();
         }
 
@@ -254,6 +262,13 @@ class MenuController extends Controller
                     ]);
                 }
             }
+        }
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'item' => $item->fresh(['optionGroups.choices']),
+            ]);
         }
 
         return redirect()->back()->with('success', 'Menu item updated.');

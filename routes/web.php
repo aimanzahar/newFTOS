@@ -74,9 +74,67 @@ Route::middleware(['auth', 'role:6'])->prefix('admin')->name('admin.')->group(fu
  * Food Truck Admin Routes (ftadmin)
  */
 Route::middleware(['auth', 'role:2', 'ftadmin.status'])->prefix('ftadmin')->name('ftadmin.')->group(function () {
+    $buildRevenueSummary = function ($foodtruckId) {
+        $completedRevenueOrders = Order::query()
+            ->with('worker:id,full_name')
+            ->where('foodtruck_id', $foodtruckId)
+            ->where('status', 'done')
+            ->orderByDesc('updated_at')
+            ->get(['id', 'accepted_by', 'customer_name', 'items', 'total', 'created_at', 'updated_at']);
+
+        $totalRevenueAmount = (float) $completedRevenueOrders->sum('total');
+        $completedOrdersCount = $completedRevenueOrders->count();
+
+        $completedRevenueRows = $completedRevenueOrders
+            ->flatMap(function ($order) {
+                $items = is_array($order->items) ? $order->items : [];
+
+                return collect($items)->map(function ($item) use ($order) {
+                    $quantity = max(0, (int) ($item['quantity'] ?? 0));
+
+                    $itemTotal = is_numeric($item['item_total'] ?? null)
+                        ? (float) $item['item_total']
+                        : 0.0;
+
+                    if ($itemTotal <= 0 && $quantity > 0) {
+                        $basePrice = is_numeric($item['base_price'] ?? null)
+                            ? (float) $item['base_price']
+                            : 0.0;
+
+                        $choicesTotal = collect($item['selected_choices'] ?? [])->sum(function ($choice) {
+                            return is_numeric($choice['price'] ?? null)
+                                ? (float) $choice['price']
+                                : 0.0;
+                        });
+
+                        $itemTotal = ($basePrice + $choicesTotal) * $quantity;
+                    }
+
+                    $unitPrice = $quantity > 0 ? ($itemTotal / $quantity) : 0.0;
+
+                    return [
+                        'order_id' => $order->id,
+                        'customer_name' => $order->customer_name ?: 'Customer',
+                        'completed_by' => $order->worker?->full_name ?: '-',
+                        'menu_name' => $item['name'] ?? 'Menu Item',
+                        'menu_quantity' => $quantity,
+                        'menu_price' => round($unitPrice, 2),
+                        'menu_total_price' => round($itemTotal, 2),
+                        'purchased_at' => optional($order->created_at)->toIso8601String(),
+                    ];
+                });
+            })
+            ->values();
+
+        return [
+            'completedRevenueRows' => $completedRevenueRows,
+            'totalRevenueAmount' => round($totalRevenueAmount, 2),
+            'completedOrdersCount' => $completedOrdersCount,
+        ];
+    };
     
     // FT Admin Dashboard
-    Route::get('/dashboard', function () {
+    Route::get('/dashboard', function () use ($buildRevenueSummary) {
         $user = Auth::user();
         $truck = $user->foodTruck;
         $rawFtworkers = \App\Models\User::where('role', 3)
@@ -120,6 +178,11 @@ Route::middleware(['auth', 'role:2', 'ftadmin.status'])->prefix('ftadmin')->name
             ->orderBy('name', 'asc')
             ->get();
 
+        $revenueSummary = $buildRevenueSummary($user->foodtruck_id);
+        $completedRevenueRows = $revenueSummary['completedRevenueRows'];
+        $totalRevenueAmount = $revenueSummary['totalRevenueAmount'];
+        $completedOrdersCount = $revenueSummary['completedOrdersCount'];
+
         $isAccountActive = ($user->status ?? null) === 'active';
         $isTruckApproved = $truck && ($truck->status ?? null) === 'approved';
         $isOperational = ($isAccountActive && $isTruckApproved)
@@ -148,12 +211,27 @@ Route::middleware(['auth', 'role:2', 'ftadmin.status'])->prefix('ftadmin')->name
         return view('ftadmin.ftadmin-dashboard', compact(
             'ftworkers',
             'menuItems',
+            'completedRevenueRows',
+            'totalRevenueAmount',
+            'completedOrdersCount',
             'isOperational',
             'punchCardLogs',
             'punchLogRange',
             'activeWorkersCount'
         ));
     })->name('dashboard');
+
+    Route::get('/revenue-summary', function () use ($buildRevenueSummary) {
+        $user = Auth::user();
+        $revenueSummary = $buildRevenueSummary($user->foodtruck_id);
+
+        return response()->json([
+            'success' => true,
+            'completed_revenue_rows' => $revenueSummary['completedRevenueRows'],
+            'total_revenue_amount' => $revenueSummary['totalRevenueAmount'],
+            'completed_orders_count' => $revenueSummary['completedOrdersCount'],
+        ]);
+    })->name('revenue-summary');
 
     // Manage Menus
     Route::get('/menus', function () {

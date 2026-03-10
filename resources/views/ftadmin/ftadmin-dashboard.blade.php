@@ -10,6 +10,9 @@
     $menus = $menuItems ?? [];
     $punchLogs = $punchCardLogs ?? collect();
     $selectedPunchLogRange = $punchLogRange ?? 'all';
+    $completedRevenueRows = $completedRevenueRows ?? collect();
+    $totalRevenueAmount = $totalRevenueAmount ?? 0;
+    $completedOrdersCount = $completedOrdersCount ?? 0;
 @endphp
 
 <script>
@@ -17,12 +20,23 @@ function ftadminDashboard() {
     const workers   = @json($workers);
     const menuItems = @json($menus);
     const initialPunchLogRange = @json($selectedPunchLogRange);
+    const completedRevenueRows = @json($completedRevenueRows);
+    const totalRevenueAmount = @json((float) $totalRevenueAmount);
+    const completedOrdersCount = @json((int) $completedOrdersCount);
     return {
         showStaffModal: false,
         showStaffDetailsModal: false,
         suppressStaffModalClose: false,
         showMenuModal: false,
+        suppressMenuModalClose: false,
         showOperationalModal: false,
+        showRevenueModal: false,
+        revenueModalView: 'completed',
+        revenuePolling: false,
+        revenuePollingTimer: null,
+        completedRevenueRows,
+        totalRevenueAmount,
+        completedOrdersCount,
         isOperational: {{ json_encode($isOperational) }},
         selectedStaff: null,
         selectedStaffActiveOrders: [],
@@ -32,6 +46,44 @@ function ftadminDashboard() {
         staffDetailsPunchRange: 'all',
         punchLogRange: initialPunchLogRange,
         operationalSaving: false,
+        setRevenueModalView(view) {
+            if (view !== 'completed' && view !== 'items_sold') return;
+            this.revenueModalView = view;
+        },
+        async loadRevenueSummary() {
+            if (this.revenuePolling) return;
+            this.revenuePolling = true;
+            try {
+                const res = await fetch('/ftadmin/revenue-summary', {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content,
+                    }
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok || !data.success) return;
+
+                this.totalRevenueAmount = Number(data.total_revenue_amount || 0);
+                this.completedOrdersCount = Number(data.completed_orders_count || 0);
+                this.completedRevenueRows = Array.isArray(data.completed_revenue_rows)
+                    ? data.completed_revenue_rows
+                    : [];
+            } catch (e) {
+                console.error(e);
+            }
+            this.revenuePolling = false;
+        },
+        startRevenueAutoRefresh() {
+            this.loadRevenueSummary();
+            if (this.revenuePollingTimer) clearInterval(this.revenuePollingTimer);
+            this.revenuePollingTimer = setInterval(() => {
+                this.loadRevenueSummary();
+            }, 1000);
+            window.addEventListener('beforeunload', () => {
+                if (this.revenuePollingTimer) clearInterval(this.revenuePollingTimer);
+            });
+        },
         async toggleOperational() {
             if (this.operationalSaving) return;
             this.operationalSaving = true;
@@ -228,7 +280,7 @@ function ftadminDashboard() {
                 alert('Error: Failed to add menu item. Please try again.');
             }
         },
-        submitEditMenuForm() {
+        async submitEditMenuForm() {
             // Validate pricing: either base_price OR all choice prices must be filled
             if (!this.hasValidPricing(this.editBasePrice, this.editOptionGroups)) {
                 alert('Please provide pricing:\n- Fill the Base Price in Section 1, OR\n- Fill the Price for all choices in Section 2');
@@ -238,7 +290,53 @@ function ftadminDashboard() {
             if (!this.editCategory || this.editCategory.trim() === '') {
                 this.editCategory = 'Uncategorized';
             }
-            if (this.$refs.editMenuForm) this.$refs.editMenuForm.submit();
+
+            const form = this.$refs.editMenuForm;
+            if (!form) return;
+
+            const formData = new FormData(form);
+
+            try {
+                const res = await fetch(form.action, {
+                    method: 'POST',
+                    headers: { 'Accept': 'application/json' },
+                    body: formData,
+                });
+
+                const data = await res.json().catch(() => ({}));
+
+                if (!res.ok || !data.success) {
+                    if (data.errors && typeof data.errors === 'object') {
+                        const firstField = Object.keys(data.errors)[0];
+                        const firstMessage = firstField ? data.errors[firstField]?.[0] : null;
+                        alert(firstMessage || data.message || 'Failed to update menu item. Please check your input.');
+                    } else {
+                        alert(data.message || 'Failed to update menu item. Please check your input.');
+                    }
+                    return;
+                }
+
+                const updatedItem = data.item || null;
+                if (updatedItem && updatedItem.id) {
+                    const idx = this.menuItems.findIndex(item => Number(item.id) === Number(updatedItem.id));
+                    if (idx >= 0) {
+                        this.menuItems[idx] = {
+                            ...this.menuItems[idx],
+                            ...updatedItem,
+                        };
+                    }
+                }
+
+                const updatedMenuName = updatedItem?.name || this.editName || 'Menu item';
+                this.closeMenuEdit();
+                this.menuSuccessMessage = `${updatedMenuName} updated successfully.`;
+                this.showMenuSuccess = true;
+                if (this._menuSuccessTimer) clearTimeout(this._menuSuccessTimer);
+                this._menuSuccessTimer = setTimeout(() => { this.showMenuSuccess = false; }, 5000);
+            } catch (e) {
+                console.error(e);
+                alert('Error: Failed to update menu item. Please try again.');
+            }
         },
         hasValidPricing(basePrice, optionGroups) {
             const hasNumericValue = (value) => {
@@ -302,7 +400,6 @@ function ftadminDashboard() {
             this.optionGroups = [];
             this._groupIdCounter = 0;
             this._choiceIdCounter = 0;
-            this.addOptionGroup();
         },
         
         /* ── Category Management ── */
@@ -323,10 +420,22 @@ function ftadminDashboard() {
             this.newCategoryColor = 'purple';
         },
         
-        closeCreateCategoryModal() {
+        closeCreateCategoryModal(options = {}) {
+            const keepMenuDirectoryOpen = options.keepMenuDirectoryOpen ?? true;
+
+            this.suppressMenuModalClose = true;
             this.showCreateCategoryModal = false;
             this.newCategoryName = '';
             this.newCategoryColor = 'purple';
+
+            if (keepMenuDirectoryOpen) {
+                this.showMenuModal = true;
+                this.showMenuCreateForm = false;
+            }
+
+            setTimeout(() => {
+                this.suppressMenuModalClose = false;
+            }, 0);
         },
         
         async createCategory() {
@@ -638,6 +747,21 @@ function ftadminDashboard() {
 
             return formatted.replace(/\b(am|pm)\b/i, token => token.toUpperCase());
         },
+        formatCurrency(value) {
+            const amount = Number(value ?? 0);
+            if (!Number.isFinite(amount)) return 'RM 0.00';
+            return `RM ${amount.toFixed(2)}`;
+        },
+        hotRankLabel(index) {
+            if (index === 0) return '1st';
+            if (index === 1) return '2nd';
+            return '3rd';
+        },
+        hotRankBadgeClass(index) {
+            if (index === 0) return 'bg-amber-100 text-amber-700 border-amber-200';
+            if (index === 1) return 'bg-slate-100 text-slate-700 border-slate-200';
+            return 'bg-orange-100 text-orange-700 border-orange-200';
+        },
         durationMinutes(start, end) {
             if (!start || !end) return null;
 
@@ -690,6 +814,46 @@ function ftadminDashboard() {
         },
         get menuFilteredCount() {
             return this.menuItems.filter(i => this.menuMatches(i)).length;
+        },
+        get totalItemsSold() {
+            return (this.completedRevenueRows || []).reduce((sum, row) => {
+                return sum + (Number(row.menu_quantity || 0) || 0);
+            }, 0);
+        },
+        get soldItemsSummary() {
+            const grouped = {};
+
+            (this.completedRevenueRows || []).forEach((row) => {
+                const menuName = String(row.menu_name || 'Menu Item').trim() || 'Menu Item';
+                if (!grouped[menuName]) {
+                    grouped[menuName] = {
+                        menu_name: menuName,
+                        menu_quantity: 0,
+                        menu_total_price: 0,
+                    };
+                }
+
+                grouped[menuName].menu_quantity += Number(row.menu_quantity || 0) || 0;
+                grouped[menuName].menu_total_price += Number(row.menu_total_price || 0) || 0;
+            });
+
+            return Object.values(grouped)
+                .map((item) => ({
+                    ...item,
+                    menu_total_price: Number(item.menu_total_price.toFixed(2)),
+                }))
+                .sort((a, b) => {
+                    if (b.menu_quantity !== a.menu_quantity) {
+                        return b.menu_quantity - a.menu_quantity;
+                    }
+                    return String(a.menu_name).localeCompare(String(b.menu_name));
+                });
+        },
+        get hotItemsSold() {
+            return this.soldItemsSummary.slice(0, 3);
+        },
+        get otherItemsSold() {
+            return this.soldItemsSummary.slice(3);
         },
         showMenuEditModal: false,
         selectedMenu: null,
@@ -903,7 +1067,9 @@ function ftadminDashboard() {
         editBasePrice: '',
         editQuantity: 0,
         editDescription: '',
+        editMenuOriginal: null,
         openMenuEdit(item) {
+            this.editMenuOriginal = JSON.parse(JSON.stringify(item));
             this.selectedMenu = item;
             this.editName = item.name;
             this.editCategory = item.category;
@@ -982,12 +1148,21 @@ function ftadminDashboard() {
             }, 50);
         },
         closeMenuEdit() {
-            this.showMenuEditModal = false;
-            this.selectedMenu = null;
-            this.croppedDataUrl = null;
-            this.editOptionGroups = [];
-            if (this.$refs.editMenuImageInput) this.$refs.editMenuImageInput.value = '';
+              this.showMenuEditModal = false;
+              this.selectedMenu = null;
+              this.editMenuOriginal = null;
+              this.croppedDataUrl = null;
+              this.editOptionGroups = [];
+              if (this.$refs.editMenuImageInput) this.$refs.editMenuImageInput.value = '';
+              // After closing edit modal, return to Menu Directory modal
+              this.showMenuModal = true;
+              this.showMenuCreateForm = false;
+              this.resetMenuForm();
         },
+          refreshMenuEditForm() {
+            if (!this.editMenuOriginal) return;
+            this.openMenuEdit(this.editMenuOriginal);
+          },
 
         /* ── Form persistence ── */
         formData: { name: '', category: '', base_price: '', quantity: '', description: '' },
@@ -1220,6 +1395,7 @@ function ftadminDashboard() {
             // Load custom categories and truck profile
             this.loadCategories();
             this.loadTruckProfile();
+            this.startRevenueAutoRefresh();
 
             const saved = localStorage.getItem('ftos_addMenuForm');
             if (saved) {
@@ -1304,18 +1480,20 @@ function ftadminDashboard() {
                 <div class="grid grid-cols-[3fr_2fr] gap-5 h-[calc((100vh-14rem)/2-5px)]">
 
                     <!-- Row 1 Col 1 — Total Revenue -->
-                    <div class="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 flex flex-col justify-between">
+                        <button @click="setRevenueModalView('completed'); showRevenueModal = true"
+                            class="text-left bg-white p-8 rounded-3xl border border-gray-100 shadow-sm hover:border-blue-300 hover:shadow-md transition-all group outline-none flex flex-col justify-between">
                         <div>
                             <div class="flex items-center justify-between mb-6">
-                                <div class="p-4 w-fit bg-blue-50 text-blue-600 rounded-2xl">
+                                <div class="p-4 w-fit bg-blue-50 text-blue-600 rounded-2xl group-hover:bg-blue-600 group-hover:text-white transition-all duration-300">
                                     <i class="fas fa-dollar-sign text-2xl"></i>
                                 </div>
+                                <i class="fas fa-expand-alt text-gray-300 text-sm group-hover:text-blue-500 transition-colors"></i>
                             </div>
                             <h3 class="text-sm font-bold text-gray-400 uppercase tracking-widest mb-2">Total Revenue</h3>
-                            <p class="text-5xl font-black text-gray-900">RM 0.00</p>
+                            <p class="text-5xl font-black text-gray-900" x-text="formatCurrency(totalRevenueAmount)"></p>
                         </div>
-                        <p class="text-xs text-gray-400 font-medium mt-4">Revenue data will appear once orders are completed.</p>
-                    </div>
+                        <span class="text-xs font-bold text-blue-500 uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity">View Revenue Details</span>
+                    </button>
 
                     <!-- Row 1 Col 2 — Menu Items -->
                     <button @click="loadCategories(); showMenuModal = true; showMenuCreateForm = false; resetMenuForm()"
@@ -1328,7 +1506,7 @@ function ftadminDashboard() {
                                 <i class="fas fa-expand-alt text-gray-300 text-sm group-hover:text-purple-500 transition-colors"></i>
                             </div>
                             <h3 class="text-sm font-bold text-gray-400 uppercase tracking-widest mb-2">Menu Items</h3>
-                            <p class="text-5xl font-black text-gray-900">{{ count($menus) }}</p>
+                            <p class="text-5xl font-black text-gray-900" x-text="menuItems.length"></p>
                         </div>
                         <span class="text-xs font-bold text-purple-500 uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity">Manage Menu</span>
                     </button>
@@ -1483,6 +1661,173 @@ function ftadminDashboard() {
                         </div>
                     @endif
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TOTAL REVENUE MODAL -->
+    <div x-show="showRevenueModal"
+         style="display:none;"
+         x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
+         class="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+
+        <div @click.away="showRevenueModal = false"
+             x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 scale-95 translate-y-2" x-transition:enter-end="opacity-100 scale-100 translate-y-0"
+             class="bg-white w-full max-w-6xl rounded-3xl shadow-2xl overflow-hidden flex flex-col h-[85vh] max-h-[750px] border border-white/20">
+
+            <div class="px-8 py-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/50 flex-shrink-0">
+                <div class="flex items-center space-x-4">
+                    <div class="bg-blue-600 text-white p-3 rounded-2xl shadow-lg shadow-blue-100">
+                        <i class="fas fa-dollar-sign"></i>
+                    </div>
+                    <div>
+                        <h2 class="text-xl font-black text-gray-800 tracking-tight">Total Revenue</h2>
+                        <p class="text-xs text-gray-400 font-bold uppercase tracking-widest mt-0.5">Completed orders revenue breakdown</p>
+                    </div>
+                </div>
+                <button @click="showRevenueModal = false"
+                        class="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-red-50 text-gray-400 hover:text-red-500 transition-all">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <div class="px-8 py-5 border-b border-gray-100 grid grid-cols-1 md:grid-cols-3 gap-3 flex-shrink-0 bg-white">
+                <div class="rounded-2xl border border-blue-100 bg-blue-50/40 px-4 py-3">
+                    <p class="text-[10px] font-black uppercase tracking-widest text-blue-500">Total Revenue</p>
+                    <p class="text-xl font-black text-blue-700 mt-1" x-text="formatCurrency(totalRevenueAmount)"></p>
+                </div>
+                <button type="button"
+                        @click="setRevenueModalView('completed')"
+                        :class="revenueModalView === 'completed' ? 'ring-2 ring-emerald-300 bg-emerald-50/70' : 'hover:bg-emerald-50/60'"
+                        class="rounded-2xl border border-emerald-100 bg-emerald-50/40 px-4 py-3 text-left transition-all">
+                    <p class="text-[10px] font-black uppercase tracking-widest text-emerald-500">Completed Orders</p>
+                    <p class="text-xl font-black text-emerald-700 mt-1" x-text="Number(completedOrdersCount || 0)"></p>
+                </button>
+                <button type="button"
+                        @click="setRevenueModalView('items_sold')"
+                        :class="revenueModalView === 'items_sold' ? 'ring-2 ring-purple-300 bg-purple-50/70' : 'hover:bg-purple-50/60'"
+                        class="rounded-2xl border border-purple-100 bg-purple-50/40 px-4 py-3 text-left transition-all">
+                    <p class="text-[10px] font-black uppercase tracking-widest text-purple-500">Items Sold</p>
+                    <p class="text-xl font-black text-purple-700 mt-1" x-text="Number(totalItemsSold || 0)"></p>
+                </button>
+            </div>
+
+            <div class="flex-1 min-h-0 px-8 py-6">
+                <div x-show="completedRevenueRows.length === 0"
+                     class="h-full border-2 border-dashed border-gray-100 rounded-2xl flex flex-col items-center justify-center text-center">
+                    <div class="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center text-gray-400 mb-3">
+                        <i class="fas fa-receipt text-xl"></i>
+                    </div>
+                    <p class="text-sm font-black text-gray-600">No completed orders yet</p>
+                    <p class="text-xs text-gray-400 mt-1">Revenue details will appear once orders are marked as done.</p>
+                </div>
+
+                <div x-show="completedRevenueRows.length > 0 && revenueModalView === 'completed'" class="h-full overflow-auto border border-gray-100 rounded-2xl">
+                    <table class="w-full min-w-[1040px] table-auto text-sm">
+                        <thead class="sticky top-0 z-10 bg-gray-50/95 backdrop-blur border-b border-gray-100">
+                            <tr>
+                                <th class="text-left px-4 py-3 text-[10px] font-black uppercase tracking-widest text-gray-400">Purchased Time</th>
+                                <th class="text-left px-4 py-3 text-[10px] font-black uppercase tracking-widest text-gray-400">Customer</th>
+                                <th class="text-left px-4 py-3 text-[10px] font-black uppercase tracking-widest text-gray-400">Completed By</th>
+                                <th class="text-left px-4 py-3 text-[10px] font-black uppercase tracking-widest text-gray-400">Menu Name</th>
+                                <th class="text-left px-4 py-3 text-[10px] font-black uppercase tracking-widest text-gray-400">Menu Qty</th>
+                                <th class="text-left px-4 py-3 text-[10px] font-black uppercase tracking-widest text-gray-400">Menu Price</th>
+                                <th class="text-left px-4 py-3 text-[10px] font-black uppercase tracking-widest text-gray-400">Menu Total Price</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-100 bg-white">
+                            <template x-for="(row, index) in completedRevenueRows" :key="`${row.order_id}-${index}`">
+                                <tr class="hover:bg-blue-50/30 transition-colors">
+                                    <td class="px-4 py-3">
+                                        <p class="text-xs font-bold text-gray-700" x-text="formatDateOnly(row.purchased_at)"></p>
+                                        <p class="text-[11px] text-gray-400 font-bold mt-1" x-text="formatTimeOnly(row.purchased_at)"></p>
+                                    </td>
+                                    <td class="px-4 py-3">
+                                        <p class="text-xs font-bold text-gray-800" x-text="row.customer_name || 'Customer'"></p>
+                                        <p class="text-[11px] text-gray-400 mt-1" x-text="'Order #' + row.order_id"></p>
+                                    </td>
+                                    <td class="px-4 py-3 text-xs font-bold text-gray-700" x-text="row.completed_by || '-'"></td>
+                                    <td class="px-4 py-3 text-xs font-bold text-gray-700" x-text="row.menu_name || 'Menu Item'"></td>
+                                    <td class="px-4 py-3 text-xs font-black text-gray-700" x-text="Number(row.menu_quantity || 0)"></td>
+                                    <td class="px-4 py-3 text-xs font-bold text-gray-700" x-text="formatCurrency(row.menu_price)"></td>
+                                    <td class="px-4 py-3 text-xs font-black text-emerald-700" x-text="formatCurrency(row.menu_total_price)"></td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div x-show="completedRevenueRows.length > 0 && revenueModalView === 'items_sold'" class="h-full overflow-auto space-y-4">
+                    <div class="rounded-2xl border border-orange-100 bg-orange-50/40 p-4">
+                        <h3 class="text-xs font-black uppercase tracking-widest text-orange-600">Hot Item Sold</h3>
+                        <p class="text-[11px] text-orange-500 font-medium mt-1">Top 3 by quantity sold</p>
+
+                        <div x-show="hotItemsSold.length === 0" class="mt-4 text-xs font-bold text-gray-400">No sold items yet.</div>
+
+                        <div x-show="hotItemsSold.length > 0" class="mt-4 overflow-auto border border-orange-100 rounded-xl bg-white">
+                            <table class="w-full min-w-[760px] table-auto text-sm">
+                                <thead class="bg-orange-50/60 border-b border-orange-100">
+                                    <tr>
+                                        <th class="text-left px-4 py-3 text-[10px] font-black uppercase tracking-widest text-orange-500">Rank</th>
+                                        <th class="text-left px-4 py-3 text-[10px] font-black uppercase tracking-widest text-orange-500">Menu Name</th>
+                                        <th class="text-left px-4 py-3 text-[10px] font-black uppercase tracking-widest text-orange-500">Menu Quantity</th>
+                                        <th class="text-left px-4 py-3 text-[10px] font-black uppercase tracking-widest text-orange-500">Final Total Purchased Price</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-orange-100 bg-white">
+                                    <template x-for="(item, index) in hotItemsSold" :key="`hot-${item.menu_name}-${index}`">
+                                        <tr class="hover:bg-orange-50/30 transition-colors">
+                                            <td class="px-4 py-3">
+                                                <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-black uppercase border"
+                                                      :class="hotRankBadgeClass(index)"
+                                                      x-text="hotRankLabel(index)"></span>
+                                            </td>
+                                            <td class="px-4 py-3 text-xs font-bold text-gray-700" x-text="item.menu_name"></td>
+                                            <td class="px-4 py-3 text-xs font-black text-gray-700" x-text="Number(item.menu_quantity || 0)"></td>
+                                            <td class="px-4 py-3 text-xs font-black text-emerald-700" x-text="formatCurrency(item.menu_total_price)"></td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="rounded-2xl border border-gray-100 bg-white p-4">
+                        <h3 class="text-xs font-black uppercase tracking-widest text-gray-600">Other Item Sold</h3>
+                        <p class="text-[11px] text-gray-400 font-medium mt-1">Remaining sold items sorted from most to least quantity</p>
+
+                        <div x-show="otherItemsSold.length === 0" class="mt-4 text-xs font-bold text-gray-400">No additional items beyond top 3.</div>
+
+                        <div x-show="otherItemsSold.length > 0" class="mt-4 overflow-auto border border-gray-100 rounded-xl">
+                            <table class="w-full min-w-[760px] table-auto text-sm">
+                                <thead class="bg-gray-50/80 border-b border-gray-100">
+                                    <tr>
+                                        <th class="text-left px-4 py-3 text-[10px] font-black uppercase tracking-widest text-gray-400">Menu Name</th>
+                                        <th class="text-left px-4 py-3 text-[10px] font-black uppercase tracking-widest text-gray-400">Menu Quantity</th>
+                                        <th class="text-left px-4 py-3 text-[10px] font-black uppercase tracking-widest text-gray-400">Menu Final Total Purchased Price Combined</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-gray-100 bg-white">
+                                    <template x-for="(item, index) in otherItemsSold" :key="`other-${item.menu_name}-${index}`">
+                                        <tr class="hover:bg-purple-50/20 transition-colors">
+                                            <td class="px-4 py-3 text-xs font-bold text-gray-700" x-text="item.menu_name"></td>
+                                            <td class="px-4 py-3 text-xs font-black text-gray-700" x-text="Number(item.menu_quantity || 0)"></td>
+                                            <td class="px-4 py-3 text-xs font-black text-emerald-700" x-text="formatCurrency(item.menu_total_price)"></td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="px-8 py-5 bg-gray-50/80 border-t border-gray-100 flex items-center justify-between flex-shrink-0">
+                <p class="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Revenue report from completed orders</p>
+                <button @click="showRevenueModal = false" class="text-sm font-bold text-gray-500 hover:text-gray-800 transition-colors">
+                    Close Revenue Details
+                </button>
             </div>
         </div>
     </div>
@@ -2235,9 +2580,9 @@ function ftadminDashboard() {
          x-transition:enter="transition ease-out duration-300"
          x-transition:enter-start="opacity-0 scale-95"
          x-transition:enter-end="opacity-100 scale-100"
-         @keydown.escape.window="showMenuEditModal ? closeMenuEdit() : (showMenuModal = false, resetMenuForm())">
+            @keydown.escape.window="if (showCreateCategoryModal) { closeCreateCategoryModal(); } else if (!suppressMenuModalClose) { showMenuEditModal ? closeMenuEdit() : (showMenuModal = false, resetMenuForm()); }">
 
-        <div @click.away="!showMenuEditModal && !showImageAdjuster && !showEditCategoryModal && !showCreateCategoryModal && (showMenuModal = false, resetMenuForm())"
+           <div @click.away="!suppressMenuModalClose && !showMenuEditModal && !showImageAdjuster && !showEditCategoryModal && !showCreateCategoryModal && (showMenuModal = false, resetMenuForm())"
              class="bg-white w-full max-w-5xl rounded-3xl shadow-2xl overflow-hidden flex flex-col h-[85vh] max-h-[750px] border border-white/20">
 
             <!-- Modal Header (Fixed) -->
@@ -2381,7 +2726,7 @@ function ftadminDashboard() {
                                                      x-transition:enter-start="opacity-0 scale-95"
                                                      x-transition:enter-end="opacity-100 scale-100"
                                                      style="display:none;"
-                                                     class="absolute right-0 top-full mt-1 bg-white rounded-lg shadow-lg border border-gray-200 py-1 w-40 z-50">
+                                                     class="absolute left-full top-0 ml-1 bg-white rounded-lg shadow-lg border border-gray-200 py-1 w-40 z-50">
                                                     
                                                     <!-- Rename option -->
                                                     <button type="button" @click.stop="openEditCategoryModal(cat); activeCategoryActionMenu = null"
@@ -2462,7 +2807,7 @@ function ftadminDashboard() {
                                                 <span class="text-sm font-medium text-gray-600" x-text="item.category"></span>
                                             </td>
                                             <td class="py-5 px-6">
-                                                <span class="text-sm font-bold text-gray-800" x-text="'RM ' + (item.base_price !== null && item.base_price !== '' ? parseFloat(item.base_price).toFixed(2) : '0.00')"></span>
+                                                <span class="text-sm font-bold text-gray-800" x-text="(item.base_price === null || item.base_price === undefined || String(item.base_price).trim() === '' || isNaN(Number(item.base_price))) ? '-' : 'RM ' + Number(item.base_price).toFixed(2)"></span>
                                             </td>
                                             <td class="py-5 px-6">
                                                 <span class="text-sm font-medium text-gray-600"
@@ -2852,9 +3197,15 @@ function ftadminDashboard() {
                         <p class="text-xs text-gray-400 font-bold uppercase tracking-widest mt-0.5">Update the details below</p>
                     </div>
                 </div>
-                <button @click="closeMenuEdit()" class="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-red-50 text-gray-400 hover:text-red-500 transition-all">
-                    <i class="fas fa-times"></i>
-                </button>
+                <div class="flex items-center gap-2 flex-shrink-0">
+                    <button type="button" @click="refreshMenuEditForm()"
+                            class="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gray-100 hover:bg-orange-50 text-gray-400 hover:text-orange-500 text-xs font-black uppercase tracking-wider transition-all">
+                        <i class="fas fa-redo-alt text-xs"></i> Refresh
+                    </button>
+                    <button @click="closeMenuEdit()" class="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-red-50 text-gray-400 hover:text-red-500 transition-all">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
             </div>
 
             <!-- Modal Body -->
@@ -3354,7 +3705,7 @@ function ftadminDashboard() {
                         <p class="text-xs text-gray-400 font-bold uppercase tracking-widest mt-0.5">Add a custom menu category</p>
                     </div>
                 </div>
-                <button @click="closeCreateCategoryModal()"
+                <button @click.stop="closeCreateCategoryModal()"
                         class="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-red-50 text-gray-400 hover:text-red-500 transition-all">
                     <i class="fas fa-times"></i>
                 </button>
@@ -3394,7 +3745,7 @@ function ftadminDashboard() {
 
             <!-- Footer (Fixed) -->
             <div class="px-8 py-6 bg-gray-50/80 border-t border-gray-100 flex items-center justify-between gap-3 flex-shrink-0">
-                <button @click="closeCreateCategoryModal()"
+                <button @click.stop="closeCreateCategoryModal()"
                         class="flex-1 px-6 py-3 border-2 border-gray-200 rounded-2xl text-sm font-bold text-gray-600 hover:border-gray-300 hover:bg-white transition-all active:scale-[0.98]">
                     Cancel
                 </button>
