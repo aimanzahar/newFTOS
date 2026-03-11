@@ -9,6 +9,7 @@ use App\Models\MenuCategory;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -542,10 +543,20 @@ class MenuController extends Controller
         }
 
         $oldName = $category->name;
-        $category->update([
-            'name'  => $request->name,
-            'color' => $request->color,
-        ]);
+        $newName = (string) $request->name;
+
+        DB::transaction(function () use ($category, $user, $oldName, $newName, $request) {
+            $category->update([
+                'name'  => $newName,
+                'color' => $request->color,
+            ]);
+
+            if (strcasecmp($oldName, $newName) !== 0) {
+                Menu::where('foodtruck_id', $user->foodtruck_id)
+                    ->where('category', $oldName)
+                    ->update(['category' => $newName]);
+            }
+        });
 
         return response()->json(['success' => true, 'category' => $category]);
     }

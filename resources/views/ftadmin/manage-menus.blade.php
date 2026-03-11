@@ -47,6 +47,27 @@ function manageMenusPage() {
                 return matchSearch && matchCat;
             });
         },
+        get allCategoryOptions() {
+            const seen = new Set();
+            const options = [];
+
+            const pushCategory = (name) => {
+                const trimmedName = String(name || '').trim();
+                if (!trimmedName) return;
+
+                const key = trimmedName.toLowerCase();
+                if (seen.has(key)) return;
+
+                seen.add(key);
+                options.push(trimmedName);
+            };
+
+            (this.categories || []).forEach(category => pushCategory(category?.name));
+            (this.menuItems || []).forEach(item => pushCategory(item?.category));
+            pushCategory('Uncategorized');
+
+            return options;
+        },
 
         /* ── Details edit modal ── */
         showDetailsModal: false,
@@ -816,9 +837,9 @@ function manageMenusPage() {
                         <select x-ref="detailsCategoryInput" x-model="editCategory"
                                 class="w-full pl-11 pr-8 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all outline-none text-sm font-bold text-gray-700 appearance-none cursor-pointer">
                             <option value="" disabled>Select category</option>
-                            <option value="Foods">Foods</option>
-                            <option value="Drinks">Drinks</option>
-                            <option value="Desserts">Desserts</option>
+                            <template x-for="categoryName in allCategoryOptions" :key="categoryName">
+                                <option :value="categoryName" x-text="categoryName"></option>
+                            </template>
                         </select>
                         <i class="fas fa-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-gray-300 pointer-events-none text-xs"></i>
                     </div>
