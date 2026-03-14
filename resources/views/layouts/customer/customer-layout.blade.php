@@ -366,6 +366,25 @@
     @media (min-width: 768px) {
       .sidebar-hidden { transform: translateX(0); }
     }
+
+    /* Animations */
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    .animate-fade-in-up { animation: fadeInUp 0.5s ease-out both; }
+    .animate-fade-in { animation: fadeIn 0.4s ease-out both; }
+    .stagger-children > * { animation: fadeInUp 0.4s ease-out both; }
+    .stagger-children > *:nth-child(1) { animation-delay: 0.05s; }
+    .stagger-children > *:nth-child(2) { animation-delay: 0.10s; }
+    .stagger-children > *:nth-child(3) { animation-delay: 0.15s; }
+    .stagger-children > *:nth-child(4) { animation-delay: 0.20s; }
+    .stagger-children > *:nth-child(5) { animation-delay: 0.25s; }
+    .stagger-children > *:nth-child(6) { animation-delay: 0.30s; }
   </style>
 </head>
 <body class="font-sans antialiased text-slate-900 bg-gray-50">
@@ -438,7 +457,7 @@
         <div x-data="cartSidebar()"
              x-show="{{ request()->routeIs('profile.edit') ? 'false' : (request()->routeIs('customer.dashboard', 'customer.browse', 'customer.truck-menu') ? 'true' : '$store.cart.items.length > 0') }}"
              style="display:none"
-             class="w-80 flex-shrink-0 border-l border-gray-200 bg-white flex flex-col h-full overflow-hidden">
+             class="hidden md:flex w-80 flex-shrink-0 border-l border-gray-200 bg-white flex-col h-full overflow-hidden">
 
           <!-- Cart Header -->
           <div class="px-5 py-4 border-b border-gray-100 flex-shrink-0">
@@ -962,6 +981,53 @@
         </div>
         <!-- end persistent cart sidebar -->
 
+        <!-- Mobile Cart FAB -->
+        <button @click="$dispatch('toggle-mobile-cart')"
+                x-data x-show="{{ request()->routeIs('profile.edit') ? 'false' : '$store.cart.items.length > 0' }}"
+                class="md:hidden fixed bottom-6 right-6 z-50 w-14 h-14 bg-slate-900 text-white rounded-full shadow-2xl flex items-center justify-center hover:bg-amber-500 transition-all active:scale-95">
+          <i class="fas fa-shopping-cart text-lg"></i>
+          <span x-show="$store.cart.itemCount > 0"
+                x-text="$store.cart.itemCount"
+                class="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[10px] font-black rounded-full flex items-center justify-center"></span>
+        </button>
+
+        <!-- Mobile Cart Drawer -->
+        <div x-data="{ mobileCartOpen: false }"
+             @toggle-mobile-cart.window="mobileCartOpen = !mobileCartOpen"
+             class="md:hidden">
+          <!-- Backdrop -->
+          <div x-show="mobileCartOpen" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
+               @click="mobileCartOpen = false"
+               class="fixed inset-0 bg-black/50 z-50" style="display:none"></div>
+          <!-- Drawer -->
+          <div x-show="mobileCartOpen" x-transition:enter="transition ease-out duration-300 transform" x-transition:enter-start="translate-y-full" x-transition:enter-end="translate-y-0" x-transition:leave="transition ease-in duration-200 transform" x-transition:leave-start="translate-y-0" x-transition:leave-end="translate-y-full"
+               class="fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-2xl shadow-2xl max-h-[85vh] flex flex-col" style="display:none">
+            <div class="flex items-center justify-between px-5 py-3 border-b border-gray-100">
+              <h2 class="font-black text-gray-900">Your Cart</h2>
+              <button @click="mobileCartOpen = false" class="p-2 text-gray-400 hover:text-gray-600">
+                <i class="fas fa-times"></i>
+              </button>
+            </div>
+            <div class="flex-1 overflow-y-auto px-4 py-3 space-y-2">
+              <template x-for="item in $store.cart.items" :key="item.cartId">
+                <div class="bg-gray-50 rounded-xl p-3 border border-gray-100">
+                  <div class="flex items-center justify-between">
+                    <p class="text-xs font-black text-gray-800" x-text="item.quantity + '× ' + item.name"></p>
+                    <span class="text-xs font-black text-gray-900" x-text="'RM ' + item.item_total.toFixed(2)"></span>
+                  </div>
+                </div>
+              </template>
+            </div>
+            <div class="border-t border-gray-100 px-4 py-3 flex items-center justify-between">
+              <span class="text-sm font-black text-gray-900" x-text="'RM ' + $store.cart.checkedTotal.toFixed(2)"></span>
+              <button @click="mobileCartOpen = false"
+                      class="px-4 py-2 bg-slate-900 text-white font-black text-xs rounded-xl">
+                View Full Cart
+              </button>
+            </div>
+          </div>
+        </div>
+
       </div>
       <!-- end page + cart row -->
 
@@ -973,12 +1039,20 @@
       const sidebar = document.getElementById('sidebar');
       const openBtn = document.getElementById('openSidebar');
       const closeBtn = document.getElementById('closeSidebar');
-      if (openBtn && sidebar) {
-        openBtn.addEventListener('click', () => sidebar.classList.toggle('sidebar-hidden'));
-      }
-      if (closeBtn && sidebar) {
-        closeBtn.addEventListener('click', () => sidebar.classList.add('sidebar-hidden'));
-      }
+      const backdrop = document.getElementById('sidebarBackdrop');
+
+      const openSidebar = () => {
+        sidebar.classList.remove('sidebar-hidden');
+        if (backdrop) backdrop.classList.remove('hidden');
+      };
+      const closeSidebar = () => {
+        sidebar.classList.add('sidebar-hidden');
+        if (backdrop) backdrop.classList.add('hidden');
+      };
+
+      if (openBtn) openBtn.addEventListener('click', openSidebar);
+      if (closeBtn) closeBtn.addEventListener('click', closeSidebar);
+      if (backdrop) backdrop.addEventListener('click', closeSidebar);
     });
   </script>
 </body>

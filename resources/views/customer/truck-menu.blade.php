@@ -300,7 +300,7 @@ function truckMenuPage() {
     <div class="p-6 space-y-5">
 
         <!-- Truck Header -->
-        <div class="bg-[#0f172a] rounded-2xl p-6 flex items-center gap-5 relative overflow-hidden">
+        <div class="bg-[#0f172a] rounded-2xl p-6 flex items-center gap-5 relative overflow-hidden animate-fade-in-up">
             <i class="fas fa-truck text-white/10 text-8xl absolute -right-4 -bottom-3"></i>
             <div class="w-14 h-14 rounded-2xl bg-white/10 flex items-center justify-center flex-shrink-0">
                 <i class="fas fa-utensils text-2xl text-amber-400"></i>
@@ -346,7 +346,7 @@ function truckMenuPage() {
         </div>
 
         <!-- Menu Cards Grid -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 stagger-children animate-fade-in">
             <template x-for="item in filteredItems" :key="item.id">
                 <div @click="openCustomize(item)"
                      class="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md hover:border-amber-300 transition-all duration-200 overflow-hidden flex flex-col cursor-pointer group">

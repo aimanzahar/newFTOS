@@ -346,7 +346,7 @@ function customerDashboardPage() {
     <div class="max-w-full mx-auto space-y-5">
 
         <!-- Welcome -->
-        <div class="flex items-center justify-between">
+        <div class="flex items-center justify-between animate-fade-in-up">
             <div>
                 <h1 class="text-2xl font-black text-gray-900 tracking-tight">Dashboard</h1>
                 <p class="text-gray-500 mt-1 font-medium text-sm">What are you craving today, {{ $user->full_name }}?</p>
@@ -354,7 +354,7 @@ function customerDashboardPage() {
         </div>
 
         <!-- Quick Stats -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 stagger-children">
             <button @click="showActiveOrdersModal = true"
                     class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 flex items-center space-x-4 text-left cursor-pointer transition-all hover:border-blue-300 hover:shadow-md group">
                 <div class="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center">
@@ -427,7 +427,7 @@ function customerDashboardPage() {
         @endif
 
         <!-- Call to Action -->
-        <div class="bg-[#0f172a] rounded-2xl shadow-xl overflow-hidden">
+        <div class="bg-[#0f172a] rounded-2xl shadow-xl overflow-hidden animate-fade-in-up">
             <div class="px-8 py-10 md:flex items-center justify-between">
                 <div class="mb-6 md:mb-0">
                     <h2 class="text-xl font-bold text-white mb-1">Ready to eat?</h2>
@@ -441,7 +441,7 @@ function customerDashboardPage() {
         </div>
 
         <!-- Purchased Orders -->
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden animate-fade-in">
             <div class="p-5 border-b border-gray-100 flex items-center justify-between gap-3">
                 <div>
                     <h3 class="font-bold text-gray-800 uppercase text-xs tracking-widest">Purchased Orders</h3>

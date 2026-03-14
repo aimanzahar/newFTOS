@@ -65,3 +65,6 @@ class="sidebar-hidden fixed md:static inset-y-0 left-0 z-50 w-64 bg-[#0f172a] sh
 </div>
 
 </aside>
+
+<!-- Sidebar Backdrop -->
+<div id="sidebarBackdrop" class="hidden md:hidden fixed inset-0 bg-black/50 z-40 transition-opacity"></div>

@@ -5,10 +5,22 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login | Multi-Role</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in-up { animation: fadeInUp 0.5s ease-out both; }
+        .stagger-children > * { animation: fadeInUp 0.4s ease-out both; }
+        .stagger-children > *:nth-child(1) { animation-delay: 0.05s; }
+        .stagger-children > *:nth-child(2) { animation-delay: 0.10s; }
+        .stagger-children > *:nth-child(3) { animation-delay: 0.15s; }
+        .stagger-children > *:nth-child(4) { animation-delay: 0.20s; }
+    </style>
 </head>
 <body class="bg-gray-50 min-h-screen flex items-center justify-center p-6">
 
-    <div class="max-w-md w-full bg-white rounded-2xl shadow-xl overflow-hidden">
+    <div class="max-w-md w-full bg-white rounded-2xl shadow-xl overflow-hidden animate-fade-in-up">
         <!-- Header: Matches Registration Page -->
         <div class="bg-indigo-600 p-8 text-white text-center">
             <h1 class="text-3xl font-bold">Welcome Back</h1>

@@ -23,9 +23,28 @@
         .sidebar-scroll::-webkit-scrollbar-track { background: #1e293b; }
         .sidebar-scroll::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
         
-        @media (max-width: 768px) { 
-            .sidebar-hidden { transform: translateX(-100%); } 
+        @media (max-width: 768px) {
+            .sidebar-hidden { transform: translateX(-100%); }
         }
+
+        /* Animations */
+        @keyframes fadeInUp {
+          from { opacity: 0; transform: translateY(20px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        .animate-fade-in-up { animation: fadeInUp 0.5s ease-out both; }
+        .animate-fade-in { animation: fadeIn 0.4s ease-out both; }
+        .stagger-children > * { animation: fadeInUp 0.4s ease-out both; }
+        .stagger-children > *:nth-child(1) { animation-delay: 0.05s; }
+        .stagger-children > *:nth-child(2) { animation-delay: 0.10s; }
+        .stagger-children > *:nth-child(3) { animation-delay: 0.15s; }
+        .stagger-children > *:nth-child(4) { animation-delay: 0.20s; }
+        .stagger-children > *:nth-child(5) { animation-delay: 0.25s; }
+        .stagger-children > *:nth-child(6) { animation-delay: 0.30s; }
     </style>
 </head>
 <body class="font-sans antialiased h-full overflow-hidden bg-gray-50 text-gray-900">
@@ -77,17 +96,20 @@
             const sidebar = document.getElementById('sidebar');
             const openBtn = document.getElementById('openSidebar');
             const closeBtn = document.getElementById('closeSidebar');
-            
-            if (openBtn) {
-                openBtn.addEventListener('click', () => {
-                    sidebar.classList.remove('sidebar-hidden');
-                });
-            }
-            if (closeBtn) {
-                closeBtn.addEventListener('click', () => {
-                    sidebar.classList.add('sidebar-hidden');
-                });
-            }
+            const backdrop = document.getElementById('sidebarBackdrop');
+
+            const openSidebar = () => {
+                sidebar.classList.remove('sidebar-hidden');
+                if (backdrop) backdrop.classList.remove('hidden');
+            };
+            const closeSidebar = () => {
+                sidebar.classList.add('sidebar-hidden');
+                if (backdrop) backdrop.classList.add('hidden');
+            };
+
+            if (openBtn) openBtn.addEventListener('click', openSidebar);
+            if (closeBtn) closeBtn.addEventListener('click', closeSidebar);
+            if (backdrop) backdrop.addEventListener('click', closeSidebar);
         });
     </script>
     @stack('scripts')

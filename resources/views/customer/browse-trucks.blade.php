@@ -11,7 +11,7 @@
     <div class="max-w-6xl mx-auto space-y-6">
 
         <!-- Page Heading -->
-        <div class="flex items-center justify-between">
+        <div class="flex items-center justify-between animate-fade-in-up">
             <div>
                 <h1 class="text-2xl font-black text-gray-900 tracking-tight">Browse Food Trucks</h1>
                 <p class="text-gray-500 mt-1 font-medium text-sm">Discover food trucks that are open right now.</p>
@@ -33,7 +33,7 @@
             </div>
         @else
             <!-- Truck Cards Grid -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 stagger-children animate-fade-in">
                 @foreach($trucks as $truck)
                     <a href="{{ route('customer.truck-menu', $truck->id) }}"
                        class="group bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md hover:border-amber-200 transition-all duration-200 overflow-hidden flex flex-col">

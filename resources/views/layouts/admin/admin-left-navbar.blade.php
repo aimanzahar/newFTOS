@@ -101,3 +101,5 @@
         </button>
     </div>
 </aside>
+<!-- Sidebar Backdrop -->
+<div id="sidebarBackdrop" class="hidden md:hidden fixed inset-0 bg-black/50 z-40 transition-opacity"></div>

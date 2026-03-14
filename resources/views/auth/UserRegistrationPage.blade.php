@@ -20,11 +20,21 @@
             background-color: #f5f3ff;
             box-shadow: 0 0 0 2px #4f46e5;
         }
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in-up { animation: fadeInUp 0.5s ease-out both; }
+        .stagger-children > * { animation: fadeInUp 0.4s ease-out both; }
+        .stagger-children > *:nth-child(1) { animation-delay: 0.05s; }
+        .stagger-children > *:nth-child(2) { animation-delay: 0.10s; }
+        .stagger-children > *:nth-child(3) { animation-delay: 0.15s; }
+        .stagger-children > *:nth-child(4) { animation-delay: 0.20s; }
     </style>
 </head>
 <body class="bg-gray-50 min-h-screen flex items-center justify-center p-6">
 
-    <div class="max-w-2xl w-full bg-white rounded-2xl shadow-xl overflow-hidden">
+    <div class="max-w-2xl w-full bg-white rounded-2xl shadow-xl overflow-hidden animate-fade-in-up">
         <div class="bg-indigo-600 p-8 text-white text-center">
             <h1 class="text-3xl font-bold">Create Your Account</h1>
             <p class="mt-2 opacity-80">Join our marketplace as a shopper or a business partner</p>
@@ -37,7 +47,7 @@
             <div class="space-y-4">
                 <label class="block text-sm font-semibold text-gray-700">Select Account Type</label>
                 <!-- Changed to grid-cols-2 since we removed one role -->
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 stagger-children">
                     <label class="relative block">
                         <input type="radio" name="role" value="1" class="role-radio hidden" {{ old('role', '1') == '1' ? 'checked' : '' }} onclick="updateFormFields('1')">
                         <div class="role-card border-2 border-gray-100 rounded-xl p-4 text-center hover:border-indigo-200">
