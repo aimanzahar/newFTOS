@@ -12,7 +12,37 @@
                         </div>
                     </div>
 
-                    <div class="bg-white shadow-sm rounded-2xl overflow-hidden border border-gray-100">
+                    <!-- Mobile Card View -->
+                    <div class="md:hidden space-y-3">
+                        @forelse($approvedRegistrations as $truck)
+                            <div class="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm cursor-pointer active:bg-gray-50 transition"
+                                onclick="openTruckMenusModal({{ $truck->id }})">
+                                <div class="flex items-start justify-between mb-2">
+                                    <div class="min-w-0 flex-1 mr-3">
+                                        <p class="text-sm font-bold text-gray-800 truncate">{{ $truck->foodtruck_name }}</p>
+                                        <p class="text-xs text-gray-400 font-mono">{{ $truck->business_license_no }}</p>
+                                    </div>
+                                    <span class="text-xs text-gray-400 flex-shrink-0">#{{ $truck->id }}</span>
+                                </div>
+                                <p class="text-xs text-gray-500 line-clamp-2 mb-3">{{ $truck->foodtruck_desc ?? 'No description provided.' }}</p>
+                                <div class="flex items-center justify-between">
+                                    <span class="text-[10px] text-gray-400">{{ $truck->updated_at->format('M d, Y') }}</span>
+                                    <span class="text-[10px] font-bold text-blue-500 uppercase tracking-wider">View Menus <i class="fas fa-chevron-right text-[8px] ml-1"></i></span>
+                                </div>
+                            </div>
+                        @empty
+                            <div class="bg-white rounded-2xl border border-gray-100 p-8 text-center">
+                                <div class="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mb-4 mx-auto text-gray-200">
+                                    <i class="fas fa-truck text-3xl"></i>
+                                </div>
+                                <p class="text-lg font-bold text-gray-500">No Approved Trucks</p>
+                                <p class="text-sm text-gray-400">No approved truck records found.</p>
+                            </div>
+                        @endforelse
+                    </div>
+
+                    <!-- Desktop Table -->
+                    <div class="hidden md:block bg-white shadow-sm rounded-2xl overflow-hidden border border-gray-100">
                         <div class="overflow-x-auto">
                             <table class="min-w-full leading-normal table-fixed">
                                 <colgroup>
@@ -102,7 +132,7 @@
                         class="fixed inset-0 bg-black/40 backdrop-blur-sm z-[80] flex items-center justify-center p-4"
                         onclick="handleTruckMenusBackdropClick(event)"
                     >
-                        <div id="truckMenusPanel" class="bg-white rounded-3xl shadow-2xl w-full max-w-6xl flex flex-col max-h-[90vh] overflow-hidden">
+                        <div id="truckMenusPanel" class="bg-white rounded-3xl shadow-2xl w-full max-w-6xl flex flex-col max-h-[90vh] overflow-hidden mx-2 sm:mx-4">
                             <div class="flex items-start justify-between px-6 py-4 border-b border-gray-100">
                                 <div>
                                     <h3 id="truckMenusModalTitle" class="text-base font-black text-gray-900">Truck Menus</h3>
@@ -135,8 +165,11 @@
                                 <span id="truckMenusCount" class="text-xs font-semibold text-gray-400 bg-gray-100 px-3 py-1.5 rounded-full"></span>
                             </div>
 
-                            <div class="flex-1 overflow-y-auto p-6">
-                                <div class="overflow-clip border border-gray-100 rounded-2xl">
+                            <div class="flex-1 overflow-y-auto p-3 sm:p-6">
+                                <!-- Mobile card view for menus -->
+                                <div id="truckMenusCardBody" class="md:hidden space-y-3"></div>
+                                <!-- Desktop table view for menus -->
+                                <div class="hidden md:block overflow-clip border border-gray-100 rounded-2xl">
                                     <table class="w-full table-fixed">
                                         <thead class="sticky top-0 z-10">
                                             <tr class="bg-gray-50 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] border-b border-gray-100">
@@ -375,6 +408,7 @@
 
             function renderTruckMenusTable() {
                 const tbody = document.getElementById('truckMenusTableBody');
+                const cardBody = document.getElementById('truckMenusCardBody');
                 const countLabel = document.getElementById('truckMenusCount');
                 const truckData = getActiveTruckData();
 
@@ -393,33 +427,37 @@
 
                 countLabel.textContent = `${filteredMenus.length} ${filteredMenus.length === 1 ? 'menu' : 'menus'}`;
 
+                const emptyHtml = `
+                    <div class="flex flex-col items-center py-16">
+                        <div class="w-14 h-14 rounded-2xl bg-gray-50 flex items-center justify-center mb-3">
+                            <i class="fas fa-utensils text-xl text-gray-300"></i>
+                        </div>
+                        <p class="text-sm font-bold text-gray-500">No Menus Found</p>
+                        <p class="text-xs text-gray-400 mt-1">No menu items match this category.</p>
+                    </div>
+                `;
+
                 if (filteredMenus.length === 0) {
-                    tbody.innerHTML = `
-                        <tr>
-                            <td colspan="5" class="px-6 py-16 text-center text-gray-400 bg-white">
-                                <div class="flex flex-col items-center">
-                                    <div class="w-14 h-14 rounded-2xl bg-gray-50 flex items-center justify-center mb-3">
-                                        <i class="fas fa-utensils text-xl text-gray-300"></i>
-                                    </div>
-                                    <p class="text-sm font-bold text-gray-500">No Menus Found</p>
-                                    <p class="text-xs text-gray-400 mt-1">No menu items match this category.</p>
-                                </div>
-                            </td>
-                        </tr>
-                    `;
+                    tbody.innerHTML = `<tr><td colspan="5" class="px-6 py-16 text-center text-gray-400 bg-white">${emptyHtml}</td></tr>`;
+                    if (cardBody) cardBody.innerHTML = emptyHtml;
                     return;
                 }
 
-                tbody.innerHTML = filteredMenus.map((item) => {
+                // Shared helper for item data
+                function getItemDisplay(item) {
                     const isAvailable = String(item.status || '').toLowerCase() === 'available';
                     const quantity = (item.quantity === null || item.quantity === '' || item.quantity === undefined)
                         ? '-'
                         : (Number(item.quantity) > 0 ? `${item.quantity} left` : 'Out of stock');
-
                     const price = (item.base_price === null || item.base_price === '' || item.base_price === undefined)
                         ? '0.00'
                         : Number(item.base_price).toFixed(2);
+                    return { isAvailable, quantity, price };
+                }
 
+                // Desktop table
+                tbody.innerHTML = filteredMenus.map((item) => {
+                    const { isAvailable, quantity, price } = getItemDisplay(item);
                     return `
                         <tr class="hover:bg-gray-50/60 transition-colors">
                             <td class="px-6 py-4">
@@ -442,6 +480,34 @@
                         </tr>
                     `;
                 }).join('');
+
+                // Mobile cards
+                if (cardBody) {
+                    cardBody.innerHTML = filteredMenus.map((item) => {
+                        const { isAvailable, quantity, price } = getItemDisplay(item);
+                        return `
+                            <div class="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm">
+                                <div class="flex items-start justify-between mb-2">
+                                    <p class="text-sm font-bold text-gray-800 line-clamp-1 flex-1 mr-2">${escapeHtml(item.name)}</p>
+                                    ${isAvailable
+                                        ? '<span class="inline-flex items-center px-2 py-0.5 rounded-lg text-[10px] font-bold bg-emerald-100 text-emerald-700 flex-shrink-0"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1"></span>Available</span>'
+                                        : '<span class="inline-flex items-center px-2 py-0.5 rounded-lg text-[10px] font-bold bg-red-100 text-red-600 flex-shrink-0"><span class="w-1.5 h-1.5 rounded-full bg-red-500 mr-1"></span>Unavailable</span>'
+                                    }
+                                </div>
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center gap-3">
+                                        <span class="text-xs font-bold text-blue-500 uppercase">${escapeHtml(item.normalizedCategory)}</span>
+                                        <span class="text-xs text-gray-500 font-bold">${escapeHtml(quantity)}</span>
+                                    </div>
+                                    <div>
+                                        <span class="text-[10px] text-gray-400 mr-0.5">RM</span>
+                                        <span class="text-sm font-black text-gray-900">${escapeHtml(price)}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+                }
             }
 
             document.addEventListener('DOMContentLoaded', function () {

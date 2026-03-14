@@ -39,8 +39,45 @@
                         </div>
                     @endif
 
-                    <!-- Table Content -->
-                    <div class="bg-white shadow-sm rounded-2xl overflow-hidden border border-gray-100 animate-fade-in">
+                    <!-- Mobile Card View -->
+                    <div class="md:hidden space-y-3">
+                        @forelse($approvedRegistrations as $truck)
+                            <div class="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm">
+                                <div class="flex items-start justify-between mb-2">
+                                    <div class="min-w-0 flex-1 mr-3">
+                                        <p class="text-sm font-bold text-gray-800 truncate">{{ $truck->foodtruck_name }}</p>
+                                        <p class="text-xs text-gray-400 font-mono">{{ $truck->business_license_no }}</p>
+                                    </div>
+                                    <span class="text-xs text-gray-400 flex-shrink-0">#{{ $truck->id }}</span>
+                                </div>
+                                <p class="text-xs text-gray-500 line-clamp-2 mb-3">{{ $truck->foodtruck_desc ?? 'No description provided.' }}</p>
+                                <div class="flex items-center justify-between">
+                                    <span class="text-[10px] text-gray-400">{{ $truck->updated_at->format('M d, Y') }}</span>
+                                    <div class="flex gap-2">
+                                        <button type="button" onclick="openTruckModal({{ $truck->id }})"
+                                            class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-1.5 px-3 rounded-lg transition text-[11px]">
+                                            Details
+                                        </button>
+                                        <button type="button" onclick="alert('Management options coming soon')"
+                                            class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-1.5 px-3 rounded-lg transition text-[11px]">
+                                            Manage
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        @empty
+                            <div class="bg-white rounded-2xl border border-gray-100 p-8 text-center">
+                                <div class="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mb-4 mx-auto text-gray-200">
+                                    <i class="fas fa-truck text-3xl"></i>
+                                </div>
+                                <p class="text-lg font-bold text-gray-500">No Approved Trucks</p>
+                                <p class="text-sm text-gray-400">No food trucks have been approved yet.</p>
+                            </div>
+                        @endforelse
+                    </div>
+
+                    <!-- Desktop Table -->
+                    <div class="hidden md:block bg-white shadow-sm rounded-2xl overflow-hidden border border-gray-100 animate-fade-in">
                         <div class="overflow-x-auto">
                             <table class="min-w-full leading-normal table-fixed">
                                 <colgroup>
@@ -184,18 +221,18 @@
                 </div>
 
                 <!-- â”€â”€ Tab Bar â”€â”€ -->
-                <div class="flex gap-2 px-6 py-4 border-b border-gray-100 flex-shrink-0 bg-gray-50/50">
+                <div class="flex gap-2 px-4 sm:px-6 py-4 border-b border-gray-100 flex-shrink-0 bg-gray-50/50 overflow-x-auto">
                     <button id="tab-btn-truck"   onclick="switchTab('truck')"  class="modal-tab-btn active-tab">
-                        <i class="fas fa-info-circle text-sm mr-2"></i><span class="font-bold text-sm">Truck Details</span>
+                        <i class="fas fa-info-circle text-sm sm:mr-2"></i><span class="font-bold text-sm hidden sm:inline">Truck Details</span>
                     </button>
                     <button id="tab-btn-owner"   onclick="switchTab('owner')"  class="modal-tab-btn">
-                        <i class="fas fa-user text-sm mr-2"></i><span class="font-bold text-sm">Owner & Staff</span>
+                        <i class="fas fa-user text-sm sm:mr-2"></i><span class="font-bold text-sm hidden sm:inline">Owner & Staff</span>
                     </button>
                     <button id="tab-btn-menu"    onclick="switchTab('menu')"   class="modal-tab-btn">
-                        <i class="fas fa-utensils text-sm mr-2"></i><span class="font-bold text-sm">Menu List</span>
+                        <i class="fas fa-utensils text-sm sm:mr-2"></i><span class="font-bold text-sm hidden sm:inline">Menu List</span>
                     </button>
                     <button id="tab-btn-orders"  onclick="switchTab('orders')" class="modal-tab-btn">
-                        <i class="fas fa-receipt text-sm mr-2"></i><span class="font-bold text-sm">Orders</span>
+                        <i class="fas fa-receipt text-sm sm:mr-2"></i><span class="font-bold text-sm hidden sm:inline">Orders</span>
                     </button>
                 </div>
 
@@ -240,10 +277,17 @@
 
                         <div>
                             <label class="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1.5 block">Operational Status</label>
-                            <div id="detail-status-box" class="px-4 py-3 rounded-xl border flex items-center gap-3">
-                                <div id="detail-status-dot" class="w-2.5 h-2.5 rounded-full flex-shrink-0"></div>
-                                <span id="detail-status-text" class="text-sm font-bold"></span>
+                            <div class="flex items-center gap-3">
+                                <div id="detail-status-box" class="px-4 py-3 rounded-xl border flex items-center gap-3 flex-1">
+                                    <div id="detail-status-dot" class="w-2.5 h-2.5 rounded-full flex-shrink-0"></div>
+                                    <span id="detail-status-text" class="text-sm font-bold"></span>
+                                </div>
+                                <button id="toggle-operational-btn" onclick="toggleOperational()" class="px-4 py-3 rounded-xl text-sm font-bold transition-all flex items-center gap-2 flex-shrink-0">
+                                </button>
                             </div>
+                            <p id="toggle-operational-warning" class="text-[10px] text-gray-400 mt-1.5 hidden">
+                                Turning OFF will block workers and hide the truck from customers. In-progress orders will be auto-rejected.
+                            </p>
                         </div>
 
                     </div>
@@ -414,6 +458,13 @@
                 align-items: center;
                 justify-content: center;
                 flex-shrink: 0;
+            }
+            @media (max-width: 639px) {
+                .modal-tab-btn {
+                    padding: 0.5rem 0.75rem;
+                    justify-content: center;
+                    min-width: 2.5rem;
+                }
             }
 
             /* Fixed modal size - prevent resize on tab switching */
@@ -832,6 +883,41 @@
             });
         }
         // â”€â”€â”€ Tab 1: Truck Details â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        function toggleOperational() {
+            if (!_currentTruck) return;
+            var btn = document.getElementById('toggle-operational-btn');
+            var origHtml = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Updating...';
+
+            fetch('/admin/trucks/' + _currentTruck.id + '/toggle-operational', {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                    'Accept': 'application/json',
+                },
+            })
+            .then(r => r.json())
+            .then(data => {
+                btn.disabled = false;
+                if (data.success) {
+                    _currentTruck.is_operational = data.is_operational;
+                    populateTruckTab();
+                    if (data.auto_rejected_orders > 0) {
+                        alert(data.auto_rejected_orders + ' in-progress order(s) were auto-rejected.');
+                    }
+                } else {
+                    alert(data.message || 'Failed to toggle operational status.');
+                    btn.innerHTML = origHtml;
+                }
+            })
+            .catch(() => {
+                btn.disabled = false;
+                btn.innerHTML = origHtml;
+                alert('Network error. Please try again.');
+            });
+        }
+
         function populateTruckTab() {
             var t = _currentTruck;
             document.getElementById('modalTruckName').textContent    = t.foodtruck_name || '';
@@ -842,16 +928,24 @@
             var dot = document.getElementById('detail-status-dot');
             var txt = document.getElementById('detail-status-text');
             var box = document.getElementById('detail-status-box');
+            var toggleBtn = document.getElementById('toggle-operational-btn');
+            var toggleWarn = document.getElementById('toggle-operational-warning');
             if (t.is_operational) {
                 dot.className   = 'w-2.5 h-2.5 rounded-full flex-shrink-0 bg-emerald-500 animate-pulse';
                 txt.className   = 'text-sm font-bold text-emerald-700';
                 txt.textContent = 'Online & Operational';
-                box.className   = 'px-4 py-3 rounded-xl border flex items-center gap-3 bg-emerald-50 border-emerald-200';
+                box.className   = 'px-4 py-3 rounded-xl border flex items-center gap-3 flex-1 bg-emerald-50 border-emerald-200';
+                toggleBtn.className = 'px-4 py-3 rounded-xl text-sm font-bold transition-all flex items-center gap-2 flex-shrink-0 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200';
+                toggleBtn.innerHTML = '<i class="fas fa-power-off"></i> Turn OFF';
+                toggleWarn.classList.remove('hidden');
             } else {
                 dot.className   = 'w-2.5 h-2.5 rounded-full flex-shrink-0 bg-red-500';
                 txt.className   = 'text-sm font-bold text-red-600';
                 txt.textContent = 'Offline';
-                box.className   = 'px-4 py-3 rounded-xl border flex items-center gap-3 bg-red-50 border-red-200';
+                box.className   = 'px-4 py-3 rounded-xl border flex items-center gap-3 flex-1 bg-red-50 border-red-200';
+                toggleBtn.className = 'px-4 py-3 rounded-xl text-sm font-bold transition-all flex items-center gap-2 flex-shrink-0 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 border border-emerald-200';
+                toggleBtn.innerHTML = '<i class="fas fa-power-off"></i> Turn ON';
+                toggleWarn.classList.add('hidden');
             }
         }
 

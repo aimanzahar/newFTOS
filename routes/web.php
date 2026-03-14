@@ -8,6 +8,7 @@ use App\Http\Controllers\StaffController;
 use App\Http\Controllers\MenuController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\CustomerController;
+use App\Http\Controllers\PublicController;
 use App\Http\Controllers\WorkerPunchCardController;
 use App\Models\Order;
 use App\Models\User;
@@ -15,9 +16,8 @@ use App\Models\WorkerPunchCard;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
-Route::get('/', function () {
-    return view('welcome');
-});
+Route::get('/', [PublicController::class, 'landing'])->name('public.landing');
+Route::get('/trucks/{id}', [PublicController::class, 'truckMenu'])->name('public.truck-menu');
 
 // Unified post-auth entrypoint: always redirect by role to real dashboard.
 Route::get('/dashboard', function () {
@@ -97,6 +97,44 @@ Route::middleware(['auth', 'role:6'])->prefix('admin')->name('admin.')->group(fu
     Route::patch('/orders/{orderId}/status', [AdminController::class, 'updateOrderStatus'])->name('order.update-status');
     Route::patch('/trucks/{truckId}/update-details', [AdminController::class, 'updateTruckDetails'])->name('truck.update-details');
     Route::patch('/trucks/{truckId}/users/{userId}/status', [AdminController::class, 'updateTruckUserStatus'])->name('truck-user.update-status');
+
+    Route::post('/trucks/{truckId}/toggle-operational', function ($truckId) {
+        $truck = \App\Models\FoodTruck::find($truckId);
+        if (!$truck) return response()->json(['success' => false, 'message' => 'Truck not found'], 404);
+        if (($truck->status ?? null) !== 'approved') {
+            return response()->json(['success' => false, 'message' => 'Only approved trucks can be toggled.'], 403);
+        }
+
+        $updatedOperational = null;
+        $autoRejectedCount = 0;
+
+        \Illuminate\Support\Facades\DB::transaction(function () use ($truck, &$updatedOperational, &$autoRejectedCount) {
+            $truck->is_operational = !$truck->is_operational;
+            $truck->save();
+            $updatedOperational = (bool) $truck->is_operational;
+
+            if ($updatedOperational) return;
+
+            $offlineRefundNote = 'Truck was taken offline by System Admin. Your paid order was rejected and refund processing has started.';
+            $rejectableStatuses = ['pending', 'accepted', 'preparing', 'prepared', 'ready_for_pickup', 'delivery'];
+
+            $autoRejectedCount = \App\Models\Order::query()
+                ->where('foodtruck_id', $truck->id)
+                ->whereIn('status', $rejectableStatuses)
+                ->update([
+                    'status' => 'rejected',
+                    'accepted_by' => null,
+                    'notes' => $offlineRefundNote,
+                    'updated_at' => now(),
+                ]);
+        });
+
+        return response()->json([
+            'success' => true,
+            'is_operational' => (bool) $updatedOperational,
+            'auto_rejected_orders' => (int) $autoRejectedCount,
+        ]);
+    })->name('truck.toggle-operational');
 });
 
 /**

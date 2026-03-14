@@ -39,8 +39,54 @@
         </div>
     @endif
 
-    <!-- Table Content -->
-    <div class="bg-white shadow-sm rounded-2xl overflow-hidden border border-gray-100 animate-fade-in">
+    <!-- Mobile Card View -->
+    <div class="md:hidden space-y-3">
+        @forelse($pendingRegistrations as $truck)
+            <div class="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm">
+                <div class="flex items-start justify-between mb-2">
+                    <div class="min-w-0 flex-1 mr-3">
+                        <p class="text-sm font-bold text-gray-800 truncate">{{ $truck->foodtruck_name }}</p>
+                        <p class="text-xs text-gray-400 font-mono">{{ $truck->business_license_no }}</p>
+                    </div>
+                    <span class="text-xs text-gray-400 flex-shrink-0">#{{ $truck->id }}</span>
+                </div>
+                <p class="text-xs text-gray-500 line-clamp-2 mb-3">{{ $truck->foodtruck_desc ?? 'No description provided.' }}</p>
+                <div class="flex items-center justify-between">
+                    <span class="text-[10px] text-gray-400">{{ $truck->created_at->format('M d, Y') }}</span>
+                    <div class="flex gap-2">
+                        <form action="{{ route('admin.approve-truck', $truck->id) }}" method="POST" class="inline-flex"
+                            data-action-type="approve" data-truck-name="{{ $truck->foodtruck_name }}">
+                            @csrf
+                            <button type="button" onclick="openActionConfirmModal(this.closest('form'))"
+                                class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-1.5 px-3 rounded-lg transition text-[11px]">
+                                Approve
+                            </button>
+                        </form>
+                        <form action="{{ route('admin.reject-truck', $truck->id) }}" method="POST" class="inline-flex"
+                            data-action-type="reject" data-truck-name="{{ $truck->foodtruck_name }}">
+                            @csrf
+                            @method('DELETE')
+                            <button type="button" onclick="openActionConfirmModal(this.closest('form'))"
+                                class="bg-red-600 hover:bg-red-700 text-white font-bold py-1.5 px-3 rounded-lg transition text-[11px]">
+                                Reject
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        @empty
+            <div class="bg-white rounded-2xl border border-gray-100 p-8 text-center">
+                <div class="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mb-4 mx-auto text-gray-200">
+                    <i class="fas fa-clipboard-check text-3xl"></i>
+                </div>
+                <p class="text-lg font-bold text-gray-500">No Pending Applications</p>
+                <p class="text-sm text-gray-400">Everything is caught up!</p>
+            </div>
+        @endforelse
+    </div>
+
+    <!-- Desktop Table -->
+    <div class="hidden md:block bg-white shadow-sm rounded-2xl overflow-hidden border border-gray-100 animate-fade-in">
         <div class="overflow-x-auto">
             <table class="min-w-full leading-normal table-fixed">
                 <colgroup>

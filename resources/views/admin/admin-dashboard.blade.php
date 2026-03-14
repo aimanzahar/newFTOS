@@ -26,7 +26,7 @@
 
         <!-- Approved Food Trucks -->
         <button onclick="window.location.href='{{ route('admin.approved.trucks') }}'"
-            class="text-left bg-white p-8 rounded-3xl shadow-sm border border-gray-100 hover:border-emerald-300 hover:shadow-md transition-all group outline-none w-full cursor-pointer">
+            class="text-left bg-white p-5 sm:p-8 rounded-3xl shadow-sm border border-gray-100 hover:border-emerald-300 hover:shadow-md transition-all group outline-none w-full cursor-pointer">
             <div>
                 <div class="flex items-center justify-between mb-6">
                     <div class="p-4 w-fit bg-emerald-50 text-emerald-600 rounded-2xl group-hover:bg-emerald-600 group-hover:text-white transition-all duration-300">
@@ -59,7 +59,7 @@
 
         <!-- Pending Approvals -->
         <button onclick="window.location.href='{{ route('admin.pending.trucks') }}'"
-            class="text-left bg-white p-8 rounded-3xl shadow-sm border border-gray-100 hover:border-orange-300 hover:shadow-md transition-all group outline-none w-full cursor-pointer">
+            class="text-left bg-white p-5 sm:p-8 rounded-3xl shadow-sm border border-gray-100 hover:border-orange-300 hover:shadow-md transition-all group outline-none w-full cursor-pointer">
             <div>
                 <div class="flex items-center justify-between mb-6">
                     <div class="p-4 w-fit bg-orange-50 text-orange-600 rounded-2xl group-hover:bg-orange-600 group-hover:text-white transition-all duration-300">
@@ -95,7 +95,7 @@
 
         <!-- System Status -->
         <div
-            class="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 hover:shadow-md transition">
+            class="bg-white p-5 sm:p-8 rounded-3xl shadow-sm border border-gray-100 hover:shadow-md transition">
             <div>
                 <div class="flex items-center justify-between mb-6">
                     <div class="p-4 w-fit bg-blue-50 text-blue-600 rounded-2xl">
@@ -109,7 +109,7 @@
                 </p>
                 <div class="flex items-center gap-2 mt-1">
                     <div class="w-2.5 h-2.5 bg-green-500 rounded-full flex-shrink-0 animate-pulse"></div>
-                    <p class="text-5xl font-black text-gray-900">
+                    <p class="text-3xl sm:text-5xl font-black text-gray-900">
                         Operational
                     </p>
                 </div>
@@ -134,7 +134,7 @@
             </h3>
         </div>
 
-        <div class="p-8">
+        <div class="p-4 sm:p-8">
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
 
                 <a href="{{ route('admin.pending.trucks') }}"
