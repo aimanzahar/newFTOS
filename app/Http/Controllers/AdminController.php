@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\User;
 use App\Models\FoodTruck;
+use App\Models\SystemSetting;
 use App\Models\MenuCategory;
 use App\Models\Order;
 use Illuminate\Support\Facades\DB;
@@ -19,11 +20,13 @@ class AdminController extends Controller
         $approvedTrucks = FoodTruck::where('status', 'approved')->count();
         $pendingApprovals = FoodTruck::where('status', 'pending')->count();
         $totalTrucks = FoodTruck::count();
+        $systemOperational = (bool) (SystemSetting::where('key', 'is_operational')->first()?->value ?? '1');
 
         return view('admin.admin-dashboard', compact(
-            'approvedTrucks', 
-            'pendingApprovals', 
-            'totalTrucks'
+            'approvedTrucks',
+            'pendingApprovals',
+            'totalTrucks',
+            'systemOperational'
         ));
     }
 

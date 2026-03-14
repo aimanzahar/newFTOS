@@ -9,6 +9,7 @@ use App\Models\MenuChoice;
 use App\Models\MenuOptionGroup;
 use App\Models\Order;
 use App\Models\User;
+use App\Models\SystemSetting;
 use App\Models\WorkerPunchCard;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
@@ -17,6 +18,12 @@ class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
+        // ─── System Settings ───
+        SystemSetting::updateOrCreate(
+            ['key' => 'is_operational'],
+            ['value' => '1']
+        );
+
         $password = Hash::make('password123');
         $now = now();
 

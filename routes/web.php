@@ -98,6 +98,20 @@ Route::middleware(['auth', 'role:6'])->prefix('admin')->name('admin.')->group(fu
     Route::patch('/trucks/{truckId}/update-details', [AdminController::class, 'updateTruckDetails'])->name('truck.update-details');
     Route::patch('/trucks/{truckId}/users/{userId}/status', [AdminController::class, 'updateTruckUserStatus'])->name('truck-user.update-status');
 
+    Route::post('/toggle-system-operational', function () {
+        $setting = \App\Models\SystemSetting::firstOrCreate(
+            ['key' => 'is_operational'],
+            ['value' => '1']
+        );
+        $setting->value = $setting->value === '1' ? '0' : '1';
+        $setting->save();
+
+        return response()->json([
+            'success' => true,
+            'is_operational' => $setting->value === '1',
+        ]);
+    })->name('toggle-system-operational');
+
     Route::post('/trucks/{truckId}/toggle-operational', function ($truckId) {
         $truck = \App\Models\FoodTruck::find($truckId);
         if (!$truck) return response()->json(['success' => false, 'message' => 'Truck not found'], 404);
@@ -542,5 +556,13 @@ Route::middleware(['auth', 'role:2,3', 'ftworker.status'])->prefix('orders')->na
     Route::post('/{id}/accept', [OrderController::class, 'accept'])->name('accept');
     Route::patch('/{id}/status', [OrderController::class, 'updateStatus'])->name('update-status');
 });
+
+Route::middleware(['auth'])->get('/system-operational-status', function () {
+    $setting = \App\Models\SystemSetting::where('key', 'is_operational')->first();
+    return response()->json([
+        'success' => true,
+        'is_operational' => $setting ? $setting->value === '1' : true,
+    ]);
+})->name('system-operational-status');
 
 require __DIR__.'/auth.php';

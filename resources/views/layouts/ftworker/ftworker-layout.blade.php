@@ -66,6 +66,31 @@
       : false;
   @endphp
 
+  @php
+    $systemIsOperational = (bool) (\App\Models\SystemSetting::where('key', 'is_operational')->first()?->value ?? '1');
+  @endphp
+  <!-- System Offline Overlay (higher z-index than truck overlay) -->
+  <div id="systemOfflineOverlay" class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/50 backdrop-blur-md {{ $systemIsOperational ? 'hidden' : '' }}">
+    <div class="bg-white rounded-3xl shadow-2xl max-w-sm w-full mx-4 overflow-hidden">
+      <div class="h-1.5 w-full bg-red-500"></div>
+      <div class="p-8 text-center">
+        <div class="w-16 h-16 bg-red-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+          <i class="fas fa-server text-2xl text-red-500"></i>
+        </div>
+        <h2 class="text-xl font-black text-gray-900 mb-2">System Temporarily Offline</h2>
+        <p class="text-sm text-gray-500 leading-relaxed">
+          The System Administrator has temporarily turned off the system. Please wait until it is turned back on.
+        </p>
+        <form method="POST" action="{{ route('logout') }}" class="mt-5">
+          @csrf
+          <button type="submit" class="inline-flex items-center gap-2 px-5 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-sm rounded-xl transition">
+            <i class="fas fa-arrow-left text-xs"></i> Back to Home
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
   @if($layoutCanTrackOperational)
     <div id="truckOperationalOverlay" class="fixed inset-0 z-[90] flex items-center justify-center bg-slate-900/50 backdrop-blur-md {{ $layoutInitialTruckOffline ? '' : 'hidden' }}">
       <div class="bg-white rounded-3xl shadow-2xl max-w-sm w-full mx-4 overflow-hidden">
@@ -141,6 +166,23 @@
       if (openBtn) openBtn.addEventListener('click', openSidebar);
       if (closeBtn) closeBtn.addEventListener('click', closeSidebar);
       if (backdrop) backdrop.addEventListener('click', closeSidebar);
+
+      // System operational status polling
+      const systemOverlay = document.getElementById('systemOfflineOverlay');
+      if (systemOverlay) {
+        const pollSystemStatus = async () => {
+          try {
+            const res = await fetch(@json(route('system-operational-status')), {
+              headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content },
+            });
+            const data = await res.json();
+            if (data.success) {
+              systemOverlay.classList.toggle('hidden', data.is_operational);
+            }
+          } catch (e) {}
+        };
+        setInterval(pollSystemStatus, 3000);
+      }
 
       const shouldTrackOperational = @json($layoutCanTrackOperational);
       const statusEndpoint = @json(route('ftworker.truck-operational-status'));
