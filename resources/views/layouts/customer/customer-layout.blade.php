@@ -443,7 +443,7 @@
       </header>
 
       <!-- Page + Cart row -->
-      <div class="flex flex-1 min-h-0 overflow-hidden">
+      <div class="flex flex-1 min-h-0 overflow-hidden" x-data="{ mobileFullCartOpen: false }" @open-mobile-full-cart.window="mobileFullCartOpen = true">
 
         <!-- Page Content -->
         <main class="flex-1 overflow-y-auto bg-gray-50 relative">
@@ -455,16 +455,24 @@
              Persistent Cart Sidebar
              Visible on ALL customer pages when cart has items
         ═══════════════════════════════════════════ -->
+        <!-- Mobile full cart backdrop -->
+        <div x-show="mobileFullCartOpen" x-transition.opacity @click="mobileFullCartOpen = false"
+             class="md:hidden fixed inset-0 bg-black/50 z-40" style="display:none"></div>
+
         <div x-data="cartSidebar()"
              @open-payment-modal.window="openPaymentModal()"
              x-show="{{ request()->routeIs('profile.edit') ? 'false' : (request()->routeIs('customer.dashboard', 'customer.browse', 'customer.truck-menu') ? 'true' : '$store.cart.items.length > 0') }}"
              style="display:none"
-             class="max-md:absolute max-md:-left-[9999px] max-md:w-0 max-md:overflow-hidden md:flex w-80 flex-shrink-0 border-l border-gray-200 bg-white flex-col h-full overflow-hidden">
+             :class="mobileFullCartOpen ? 'max-md:fixed max-md:inset-0 max-md:z-50 max-md:w-full' : 'max-md:absolute max-md:-left-[9999px] max-md:w-0 max-md:overflow-hidden'"
+             class="md:flex w-80 flex-shrink-0 border-l border-gray-200 bg-white flex-col h-full overflow-hidden">
 
           <!-- Cart Header -->
           <div class="px-5 py-4 border-b border-gray-100 flex-shrink-0">
             <div class="flex items-center justify-between">
               <h2 class="font-black text-gray-900 text-base">Your Cart</h2>
+              <button @click="mobileFullCartOpen = false" class="md:hidden w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400">
+                <i class="fas fa-times"></i>
+              </button>
               <div class="flex items-center gap-1.5">
                 <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
                 <span class="text-xs font-black text-gray-500"
@@ -1026,7 +1034,7 @@
             <div class="border-t border-gray-100 px-4 py-3 space-y-2">
               <div class="flex items-center justify-between">
                 <span class="text-sm font-black text-gray-900" x-text="'RM ' + $store.cart.checkedTotal.toFixed(2)"></span>
-                <button @click="mobileCartOpen = false"
+                <button @click="mobileCartOpen = false; $dispatch('open-mobile-full-cart')"
                         class="px-4 py-2 bg-slate-900 text-white font-black text-xs rounded-xl">
                   View Full Cart
                 </button>

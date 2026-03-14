@@ -9,6 +9,7 @@ use App\Http\Controllers\MenuController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\PublicController;
+use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\WorkerPunchCardController;
 use App\Models\Order;
 use App\Models\User;
@@ -18,6 +19,7 @@ use Illuminate\Support\Facades\DB;
 
 Route::get('/', [PublicController::class, 'landing'])->name('public.landing');
 Route::get('/trucks/{id}', [PublicController::class, 'truckMenu'])->name('public.truck-menu');
+Route::get('/trucks/{truck}/reviews', [ReviewController::class, 'index'])->name('truck.reviews');
 
 // Unified post-auth entrypoint: always redirect by role to real dashboard.
 Route::get('/dashboard', function () {
@@ -70,6 +72,8 @@ Route::middleware(['auth', 'role:1'])->prefix('customer')->name('customer.')->gr
     Route::get('/browse', [CustomerController::class, 'browse'])->name('browse');
     Route::get('/truck/{id}', [CustomerController::class, 'truckMenu'])->name('truck-menu');
     Route::post('/orders', [CustomerController::class, 'placeOrder'])->name('place-order');
+    Route::post('/reviews', [ReviewController::class, 'store'])->name('reviews.store');
+    Route::get('/reviews/check', [ReviewController::class, 'checkReviewed'])->name('reviews.check');
 });
 
 /**

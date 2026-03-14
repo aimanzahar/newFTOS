@@ -7,6 +7,57 @@
 @section('content')
 
 <script>
+function truckReviewsSection() {
+    const truckId = {{ $truck->id }};
+    return {
+        reviews: [],
+        loading: true,
+        page: 1,
+        hasMore: false,
+        avgRating: 0,
+        totalReviews: 0,
+
+        async loadReviews() {
+            this.loading = true;
+            try {
+                const res = await fetch(`/trucks/${truckId}/reviews?page=${this.page}`, {
+                    headers: { 'Accept': 'application/json' },
+                });
+                const data = await res.json();
+                this.reviews = data.data || [];
+                this.hasMore = !!data.next_page_url;
+                this.computeAvg();
+                this.totalReviews = data.total || this.reviews.length;
+            } catch (e) {
+                console.error('Failed to load reviews:', e);
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        async loadMore() {
+            this.page++;
+            try {
+                const res = await fetch(`/trucks/${truckId}/reviews?page=${this.page}`, {
+                    headers: { 'Accept': 'application/json' },
+                });
+                const data = await res.json();
+                this.reviews = [...this.reviews, ...(data.data || [])];
+                this.hasMore = !!data.next_page_url;
+                this.computeAvg();
+            } catch (e) {
+                console.error(e);
+            }
+        },
+
+        computeAvg() {
+            if (this.reviews.length === 0) { this.avgRating = 0; return; }
+            const sum = this.reviews.reduce((s, r) => s + r.rating, 0);
+            this.avgRating = sum / this.reviews.length;
+        },
+    };
+}
+
 function truckMenuPage() {
     const allItems  = @json($menuItems);
     const truckId   = {{ $truck->id }};
@@ -315,6 +366,10 @@ function truckMenuPage() {
                 @if($truck->foodtruck_desc)
                     <p class="text-sm text-slate-400">{{ $truck->foodtruck_desc }}</p>
                 @endif
+                <a href="#reviews-section"
+                   class="inline-flex items-center gap-1.5 mt-2 px-3 py-1.5 bg-amber-400/20 hover:bg-amber-400/30 text-amber-400 text-[11px] font-black rounded-lg transition-all">
+                    <i class="fas fa-star text-[10px]"></i>View Reviews
+                </a>
             </div>
         </div>
 
@@ -399,6 +454,80 @@ function truckMenuPage() {
                             </span>
                         </div>
                     </div>
+                </div>
+            </template>
+        </div>
+
+        <!-- ═══════════════════════════════════ -->
+        <!-- Reviews Section                     -->
+        <!-- ═══════════════════════════════════ -->
+        <div id="reviews-section" x-data="truckReviewsSection()" x-init="loadReviews()" class="space-y-4 animate-fade-in-up scroll-mt-4">
+            <div class="flex items-center justify-between">
+                <h2 class="text-lg font-black text-gray-900 tracking-tight">
+                    <i class="fas fa-star text-amber-400 mr-1.5"></i>Customer Reviews
+                </h2>
+                <template x-if="reviews.length > 0">
+                    <div class="flex items-center gap-2">
+                        <div class="flex gap-0.5">
+                            <template x-for="s in [1,2,3,4,5]" :key="s">
+                                <i class="fas fa-star text-xs"
+                                   :class="s <= Math.round(avgRating) ? 'text-amber-400' : 'text-gray-200'"></i>
+                            </template>
+                        </div>
+                        <span class="text-sm font-black text-gray-700" x-text="avgRating.toFixed(1)"></span>
+                        <span class="text-xs text-gray-400" x-text="'(' + totalReviews + ' review' + (totalReviews !== 1 ? 's' : '') + ')'"></span>
+                    </div>
+                </template>
+            </div>
+
+            <!-- Empty state -->
+            <template x-if="!loading && reviews.length === 0">
+                <div class="bg-white rounded-2xl border border-gray-100 p-10 flex flex-col items-center justify-center text-center">
+                    <div class="w-14 h-14 rounded-2xl bg-amber-50 flex items-center justify-center mb-3">
+                        <i class="fas fa-star text-xl text-amber-300"></i>
+                    </div>
+                    <p class="text-sm font-bold text-gray-500">No reviews yet</p>
+                    <p class="text-xs text-gray-400 mt-1">Be the first to review this food truck!</p>
+                </div>
+            </template>
+
+            <!-- Loading -->
+            <template x-if="loading">
+                <div class="bg-white rounded-2xl border border-gray-100 p-10 text-center">
+                    <i class="fas fa-spinner fa-spin text-gray-300 text-xl"></i>
+                </div>
+            </template>
+
+            <!-- Review cards -->
+            <div class="space-y-3">
+                <template x-for="review in reviews" :key="review.id">
+                    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 space-y-2">
+                        <div class="flex items-start justify-between gap-3">
+                            <div>
+                                <p class="text-sm font-black text-gray-900" x-text="review.customer?.full_name || 'Customer'"></p>
+                                <p class="text-[10px] text-gray-400 font-medium" x-text="review.menu_item_name"></p>
+                            </div>
+                            <div class="flex gap-0.5 flex-shrink-0">
+                                <template x-for="s in [1,2,3,4,5]" :key="s">
+                                    <i class="fas fa-star text-[10px]"
+                                       :class="s <= review.rating ? 'text-amber-400' : 'text-gray-200'"></i>
+                                </template>
+                            </div>
+                        </div>
+                        <template x-if="review.comment">
+                            <p class="text-xs text-gray-600 leading-relaxed" x-text="review.comment"></p>
+                        </template>
+                        <p class="text-[10px] text-gray-300" x-text="new Date(review.created_at).toLocaleDateString()"></p>
+                    </div>
+                </template>
+            </div>
+
+            <!-- Load more -->
+            <template x-if="hasMore">
+                <div class="text-center">
+                    <button @click="loadMore()" class="px-4 py-2 text-xs font-black text-gray-500 hover:text-amber-600 transition-colors">
+                        Load more reviews
+                    </button>
                 </div>
             </template>
         </div>

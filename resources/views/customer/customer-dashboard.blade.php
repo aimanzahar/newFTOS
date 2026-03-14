@@ -110,6 +110,28 @@
         ->values()
         ->all();
 
+    // Done orders that haven't been reviewed yet
+    $doneOrders = $orders->where('status', 'done')->values();
+    $doneOrderIds = $doneOrders->pluck('id')->toArray();
+    $reviewedOrderIds = \App\Models\Review::whereIn('order_id', $doneOrderIds)
+        ->distinct()
+        ->pluck('order_id')
+        ->toArray();
+    $unreviewedDoneOrders = $doneOrders->filter(fn($o) => !in_array($o->id, $reviewedOrderIds))->values();
+
+    $reviewableOrders = $unreviewedDoneOrders->map(function ($order) {
+        return [
+            'order_id' => $order->id,
+            'truck_name' => $order->foodTruck?->foodtruck_name ?? 'Food Truck',
+            'foodtruck_id' => $order->foodtruck_id,
+            'items' => collect($order->items ?? [])->map(fn($item) => [
+                'name' => $item['name'] ?? 'Menu Item',
+            ])->values()->all(),
+        ];
+    })->values()->all();
+
+    $totalReviewsGiven = \App\Models\Review::where('customer_id', $user->id)->count();
+
     $rejectedOrders = $orders->where('status', 'rejected')->values();
 
     $rejectedOrderNotices = [];
@@ -142,8 +164,18 @@ function customerDashboardPage() {
         showActiveOrdersModal: false,
         showOrderReceiptModal: false,
         selectedReceipt: null,
+        purchasedOrderGroups: @json($purchasedOrderGroups),
+        activeOrderGroups: @json($activeOrderGroups),
         orderSnapshotToken: @json($orderSnapshotToken),
         orderSnapshotPollingTimer: null,
+
+        // Review modal
+        showReviewModal: false,
+        reviewableOrders: @json($reviewableOrders),
+        currentReviewOrder: null,
+        reviewRatings: {},
+        reviewComments: {},
+        reviewSubmitting: false,
 
         initLiveRefresh() {
             this.checkOrderSnapshot();
@@ -156,6 +188,9 @@ function customerDashboardPage() {
                     clearInterval(this.orderSnapshotPollingTimer);
                 }
             });
+
+            // Auto-prompt review for first unreviewable done order after a short delay
+            setTimeout(() => this.promptNextReview(), 800);
         },
 
         async checkOrderSnapshot() {
@@ -226,6 +261,71 @@ function customerDashboardPage() {
                 .replace(/>/g, '&gt;')
                 .replace(/"/g, '&quot;')
                 .replace(/'/g, '&#39;');
+        },
+
+        openReviewModal(order) {
+            this.currentReviewOrder = order;
+            this.reviewRatings = {};
+            this.reviewComments = {};
+            order.items.forEach((item, i) => {
+                this.reviewRatings[i] = 0;
+                this.reviewComments[i] = '';
+            });
+            this.showReviewModal = true;
+        },
+
+        setRating(itemIndex, rating) {
+            this.reviewRatings[itemIndex] = rating;
+        },
+
+        get canSubmitReview() {
+            if (!this.currentReviewOrder) return false;
+            return this.currentReviewOrder.items.every((_, i) => this.reviewRatings[i] > 0);
+        },
+
+        async submitReviews() {
+            if (!this.canSubmitReview || this.reviewSubmitting) return;
+            this.reviewSubmitting = true;
+
+            const reviews = this.currentReviewOrder.items.map((item, i) => ({
+                menu_item_name: item.name,
+                rating: this.reviewRatings[i],
+                comment: this.reviewComments[i] || null,
+            }));
+
+            try {
+                const res = await fetch('{{ route("customer.reviews.store") }}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content,
+                    },
+                    body: JSON.stringify({
+                        order_id: this.currentReviewOrder.order_id,
+                        reviews: reviews,
+                    }),
+                });
+
+                const data = await res.json().catch(() => ({}));
+                if (data.success) {
+                    this.showReviewModal = false;
+                    this.reviewableOrders = this.reviewableOrders.filter(
+                        o => o.order_id !== this.currentReviewOrder.order_id
+                    );
+                    this.currentReviewOrder = null;
+                }
+            } catch (e) {
+                console.error('Review submit error:', e);
+            } finally {
+                this.reviewSubmitting = false;
+            }
+        },
+
+        promptNextReview() {
+            if (this.reviewableOrders.length > 0 && !this.showWelcomeModal) {
+                this.openReviewModal(this.reviewableOrders[0]);
+            }
         },
 
         printSelectedReceipt() {
@@ -383,7 +483,7 @@ function customerDashboardPage() {
                 </div>
                 <div>
                     <p class="text-xs text-gray-500 uppercase font-semibold tracking-wider">Reviews Given</p>
-                    <p class="text-2xl font-bold text-gray-800">0</p>
+                    <p class="text-2xl font-bold text-gray-800">{{ $totalReviewsGiven }}</p>
                 </div>
             </div>
         </div>
@@ -481,7 +581,7 @@ function customerDashboardPage() {
                                 <span class="text-gray-500">Date</span>
                                 <span class="text-gray-700">{{ $group['created_at'] ? \Carbon\Carbon::parse($group['created_at'])->format('d M Y, h:i A') : '-' }}</span>
                             </div>
-                            <button @click="viewOrderReceipt(@json($group))"
+                            <button @click="viewOrderReceipt(purchasedOrderGroups[{{ $loop->index }}])"
                                     class="w-full mt-1 px-3 py-2 bg-amber-100 hover:bg-amber-200 text-amber-700 font-black text-[10px] rounded-lg transition-all text-center">
                                 <i class="fas fa-receipt mr-1"></i>Show Receipt
                             </button>
@@ -517,7 +617,7 @@ function customerDashboardPage() {
                                         </span>
                                     </td>
                                     <td class="px-3 py-3">
-                                        <button @click="viewOrderReceipt(@json($group))"
+                                        <button @click="viewOrderReceipt(purchasedOrderGroups[{{ $loop->index }}])"
                                                 class="px-3 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-700 font-black text-[10px] rounded-lg transition-all whitespace-nowrap">
                                             <i class="fas fa-receipt mr-1"></i>Show Receipt
                                         </button>
@@ -583,7 +683,42 @@ function customerDashboardPage() {
                                     </span>
                                 </div>
 
-                                <div class="overflow-x-auto">
+                                {{-- Mobile card layout --}}
+                                <div class="md:hidden divide-y divide-gray-100">
+                                    @foreach ($group['items'] as $item)
+                                        <div class="px-3 py-3 space-y-2">
+                                            <div class="flex items-center justify-between gap-2">
+                                                <span class="text-xs font-bold text-gray-800">{{ $item['menu_name'] }}</span>
+                                                <span class="text-[10px] font-black uppercase tracking-wide px-2.5 py-1 rounded-full whitespace-nowrap {{ $item['status_class'] }}">
+                                                    {{ $item['status_label'] }}
+                                                </span>
+                                            </div>
+                                            <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                                                <div>
+                                                    <span class="text-gray-500 font-medium">Base Price</span>
+                                                    <p class="text-gray-700 font-semibold">RM {{ number_format($item['base_price'], 2) }}</p>
+                                                </div>
+                                                <div>
+                                                    <span class="text-gray-500 font-medium">Qty</span>
+                                                    <p class="text-gray-700 font-semibold">{{ $item['quantity'] }}</p>
+                                                </div>
+                                                @if ($item['selected_choices'])
+                                                    <div class="col-span-2">
+                                                        <span class="text-gray-500 font-medium">Selected Choices</span>
+                                                        <p class="text-gray-600">{{ $item['selected_choices'] }}</p>
+                                                    </div>
+                                                @endif
+                                            </div>
+                                            <button @click.stop="viewOrderReceipt(activeOrderGroups[{{ $loop->parent->index }}])"
+                                                    class="w-full px-3 py-2 bg-amber-100 hover:bg-amber-200 text-amber-700 font-black text-[10px] rounded-lg transition-all text-center">
+                                                <i class="fas fa-receipt mr-1"></i>Show Receipt
+                                            </button>
+                                        </div>
+                                    @endforeach
+                                </div>
+
+                                {{-- Desktop table layout --}}
+                                <div class="hidden md:block overflow-x-auto">
                                     <table class="w-full text-xs">
                                         <thead class="bg-white text-gray-500 uppercase tracking-wide border-b border-gray-100">
                                             <tr>
@@ -608,7 +743,7 @@ function customerDashboardPage() {
                                                         </span>
                                                     </td>
                                                     <td class="px-3 py-3">
-                                                        <button @click="viewOrderReceipt(@json($group))"
+                                                        <button @click.stop="viewOrderReceipt(activeOrderGroups[{{ $loop->parent->index }}])"
                                                                 class="px-3 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-700 font-black text-[10px] rounded-lg transition-all whitespace-nowrap">
                                                             <i class="fas fa-receipt mr-1"></i>Show Receipt
                                                         </button>
@@ -631,6 +766,89 @@ function customerDashboardPage() {
                 </button>
             </div>
 
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════
+         Review Modal
+    ═══════════════════════════════════════ -->
+    <div x-show="showReviewModal"
+         style="display:none"
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-150"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         class="fixed inset-0 z-[96] flex items-end sm:items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+
+        <div @click.away="showReviewModal = false"
+             x-transition:enter="transition ease-out duration-200"
+             x-transition:enter-start="opacity-0 scale-95 translate-y-4"
+             x-transition:enter-end="opacity-100 scale-100 translate-y-0"
+             class="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden">
+
+            <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+                <div>
+                    <h3 class="font-black text-gray-900 text-base">
+                        <i class="fas fa-star text-amber-400 mr-1.5"></i>Review Your Order
+                    </h3>
+                    <p class="text-xs text-gray-400 mt-0.5" x-text="currentReviewOrder ? currentReviewOrder.truck_name + ' — Order #' + String(currentReviewOrder.order_id).padStart(4, '0') : ''"></p>
+                </div>
+                <button @click="showReviewModal = false"
+                        class="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-gray-100 text-gray-400 transition-all">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <div class="px-6 py-5 max-h-[60vh] overflow-y-auto space-y-5">
+                <template x-if="currentReviewOrder">
+                    <div class="space-y-4">
+                        <template x-for="(item, idx) in currentReviewOrder.items" :key="idx">
+                            <div class="bg-gray-50 rounded-2xl border border-gray-100 p-4 space-y-3">
+                                <p class="text-sm font-black text-gray-900" x-text="item.name"></p>
+
+                                <!-- Star Rating -->
+                                <div>
+                                    <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Rating</p>
+                                    <div class="flex gap-1">
+                                        <template x-for="star in [1,2,3,4,5]" :key="star">
+                                            <button @click="setRating(idx, star)"
+                                                    class="w-8 h-8 rounded-lg flex items-center justify-center transition-all"
+                                                    :class="(reviewRatings[idx] || 0) >= star ? 'bg-amber-400 text-white' : 'bg-gray-200 text-gray-400 hover:bg-amber-100'">
+                                                <i class="fas fa-star text-xs"></i>
+                                            </button>
+                                        </template>
+                                    </div>
+                                </div>
+
+                                <!-- Comment -->
+                                <div>
+                                    <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Comment <span class="font-medium normal-case">(optional)</span></p>
+                                    <textarea x-model="reviewComments[idx]"
+                                              rows="2"
+                                              placeholder="Share your thoughts..."
+                                              class="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-300 resize-none"></textarea>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </template>
+            </div>
+
+            <div class="px-6 py-4 border-t border-gray-100 flex items-center justify-between gap-3">
+                <button @click="showReviewModal = false"
+                        class="px-4 py-2.5 text-xs font-black text-gray-400 hover:text-gray-600 transition-colors">
+                    Skip
+                </button>
+                <button @click="submitReviews()"
+                        :disabled="!canSubmitReview || reviewSubmitting"
+                        class="px-6 py-2.5 font-black text-xs rounded-xl transition-all shadow-md"
+                        :class="canSubmitReview && !reviewSubmitting ? 'bg-amber-400 hover:bg-amber-500 text-amber-900' : 'bg-gray-200 text-gray-400 cursor-not-allowed'">
+                    <i class="fas fa-paper-plane mr-1.5"></i>
+                    <span x-text="reviewSubmitting ? 'Submitting...' : 'Submit Reviews'"></span>
+                </button>
+            </div>
         </div>
     </div>
 

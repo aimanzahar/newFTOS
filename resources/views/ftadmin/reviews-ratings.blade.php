@@ -2,7 +2,11 @@
 
 @php
     $user = Auth::user();
-    $role = $user->role;
+    $reviews = \App\Models\Review::with('customer:id,full_name')
+        ->where('foodtruck_id', $user->foodtruck_id)
+        ->orderByDesc('created_at')
+        ->get();
+    $avgRating = $reviews->count() > 0 ? round($reviews->avg('rating'), 1) : null;
 @endphp
 
 <div class="flex flex-col h-full">
@@ -27,8 +31,11 @@
                     <span class="text-xs font-black uppercase tracking-widest text-gray-500">All Reviews</span>
                     <div class="flex items-center space-x-2 text-sm text-gray-500">
                         <i class="fas fa-star text-amber-400"></i>
-                        <span class="font-semibold text-gray-700">—</span>
+                        <span class="font-semibold text-gray-700">{{ $avgRating ?? '—' }}</span>
                         <span class="text-xs">Average Rating</span>
+                        @if($reviews->count() > 0)
+                            <span class="text-xs text-gray-400">({{ $reviews->count() }} review{{ $reviews->count() > 1 ? 's' : '' }})</span>
+                        @endif
                     </div>
                 </div>
 
@@ -44,19 +51,36 @@
                                 <th class="text-left px-6 py-3 text-[11px] font-black uppercase tracking-widest text-gray-400">Date</th>
                             </tr>
                         </thead>
-                        <tbody>
-                            <!-- Empty State -->
-                            <tr>
-                                <td colspan="5" class="px-6 py-16 text-center">
-                                    <div class="flex flex-col items-center justify-center">
-                                        <div class="w-14 h-14 rounded-2xl bg-amber-50 flex items-center justify-center mb-4">
-                                            <i class="fas fa-star text-2xl text-amber-300"></i>
+                        <tbody class="divide-y divide-gray-100">
+                            @forelse ($reviews as $review)
+                                <tr class="hover:bg-gray-50/70 transition-colors">
+                                    <td class="px-6 py-3 text-gray-800 font-bold">{{ $review->customer?->full_name ?? 'Customer' }}</td>
+                                    <td class="px-6 py-3 text-gray-700">{{ $review->menu_item_name }}</td>
+                                    <td class="px-6 py-3">
+                                        <div class="flex gap-0.5">
+                                            @for ($s = 1; $s <= 5; $s++)
+                                                <i class="fas fa-star text-xs {{ $s <= $review->rating ? 'text-amber-400' : 'text-gray-200' }}"></i>
+                                            @endfor
                                         </div>
-                                        <p class="text-sm font-bold text-gray-500">No Reviews Yet</p>
-                                        <p class="text-xs text-gray-400 mt-1">Customer reviews will appear here once orders are completed.</p>
-                                    </div>
-                                </td>
-                            </tr>
+                                    </td>
+                                    <td class="px-6 py-3 text-gray-600 max-w-xs">
+                                        <p class="truncate">{{ $review->comment ?? '—' }}</p>
+                                    </td>
+                                    <td class="px-6 py-3 text-gray-500 whitespace-nowrap">{{ $review->created_at->format('d M Y, h:i A') }}</td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="5" class="px-6 py-16 text-center">
+                                        <div class="flex flex-col items-center justify-center">
+                                            <div class="w-14 h-14 rounded-2xl bg-amber-50 flex items-center justify-center mb-4">
+                                                <i class="fas fa-star text-2xl text-amber-300"></i>
+                                            </div>
+                                            <p class="text-sm font-bold text-gray-500">No Reviews Yet</p>
+                                            <p class="text-xs text-gray-400 mt-1">Customer reviews will appear here once orders are completed.</p>
+                                        </div>
+                                    </td>
+                                </tr>
+                            @endforelse
                         </tbody>
                     </table>
                 </div>
