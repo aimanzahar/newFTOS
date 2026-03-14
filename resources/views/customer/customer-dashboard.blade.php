@@ -62,11 +62,20 @@
                 return $name . ($price > 0 ? ' (+RM ' . number_format($price, 2) . ')' : '');
             })->implode(', ');
 
+            $bp = (float) ($item['base_price'] ?? $item['price'] ?? 0);
+            $qty = (int) ($item['quantity'] ?? 1);
+
+            $storedTotal = (float) ($item['item_total'] ?? 0);
+            if ($storedTotal <= 0 && $qty > 0) {
+                $choicesSum = collect($item['selected_choices'] ?? [])->sum(fn($c) => (float) ($c['price'] ?? 0));
+                $storedTotal = ($bp + $choicesSum) * $qty;
+            }
+
             $menuRows[] = [
                 'menu_name'       => $item['name'] ?? 'Menu Item',
-                'base_price'      => (float) ($item['base_price'] ?? 0),
-                'quantity'        => (int) ($item['quantity'] ?? 1),
-                'item_total'      => (float) ($item['item_total'] ?? 0),
+                'base_price'      => $bp,
+                'quantity'        => $qty,
+                'item_total'      => $storedTotal,
                 'selected_choices'=> $choiceText !== '' ? $choiceText : '-',
                 'status_label'    => str($status)->replace('_', ' ')->title(),
                 'status_class'    => $statusClass,
@@ -132,6 +141,21 @@
 
     $totalReviewsGiven = \App\Models\Review::where('customer_id', $user->id)->count();
 
+    $customerReviews = \App\Models\Review::with('foodTruck:id,foodtruck_name')
+        ->where('customer_id', $user->id)
+        ->latest()
+        ->get()
+        ->map(fn ($r) => [
+            'id' => $r->id,
+            'truck_name' => $r->foodTruck?->foodtruck_name ?? 'Food Truck',
+            'menu_item_name' => $r->menu_item_name,
+            'rating' => $r->rating,
+            'comment' => $r->comment,
+            'created_at' => $r->created_at?->format('d M Y, h:i A'),
+        ])
+        ->values()
+        ->all();
+
     $rejectedOrders = $orders->where('status', 'rejected')->values();
 
     $rejectedOrderNotices = [];
@@ -162,6 +186,7 @@ function customerDashboardPage() {
     return {
         showWelcomeModal: @json($showWelcomeModal),
         showActiveOrdersModal: false,
+        showMyReviewsModal: false,
         showOrderReceiptModal: false,
         selectedReceipt: null,
         purchasedOrderGroups: @json($purchasedOrderGroups),
@@ -477,15 +502,17 @@ function customerDashboardPage() {
                 </div>
             </div>
 
-            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 flex items-center space-x-4">
+            <button @click="showMyReviewsModal = true"
+                    class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 flex items-center space-x-4 text-left hover:border-emerald-300 hover:shadow-md transition-all w-full cursor-pointer">
                 <div class="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center">
                     <i class="fas fa-star text-emerald-500 text-lg"></i>
                 </div>
                 <div>
                     <p class="text-xs text-gray-500 uppercase font-semibold tracking-wider">Reviews Given</p>
                     <p class="text-2xl font-bold text-gray-800">{{ $totalReviewsGiven }}</p>
+                    <p class="text-[10px] text-emerald-500 font-semibold mt-0.5">Click to view your reviews</p>
                 </div>
-            </div>
+            </button>
         </div>
 
         @if (count($rejectedOrderNotices) > 0)
@@ -630,6 +657,80 @@ function customerDashboardPage() {
             @endif
         </div>
 
+    </div>
+
+    <!-- ═══════════════════════════════════════
+         My Reviews Modal
+    ═══════════════════════════════════════ -->
+    <div x-show="showMyReviewsModal"
+         style="display:none"
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-150"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         class="fixed inset-0 z-[90] flex items-end sm:items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+
+        <div @click.away="showMyReviewsModal = false"
+             x-transition:enter="transition ease-out duration-200"
+             x-transition:enter-start="opacity-0 scale-95 translate-y-4"
+             x-transition:enter-end="opacity-100 scale-100 translate-y-0"
+             class="bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden">
+
+            <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+                <div class="pr-4">
+                    <h3 class="font-black text-gray-900 text-base">My Reviews</h3>
+                    <p class="text-xs text-gray-400 mt-0.5">All reviews you have submitted.</p>
+                </div>
+                <button @click="showMyReviewsModal = false"
+                        class="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-gray-100 text-gray-400 transition-all">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <div class="px-6 py-5 max-h-[70vh] overflow-y-auto">
+                @if (count($customerReviews) === 0)
+                    <div class="py-10 text-center text-gray-400">
+                        <i class="fas fa-star text-4xl mb-3 opacity-20"></i>
+                        <p class="text-sm font-bold">No reviews yet</p>
+                        <p class="text-xs mt-1">Complete an order and leave a review!</p>
+                    </div>
+                @else
+                    <div class="space-y-3">
+                        @foreach ($customerReviews as $review)
+                            <div class="bg-gray-50 rounded-2xl border border-gray-100 p-4 space-y-2">
+                                <div class="flex items-start justify-between gap-3">
+                                    <div class="min-w-0">
+                                        <p class="text-sm font-black text-gray-900">{{ $review['menu_item_name'] }}</p>
+                                        <p class="text-[11px] text-gray-500 mt-0.5 flex items-center gap-1.5">
+                                            <i class="fas fa-truck text-[9px]"></i>{{ $review['truck_name'] }}
+                                        </p>
+                                    </div>
+                                    <div class="flex gap-0.5 flex-shrink-0">
+                                        @for ($s = 1; $s <= 5; $s++)
+                                            <i class="fas fa-star text-xs {{ $s <= $review['rating'] ? 'text-amber-400' : 'text-gray-200' }}"></i>
+                                        @endfor
+                                    </div>
+                                </div>
+                                @if ($review['comment'])
+                                    <p class="text-xs text-gray-600 leading-relaxed">{{ $review['comment'] }}</p>
+                                @endif
+                                <p class="text-[10px] text-gray-300">{{ $review['created_at'] }}</p>
+                            </div>
+                        @endforeach
+                    </div>
+                @endif
+            </div>
+
+            <div class="flex justify-end px-6 py-4 border-t border-gray-100">
+                <button @click="showMyReviewsModal = false"
+                        class="px-5 py-2.5 bg-slate-900 hover:bg-amber-500 text-white font-black text-xs rounded-xl transition-all">
+                    Close
+                </button>
+            </div>
+
+        </div>
     </div>
 
     <div x-show="showActiveOrdersModal"

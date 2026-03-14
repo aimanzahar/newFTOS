@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\FoodTruck;
 use App\Models\Menu;
 use App\Models\Order;
+use App\Models\SystemSetting;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -15,13 +16,15 @@ class CustomerController extends Controller
      */
     public function browse()
     {
+        $systemOperational = SystemSetting::where('key', 'is_operational')->value('value');
+
         $trucks = FoodTruck::where('status', 'approved')
             ->where('is_operational', true)
             ->withCount(['menus' => fn($q) => $q->where('status', 'available')])
             ->orderBy('foodtruck_name')
             ->get();
 
-        return view('customer.browse-trucks', compact('trucks'));
+        return view('customer.browse-trucks', compact('trucks', 'systemOperational'));
     }
 
     /**

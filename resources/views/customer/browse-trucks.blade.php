@@ -7,6 +7,27 @@
 
 @php $user = Auth::user(); @endphp
 
+@if(!$systemOperational)
+<div class="fixed inset-0 bg-gray-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+  <div class="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden">
+    <div class="h-1.5 w-full bg-red-500"></div>
+    <div class="p-8 text-center">
+      <div class="w-16 h-16 bg-red-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+        <i class="fas fa-server text-2xl text-red-500"></i>
+      </div>
+      <h2 class="text-xl font-black text-gray-900 mb-2">System Temporarily Offline</h2>
+      <p class="text-sm text-gray-500 leading-relaxed">
+        The system is temporarily offline. Please check back later.
+      </p>
+      <a href="javascript:history.back()" class="inline-flex items-center gap-2 mt-5 px-5 py-2.5 bg-gray-900 text-white text-sm font-bold rounded-xl hover:bg-gray-800 transition-colors">
+        <i class="fas fa-arrow-left text-xs"></i>
+        Go Back
+      </a>
+    </div>
+  </div>
+</div>
+@else
+
 <div class="p-6">
     <div class="max-w-6xl mx-auto space-y-6">
 
@@ -84,5 +105,7 @@
 
     </div>
 </div>
+
+@endif
 
 @endsection
