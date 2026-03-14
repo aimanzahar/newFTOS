@@ -458,7 +458,39 @@ function customerDashboardPage() {
                     <p class="text-sm">No purchased orders yet.</p>
                 </div>
             @else
-                <div class="overflow-x-auto">
+                {{-- Mobile: Card layout --}}
+                <div class="md:hidden divide-y divide-gray-100">
+                    @foreach ($purchasedOrderGroups as $group)
+                        <div class="p-4 space-y-2">
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm font-black text-gray-900">#{{ str_pad((string) $group['order_id'], 4, '0', STR_PAD_LEFT) }}</span>
+                                <span class="text-[10px] font-black uppercase tracking-wide px-2.5 py-1 rounded-full whitespace-nowrap {{ $group['status_class'] }}">
+                                    {{ $group['status_label'] }}
+                                </span>
+                            </div>
+                            <p class="text-xs text-gray-600"><i class="fas fa-truck mr-1"></i>{{ $group['truck_name'] }}</p>
+                            <div class="flex items-center justify-between text-xs">
+                                <span class="text-gray-500">Total</span>
+                                <span class="font-bold text-gray-900">RM {{ number_format($group['total'], 2) }}</span>
+                            </div>
+                            <div class="flex items-center justify-between text-xs">
+                                <span class="text-gray-500">Payment</span>
+                                <span class="text-gray-700">{{ $group['payment_method'] === 'cash' ? 'Cash' : ($group['payment_method'] ?? '-') }}</span>
+                            </div>
+                            <div class="flex items-center justify-between text-xs">
+                                <span class="text-gray-500">Date</span>
+                                <span class="text-gray-700">{{ $group['created_at'] ? \Carbon\Carbon::parse($group['created_at'])->format('d M Y, h:i A') : '-' }}</span>
+                            </div>
+                            <button @click="viewOrderReceipt(@json($group))"
+                                    class="w-full mt-1 px-3 py-2 bg-amber-100 hover:bg-amber-200 text-amber-700 font-black text-[10px] rounded-lg transition-all text-center">
+                                <i class="fas fa-receipt mr-1"></i>Show Receipt
+                            </button>
+                        </div>
+                    @endforeach
+                </div>
+
+                {{-- Desktop: Table layout --}}
+                <div class="hidden md:block overflow-x-auto">
                     <table class="w-full text-xs">
                         <thead class="bg-gray-50 text-gray-500 uppercase tracking-wide border-b border-gray-100">
                             <tr>

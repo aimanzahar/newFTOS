@@ -261,6 +261,8 @@
         this.selectedPayment = null;
         this.orderError      = null;
         this.showPaymentModal = true;
+        // Close mobile cart drawer when payment modal opens
+        window.dispatchEvent(new CustomEvent('close-mobile-cart'));
       },
 
       selectPayment(type) {
@@ -271,12 +273,10 @@
       selectBank(bank) {
         this.selectedPayment  = bank;
         this.placeOrder();
-        this.showPaymentModal = false;
       },
 
       confirmCash() {
         this.selectedPayment  = 'cash';
-        this.showPaymentModal = false;
         this.placeOrder();
       },
 
@@ -329,6 +329,7 @@
           });
           const data = await res.json();
           if (data.success) {
+            this.showPaymentModal = false;
             this.lastOrder   = data.order || null;
             this.lastOrderId = data.order ? data.order.id : null;
             this.showReceiptModal = false;
@@ -455,9 +456,10 @@
              Visible on ALL customer pages when cart has items
         ═══════════════════════════════════════════ -->
         <div x-data="cartSidebar()"
+             @open-payment-modal.window="openPaymentModal()"
              x-show="{{ request()->routeIs('profile.edit') ? 'false' : (request()->routeIs('customer.dashboard', 'customer.browse', 'customer.truck-menu') ? 'true' : '$store.cart.items.length > 0') }}"
              style="display:none"
-             class="hidden md:flex w-80 flex-shrink-0 border-l border-gray-200 bg-white flex-col h-full overflow-hidden">
+             class="max-md:absolute max-md:-left-[9999px] max-md:w-0 max-md:overflow-hidden md:flex w-80 flex-shrink-0 border-l border-gray-200 bg-white flex-col h-full overflow-hidden">
 
           <!-- Cart Header -->
           <div class="px-5 py-4 border-b border-gray-100 flex-shrink-0">
@@ -662,6 +664,7 @@
                Payment Method Modal
           ════════════════════════════════════════ -->
           <div x-show="showPaymentModal"
+               x-effect="document.body.classList.toggle('overflow-hidden', showPaymentModal)"
                style="display:none"
                x-transition:enter="transition ease-out duration-200"
                x-transition:enter-start="opacity-0"
@@ -994,6 +997,8 @@
         <!-- Mobile Cart Drawer -->
         <div x-data="{ mobileCartOpen: false }"
              @toggle-mobile-cart.window="mobileCartOpen = !mobileCartOpen"
+             @close-mobile-cart.window="mobileCartOpen = false"
+             x-effect="document.body.classList.toggle('overflow-hidden', mobileCartOpen)"
              class="md:hidden">
           <!-- Backdrop -->
           <div x-show="mobileCartOpen" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
@@ -1018,11 +1023,18 @@
                 </div>
               </template>
             </div>
-            <div class="border-t border-gray-100 px-4 py-3 flex items-center justify-between">
-              <span class="text-sm font-black text-gray-900" x-text="'RM ' + $store.cart.checkedTotal.toFixed(2)"></span>
-              <button @click="mobileCartOpen = false"
-                      class="px-4 py-2 bg-slate-900 text-white font-black text-xs rounded-xl">
-                View Full Cart
+            <div class="border-t border-gray-100 px-4 py-3 space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="text-sm font-black text-gray-900" x-text="'RM ' + $store.cart.checkedTotal.toFixed(2)"></span>
+                <button @click="mobileCartOpen = false"
+                        class="px-4 py-2 bg-slate-900 text-white font-black text-xs rounded-xl">
+                  View Full Cart
+                </button>
+              </div>
+              <button x-show="$store.cart.items.length > 0"
+                      @click="$store.cart.items.forEach(i => i.checked = true); $dispatch('open-payment-modal')"
+                      class="w-full py-2.5 bg-amber-400 hover:bg-amber-300 text-amber-900 font-black text-xs rounded-xl transition-colors">
+                <i class="fas fa-credit-card mr-1"></i>Checkout
               </button>
             </div>
           </div>
