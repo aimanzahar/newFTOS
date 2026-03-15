@@ -9,6 +9,12 @@
     RewriteCond %{HTTP:Authorization} .
     RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
 
+    # Serve static files from the public/ subdirectory if they exist
+    # (but not index.php or other PHP files — those go to the front controller)
+    RewriteCond %{DOCUMENT_ROOT}/newFTOS/public/$1 -f
+    RewriteCond $1 !\.(php)$ [NC]
+    RewriteRule ^(.+)$ public/$1 [L]
+
     # Redirect Trailing Slashes If Not A Folder...
     RewriteCond %{REQUEST_FILENAME} !-d
     RewriteCond %{REQUEST_URI} (.+)/$
