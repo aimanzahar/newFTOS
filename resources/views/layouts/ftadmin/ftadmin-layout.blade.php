@@ -2,7 +2,7 @@
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}" class="h-full overflow-hidden">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="csrf-token" content="{{ csrf_token() }}">
   <title>{{ config('app.name', 'FTOS Owner') }}</title>
 
@@ -23,6 +23,17 @@
     .sidebar-hidden { transform: translateX(-100%); }
     @media (min-width: 768px) {
       .sidebar-hidden { transform: translateX(0); }
+    }
+
+    /* Fix mobile sidebar: use dvh so logout isn't hidden behind browser chrome */
+    @media (max-width: 767px) {
+      #sidebar {
+        height: 100vh;
+        height: 100dvh;
+        top: 0;
+        bottom: auto;
+        padding-bottom: env(safe-area-inset-bottom, 0px);
+      }
     }
 
     /* Animations */
